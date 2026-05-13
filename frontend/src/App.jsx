@@ -7,6 +7,7 @@ import Login from './pages/Login/Login';
 import Library from './pages/Library/Library';
 import YouTube from './pages/YouTube/YouTube';
 import Admin from './pages/Admin/Admin';
+import Stats from './pages/Stats/Stats';
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuthStore();
@@ -51,6 +52,7 @@ export default function App() {
                 <Route path="/liked" element={<Library view="liked" />} />
                 <Route path="/playlist/:playlistId" element={<Library view="playlist" />} />
                 <Route path="/youtube" element={<YouTube />} />
+                <Route path="/stats" element={<Stats />} />
                 <Route path="/admin" element={
                   <ProtectedRoute adminOnly>
                     <Admin />

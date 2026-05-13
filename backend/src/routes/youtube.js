@@ -27,8 +27,8 @@ router.post('/download', (req, res) => {
 
   const jobId = uuidv4();
   const db = getDb();
-  db.prepare('INSERT INTO downloads (id, video_id, title, status) VALUES (?, ?, ?, ?)').run(
-    jobId, videoId, title || 'Unknown', 'pending'
+  db.prepare('INSERT INTO downloads (id, video_id, title, status, user_id) VALUES (?, ?, ?, ?, ?)').run(
+    jobId, videoId, title || 'Unknown', 'pending', req.user.id
   );
 
   downloadAudio(videoId, MUSIC_DIR, (progress) => {

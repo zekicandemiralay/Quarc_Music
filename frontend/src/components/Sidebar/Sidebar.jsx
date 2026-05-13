@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Music2, Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X } from 'lucide-react';
+import { Music2, Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
 
@@ -166,6 +166,10 @@ export default function Sidebar({ onNavigate }) {
           <NavLink to="/youtube" className={linkClass} onClick={onNavigate}>
             <Youtube size={18} className="text-red-500" />
             YouTube
+          </NavLink>
+          <NavLink to="/stats" className={linkClass} onClick={onNavigate}>
+            <BarChart2 size={18} className="text-blue-400" />
+            Stats
           </NavLink>
           {user?.role === 'admin' && (
             <NavLink to="/admin" className={linkClass} onClick={onNavigate}>

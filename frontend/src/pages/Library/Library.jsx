@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X } from 'lucide-react';
+import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
 
@@ -77,7 +77,7 @@ export default function Library({ view = 'all' }) {
   const [search, setSearch] = useState('');
   const [hovered, setHovered] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null); // song ID with open playlist menu
-  const { playSong, currentSong, isPlaying } = usePlayerStore();
+  const { playSong, currentSong, isPlaying, shufflePlay } = usePlayerStore();
   const { likedSongs, playlists, toggleLike, removeFromPlaylist } = useUserDataStore();
   const navigate = useNavigate();
 
@@ -131,16 +131,27 @@ export default function Library({ view = 'all' }) {
             <p className="text-zinc-400 text-sm mt-1">{subheading}</p>
           </div>
         </div>
-        {view === 'all' && (
-          <button
-            onClick={scan}
-            disabled={scanning}
-            className="flex items-center gap-2 px-3 md:px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors disabled:opacity-50 shrink-0"
-          >
-            <RefreshCw size={15} className={scanning ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">{scanning ? 'Scanning…' : 'Scan Library'}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {filtered.length > 0 && (
+            <button
+              onClick={() => shufflePlay(filtered)}
+              className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors"
+            >
+              <Shuffle size={15} />
+              <span className="hidden sm:inline">Shuffle</span>
+            </button>
+          )}
+          {view === 'all' && (
+            <button
+              onClick={scan}
+              disabled={scanning}
+              className="flex items-center gap-2 px-3 md:px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={15} className={scanning ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">{scanning ? 'Scanning…' : 'Scan Library'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="relative mb-5 md:mb-6">

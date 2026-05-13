@@ -1,5 +1,5 @@
 import usePlayerStore from '../../store/playerStore';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Music } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Music, Shuffle } from 'lucide-react';
 
 function fmt(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -37,11 +37,18 @@ function CoverThumb({ song }) {
 }
 
 export default function Player() {
-  const { currentSong, isPlaying, currentTime, duration, volume, pause, resume, next, prev, seek, setVolume } =
+  const { currentSong, isPlaying, currentTime, duration, volume, shuffle, pause, resume, next, prev, seek, setVolume, toggleShuffle } =
     usePlayerStore();
 
   const controls = (
     <>
+      <button
+        onClick={toggleShuffle}
+        className={`transition-colors ${shuffle ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
+        title={shuffle ? 'Shuffle on' : 'Shuffle off'}
+      >
+        <Shuffle size={16} />
+      </button>
       <button onClick={prev} disabled={!currentSong} className="text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
         <SkipBack size={20} />
       </button>

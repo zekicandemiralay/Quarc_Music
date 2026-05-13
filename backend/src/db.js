@@ -75,6 +75,24 @@ function initDb() {
     );
   `);
 
+  // Add user_id to downloads if missing (migration)
+  const dlCols = database.pragma('table_info(downloads)').map((c) => c.name);
+  if (!dlCols.includes('user_id')) {
+    database.exec('ALTER TABLE downloads ADD COLUMN user_id TEXT');
+  }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS listening_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      song_id TEXT NOT NULL,
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
+      played_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_lh_user_date ON listening_history(user_id, played_at);
+  `);
+
   ensureAdmin(database);
 }
 
