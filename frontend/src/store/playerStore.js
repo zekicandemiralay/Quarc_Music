@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getAudioBlob } from '../lib/offlineLib';
 
 const audio = new Audio();
 audio.preload = 'metadata';
@@ -41,7 +42,7 @@ const usePlayerStore = create((set, get) => ({
   queueIndex: -1,
   shuffle: false,
 
-  playSong: (song, queue = null, queueIndex = 0) => {
+  playSong: async (song, queue = null, queueIndex = 0) => {
     const state = get();
     if (state.currentSong?.id === song.id) {
       state.isPlaying ? audio.pause() : audio.play();
@@ -51,10 +52,22 @@ const usePlayerStore = create((set, get) => ({
     if (playTrack.songId) flushPlay(playTrack.songId);
     playTrack = { songId: song.id, accumulated: 0, resumeAt: null };
 
-    audio.src = `/api/music/${song.id}/stream`;
-    audio.play();
-    applyMediaSessionMeta(song);
+    // Update state immediately so UI responds before the async cache check
     set({ currentSong: song, isPlaying: true, currentTime: 0, queue: queue || [song], queueIndex });
+    applyMediaSessionMeta(song);
+
+    // Use cached blob if available, otherwise stream from server
+    let src = `/api/music/${song.id}/stream`;
+    try {
+      const blob = await getAudioBlob(song.id);
+      if (blob) src = URL.createObjectURL(blob);
+    } catch {}
+
+    // Guard: only assign src if the user hasn't switched to another song during the cache lookup
+    if (usePlayerStore.getState().currentSong?.id === song.id) {
+      audio.src = src;
+      audio.play().catch(() => {});
+    }
   },
 
   pause: () => { audio.pause(); set({ isPlaying: false }); },
@@ -113,6 +126,7 @@ audio.addEventListener('timeupdate', () => {
 });
 
 audio.addEventListener('durationchange', () => usePlayerStore.setState({ duration: audio.duration || 0 }));
+audio.addEventListener('error', () => usePlayerStore.setState({ isPlaying: false }));
 
 audio.addEventListener('play', () => {
   playTrack.resumeAt = Date.now();

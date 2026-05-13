@@ -8,6 +8,7 @@ import Library from './pages/Library/Library';
 import YouTube from './pages/YouTube/YouTube';
 import Admin from './pages/Admin/Admin';
 import Stats from './pages/Stats/Stats';
+import useOfflineStore from './store/useOfflineStore';
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuthStore();
@@ -21,9 +22,11 @@ export default function App() {
   const { user, loading, checkSession } = useAuthStore();
   const loadUserData = useUserDataStore((s) => s.load);
   const resetUserData = useUserDataStore((s) => s.reset);
+  const initOffline = useOfflineStore((s) => s.init);
 
   useEffect(() => {
     checkSession();
+    initOffline();
   }, []);
 
   useEffect(() => {

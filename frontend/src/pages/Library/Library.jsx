@@ -1,8 +1,58 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle } from 'lucide-react';
+import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
+import useOfflineStore from '../../store/useOfflineStore';
+
+function OfflineButton({ songs }) {
+  const { cachedIds, downloading, cacheSongs, removeSongs } = useOfflineStore();
+  if (!songs.length) return null;
+
+  const ids = songs.map((s) => s.id);
+  const cachedCount = ids.filter((id) => cachedIds.has(id)).length;
+  const activeDownloads = ids.filter((id) => typeof downloading[id] === 'number');
+  const isDownloading = activeDownloads.length > 0;
+  const allCached = cachedCount === songs.length;
+
+  if (isDownloading) {
+    const overallProgress = Math.round(
+      activeDownloads.reduce((sum, id) => sum + downloading[id], 0) / activeDownloads.length
+    );
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-700/50 rounded-full text-sm text-zinc-400 shrink-0">
+        <Download size={15} className="animate-pulse" />
+        <span className="hidden sm:inline">{cachedCount + activeDownloads.length}/{songs.length} · {overallProgress}%</span>
+      </div>
+    );
+  }
+
+  if (allCached) {
+    return (
+      <button
+        onClick={() => removeSongs(ids)}
+        className="flex items-center gap-2 px-3 py-2 bg-green-900/30 hover:bg-red-900/30 text-green-400 hover:text-red-400 border border-green-800/40 hover:border-red-800/40 rounded-full text-sm font-medium transition-colors shrink-0"
+        title="Available offline — click to remove"
+      >
+        <WifiOff size={15} />
+        <span className="hidden sm:inline">Offline</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => cacheSongs(songs)}
+      className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors shrink-0"
+      title="Save for offline listening"
+    >
+      <Download size={15} />
+      <span className="hidden sm:inline">
+        {cachedCount > 0 ? `Save offline (${songs.length - cachedCount} left)` : 'Save offline'}
+      </span>
+    </button>
+  );
+}
 
 function fmt(s) {
   if (!s) return '--:--';
@@ -78,6 +128,7 @@ export default function Library({ view = 'all' }) {
   const [hovered, setHovered] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null); // song ID with open playlist menu
   const { playSong, currentSong, isPlaying, shufflePlay } = usePlayerStore();
+  const { cachedIds, downloading } = useOfflineStore();
   const { likedSongs, playlists, toggleLike, removeFromPlaylist } = useUserDataStore();
   const navigate = useNavigate();
 
@@ -133,13 +184,16 @@ export default function Library({ view = 'all' }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {filtered.length > 0 && (
-            <button
-              onClick={() => shufflePlay(filtered)}
-              className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors"
-            >
-              <Shuffle size={15} />
-              <span className="hidden sm:inline">Shuffle</span>
-            </button>
+            <>
+              <button
+                onClick={() => shufflePlay(filtered)}
+                className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors"
+              >
+                <Shuffle size={15} />
+                <span className="hidden sm:inline">Shuffle</span>
+              </button>
+              <OfflineButton songs={filtered} />
+            </>
           )}
           {view === 'all' && (
             <button
@@ -220,10 +274,20 @@ export default function Library({ view = 'all' }) {
 
                 {/* Title + cover (artist shown below on mobile) */}
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 bg-zinc-800 rounded shrink-0 overflow-hidden">
+                  <div className="relative w-10 h-10 bg-zinc-800 rounded shrink-0 overflow-hidden">
                     {song.has_cover
                       ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
                       : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={14} /></div>}
+                    {/* Offline cached indicator */}
+                    {cachedIds.has(song.id) && (
+                      <div className="absolute bottom-0.5 right-0.5 w-2 h-2 bg-green-400 rounded-full" title="Available offline" />
+                    )}
+                    {/* Download progress overlay */}
+                    {typeof downloading[song.id] === 'number' && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <span className="text-white text-[9px] font-bold">{downloading[song.id]}%</span>
+                      </div>
+                    )}
                   </div>
                   <div className="min-w-0">
                     <p className={`text-sm truncate ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
