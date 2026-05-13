@@ -1,8 +1,75 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Music2, Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check } from 'lucide-react';
+import { Music2, Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
+
+function ChangePasswordModal({ onClose }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (next.length < 8) { setError('New password must be at least 8 characters'); return; }
+    if (next !== confirm) { setError('Passwords do not match'); return; }
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: current, newPassword: next }),
+    });
+    if (res.ok) { setDone(true); }
+    else { setError((await res.json()).error || 'Failed'); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-white font-semibold">Change Password</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={18} /></button>
+        </div>
+        {done ? (
+          <p className="text-green-400 text-sm">Password changed successfully.</p>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <input
+              type="password"
+              placeholder="Current password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+              className="w-full bg-zinc-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder-zinc-500"
+            />
+            <input
+              type="password"
+              placeholder="New password (min 8 chars)"
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+              className="w-full bg-zinc-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder-zinc-500"
+            />
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className="w-full bg-zinc-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder-zinc-500"
+            />
+            {error && <p className="text-red-400 text-xs">{error}</p>}
+            <button
+              type="submit"
+              className="w-full bg-white text-black rounded-lg py-2.5 text-sm font-medium hover:bg-zinc-200 transition-colors"
+            >
+              Change Password
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function PlaylistItem({ playlist }) {
   const [renaming, setRenaming] = useState(false);
@@ -52,6 +119,7 @@ export default function Sidebar({ onNavigate }) {
   const { playlists, likedSongs, createPlaylist } = useUserDataStore();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
   const navigate = useNavigate();
 
   const nav = (to) => { navigate(to); onNavigate?.(); };
@@ -152,10 +220,15 @@ export default function Sidebar({ onNavigate }) {
           <span className="text-xs text-white font-medium">{user?.username?.[0]?.toUpperCase()}</span>
         </div>
         <span className="text-white text-sm font-medium flex-1 truncate">{user?.username}</span>
+        <button onClick={() => setChangingPassword(true)} className="text-zinc-500 hover:text-white transition-colors" title="Change password">
+          <KeyRound size={15} />
+        </button>
         <button onClick={handleLogout} className="text-zinc-500 hover:text-white transition-colors" title="Sign out">
           <LogOut size={15} />
         </button>
       </div>
+
+      {changingPassword && <ChangePasswordModal onClose={() => setChangingPassword(false)} />}
     </div>
   );
 }
