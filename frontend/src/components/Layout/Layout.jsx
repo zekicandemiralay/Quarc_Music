@@ -7,10 +7,7 @@ export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    // 100dvh = actual visible viewport on iOS Safari (excludes address bar).
-    // h-screen (100vh) includes the area behind the browser chrome and causes
-    // the page body to scroll, making the player and top bar slide off screen.
-    <div className="flex overflow-hidden bg-black" style={{ height: '100dvh' }}>
+    <div className="flex overflow-hidden bg-black h-full">
 
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
