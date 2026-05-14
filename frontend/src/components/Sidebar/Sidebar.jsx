@@ -196,56 +196,8 @@ export default function Sidebar({ onNavigate }) {
         </nav>
       </div>
 
-      {/* Featured Collections */}
-      {featured.length > 0 && (
-        <div className="bg-zinc-900 rounded-lg p-3">
-          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1">Collections</span>
-          <div className="space-y-0.5 mt-2">
-            {featured.map((pl) => (
-              <NavLink
-                key={pl.id}
-                to={`/featured/${pl.id}`}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
-                    isActive ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-white'
-                  }`
-                }
-                onClick={onNavigate}
-              >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: pl.color }} />
-                <span className="truncate">{pl.name}</span>
-              </NavLink>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Mixes */}
-      {mixes.length > 0 && (
-        <div className="bg-zinc-900 rounded-lg p-3">
-          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1">Mixes</span>
-          <div className="space-y-0.5 mt-2">
-            {mixes.map((mix) => (
-              <NavLink
-                key={mix.id}
-                to={`/mix/${mix.id}`}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
-                    isActive ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-white'
-                  }`
-                }
-                onClick={onNavigate}
-              >
-                {MIX_ICONS[mix.type]}
-                <span className="truncate">{mix.name}</span>
-              </NavLink>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Playlists */}
-      <div className="bg-zinc-900 rounded-lg p-3 flex-1 min-h-0">
+      <div className="bg-zinc-900 rounded-lg p-3">
         <div className="flex items-center justify-between mb-2 px-1">
           <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Playlists</span>
           <button
@@ -281,6 +233,54 @@ export default function Sidebar({ onNavigate }) {
           {playlists.map((p) => <PlaylistItem key={p.id} playlist={p} onNavigate={onNavigate} />)}
         </div>
       </div>
+
+      {/* Mixes */}
+      {mixes.length > 0 && (
+        <div className="bg-zinc-900 rounded-lg p-3">
+          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1">Mixes</span>
+          <div className="space-y-0.5 mt-2">
+            {mixes.map((mix) => (
+              <NavLink
+                key={mix.id}
+                to={`/mix/${mix.id}`}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
+                    isActive ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-white'
+                  }`
+                }
+                onClick={onNavigate}
+              >
+                {MIX_ICONS[mix.type]}
+                <span className="truncate">{mix.name}</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Featured Collections */}
+      {featured.length > 0 && (
+        <div className="bg-zinc-900 rounded-lg p-3">
+          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1">Collections</span>
+          <div className="space-y-0.5 mt-2">
+            {featured.map((pl) => (
+              <NavLink
+                key={pl.id}
+                to={`/featured/${pl.id}`}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
+                    isActive ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-white'
+                  }`
+                }
+                onClick={onNavigate}
+              >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: pl.color }} />
+                <span className="truncate">{pl.name}</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* User footer */}
       <div className="bg-zinc-900 rounded-lg px-3 py-2.5 flex items-center gap-2">
