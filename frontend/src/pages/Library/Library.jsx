@@ -7,6 +7,7 @@ import useOfflineStore from '../../store/useOfflineStore';
 
 function OfflineButton({ songs }) {
   const { cachedIds, downloading, cacheSongs, removeSongs } = useOfflineStore();
+  const [confirmRemove, setConfirmRemove] = useState(false);
   if (!songs.length) return null;
 
   const ids = songs.map((s) => s.id);
@@ -29,14 +30,34 @@ function OfflineButton({ songs }) {
 
   if (allCached) {
     return (
-      <button
-        onClick={() => removeSongs(ids)}
-        className="flex items-center gap-2 px-3 py-2 bg-green-900/30 hover:bg-red-900/30 text-green-400 hover:text-red-400 border border-green-800/40 hover:border-red-800/40 rounded-full text-sm font-medium transition-colors shrink-0"
-        title="Available offline — click to remove"
-      >
-        <WifiOff size={15} />
-        <span className="hidden sm:inline">Offline</span>
-      </button>
+      <>
+        {confirmRemove && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
+              <p className="text-white">Remove offline copies? You'll need to re-download to listen without internet.</p>
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setConfirmRemove(false)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { removeSongs(ids); setConfirmRemove(false); }}
+                  className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => setConfirmRemove(true)}
+          className="flex items-center gap-2 px-3 py-2 bg-green-900/30 hover:bg-red-900/30 text-green-400 hover:text-red-400 border border-green-800/40 hover:border-red-800/40 rounded-full text-sm font-medium transition-colors shrink-0"
+          title="Available offline — click to remove"
+        >
+          <WifiOff size={15} />
+          <span className="hidden sm:inline">Offline</span>
+        </button>
+      </>
     );
   }
 
@@ -124,7 +145,8 @@ export default function Library({ view = 'all' }) {
   const [songs, setSongs] = useState(() => {
     try { return JSON.parse(localStorage.getItem('skynet_songs') || '[]'); } catch { return []; }
   });
-  const [loading, setLoading] = useState(true);
+  // Only show loading spinner if we have no cached songs to display
+  const [loading, setLoading] = useState(() => !localStorage.getItem('skynet_songs'));
   const [scanning, setScanning] = useState(false);
   const [search, setSearch] = useState('');
   const [hovered, setHovered] = useState(null);

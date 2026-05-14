@@ -40,23 +40,25 @@ const useUserDataStore = create((set, get) => ({
   loaded: false,
 
   load: async () => {
+    // Show cached data immediately — no waiting
+    set({
+      likedSongs: lsGet('skynet_liked_songs') || [],
+      playlists: lsGet('skynet_playlists') || [],
+      loaded: true,
+    });
+    // Refresh from server in background
     try {
       const [liked, playlists] = await Promise.all([
         load('liked_songs'),
         load('playlists'),
       ]);
-      const likedSongs = liked || [];
-      const pls = playlists || [];
+      const likedSongs = liked || lsGet('skynet_liked_songs') || [];
+      const pls = playlists || lsGet('skynet_playlists') || [];
       lsSet('skynet_liked_songs', likedSongs);
       lsSet('skynet_playlists', pls);
-      set({ likedSongs, playlists: pls, loaded: true });
+      set({ likedSongs, playlists: pls });
     } catch {
-      // Offline — restore from localStorage
-      set({
-        likedSongs: lsGet('skynet_liked_songs') || [],
-        playlists: lsGet('skynet_playlists') || [],
-        loaded: true,
-      });
+      // Offline — already showing localStorage data above, nothing to do
     }
   },
 
