@@ -153,7 +153,7 @@ You need two things from the server admin:
 - The **server address** (something like `https://192.168.1.x:4000`)
 - Your **username and password**
 
-The app runs over HTTPS using a self-signed certificate (not from a public authority like Let's Encrypt). You need to install and trust this certificate once on each device. After that, the app works like any normal website.
+The app runs over HTTPS using a self-signed certificate (not from a public authority like Let's Encrypt). You need to install and trust this certificate once on each device. After that, the app works like any normal website and can be added to your home screen like a native app.
 
 ---
 
@@ -182,12 +182,31 @@ The app runs over HTTPS using a self-signed certificate (not from a public autho
 12. Find **Skynet Music** and toggle it **ON**
 13. Tap **Continue** on the warning
 
-#### Step 4 — Open the app
+#### Step 4 — Open the app in Safari and log in
 
 14. Open **Safari** and go to: `https://YOUR_SERVER_IP:4000`
 15. Log in with your username and password
+16. Browse around for a moment — the app caches itself in the background
 
-> The certificate trust step is required for offline listening (service worker) to work. Without it, the app works online but not offline.
+> This step (logging in via Safari first) is required before adding to home screen.
+
+#### Step 5 — Add to Home Screen (optional but recommended)
+
+Adding the app to your home screen gives you a full-screen experience with no browser UI, similar to a native app.
+
+17. While on `https://YOUR_SERVER_IP:4000` in Safari, tap the **Share** button (the square with an arrow pointing up, at the bottom of the screen)
+18. Scroll down in the share sheet and tap **Add to Home Screen**
+19. Edit the name if you like, then tap **Add** in the top-right corner
+20. The Skynet Music icon now appears on your home screen
+
+#### Step 6 — First launch from home screen
+
+21. **Make sure you are connected to the server's network**
+22. Tap the Skynet Music icon on your home screen
+23. You will see a login screen — **log in again** (the home screen app has its own separate session from Safari, this is normal iOS behavior)
+24. Browse around for a moment so the app finishes caching
+
+After this, the app works fully offline from the home screen icon.
 
 ---
 
@@ -211,12 +230,22 @@ The app runs over HTTPS using a self-signed certificate (not from a public autho
 10. Find and select the downloaded `cert.pem` file
 11. The certificate is installed
 
-#### Step 3 — Open the app
+#### Step 3 — Open the app and log in
 
 12. Open **Chrome** and go to: `https://YOUR_SERVER_IP:4000`
 13. Log in with your username and password
+14. Browse around for a moment — the app caches itself in the background
 
-> **Note:** On some Android versions the path is different:  
+#### Step 4 — Add to Home Screen (optional but recommended)
+
+15. In Chrome, tap the **three-dot menu** (top-right)
+16. Tap **Add to Home screen**
+17. Tap **Add**
+18. The icon appears on your home screen — tap it to open
+
+> On Android, the home screen app shares its session with Chrome, so you will already be logged in.
+
+> **Note:** On some Android versions the certificate path is different:  
 > Settings → Security & privacy → More security settings → Install a certificate
 
 ---
@@ -283,14 +312,12 @@ If you just want to access the app without installing the certificate permanentl
 
 ### Setting up offline listening
 
-Once you have the app working, you can save playlists and songs for listening without internet.
+Once you are logged in and have browsed around at least once while connected:
 
 1. Open any playlist or **Liked Songs**
 2. Tap the **Save offline** button next to the Shuffle button
 3. Wait for the download to complete — the button turns green when done
 4. You can now listen to those songs without an internet connection
-
-**Important:** You must visit the app at least once while connected before going offline. The app caches itself in the background on first load.
 
 To remove offline copies, tap the green **Offline** button and confirm.
 
@@ -302,10 +329,13 @@ To remove offline copies, tap the green **Offline** button and confirm.
 You haven't installed and trusted the certificate yet. Follow the steps above for your device.
 
 **Certificate Trust Settings doesn't appear on iPhone**  
-Make sure you installed the profile through Settings (step 4–9 above), not just downloaded the file. The toggle only appears after the profile is properly installed.
+Make sure you installed the profile through Settings (steps 4–9 above), not just downloaded the file. The toggle only appears after the profile is properly installed.
 
 **App loads but offline doesn't work on iPhone**  
 Make sure you completed Step 3 (Certificate Trust Settings → toggle ON). Without this step, Safari won't allow the service worker to run.
+
+**Home screen app shows a login screen / black screen on iPhone**  
+This is normal on first launch — the home screen app has its own separate session from Safari. Make sure you are connected to the server's network, log in, and browse around once. After that it works offline too.
 
 **Can't find the cert download page**  
 Make sure you're using `http://` (not `https://`) and port `8080` (not `4000`).
