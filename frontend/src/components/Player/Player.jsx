@@ -71,7 +71,18 @@ export default function Player() {
       <div className="flex md:hidden items-center gap-3 px-3 py-2">
         <CoverThumb song={currentSong} />
         <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-medium truncate">{currentSong?.title ?? 'Nothing playing'}</p>
+          <div className="flex items-center gap-2">
+            {currentSong && (
+              <div className={`flex items-end gap-[2px] h-3.5 shrink-0 ${isPlaying ? '' : 'eq-paused'}`}>
+                <span className="eq-bar" />
+                <span className="eq-bar" />
+                <span className="eq-bar" />
+              </div>
+            )}
+            <p className={`text-sm font-medium truncate ${currentSong ? 'text-green-400' : 'text-white'}`}>
+              {currentSong?.title ?? 'Nothing playing'}
+            </p>
+          </div>
           <p className="text-zinc-400 text-xs truncate">{currentSong?.artist ?? ''}</p>
           {/* Mini seek bar */}
           <div className="mt-1">
@@ -89,9 +100,16 @@ export default function Player() {
         <div className="flex items-center gap-3 w-56 shrink-0 min-w-0">
           <CoverThumb song={currentSong} />
           {currentSong ? (
-            <div className="min-w-0">
-              <p className="text-white text-sm font-medium truncate">{currentSong.title}</p>
-              <p className="text-zinc-400 text-xs truncate">{currentSong.artist}</p>
+            <div className="min-w-0 flex items-center gap-2">
+              <div className={`flex items-end gap-[2px] h-4 shrink-0 ${isPlaying ? '' : 'eq-paused'}`}>
+                <span className="eq-bar" />
+                <span className="eq-bar" />
+                <span className="eq-bar" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-green-400 text-sm font-medium truncate">{currentSong.title}</p>
+                <p className="text-zinc-400 text-xs truncate">{currentSong.artist}</p>
+              </div>
             </div>
           ) : (
             <p className="text-zinc-600 text-sm">Nothing playing</p>
