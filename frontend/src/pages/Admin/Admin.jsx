@@ -190,13 +190,6 @@ export default function Admin() {
         ))}
       </div>
 
-      <div className="mt-6 p-4 bg-zinc-800/40 rounded-xl">
-        <p className="text-zinc-500 text-xs leading-relaxed">
-          <span className="text-zinc-300 font-medium">Privacy note:</span> Each user's liked songs and playlists
-          are only accessible through their own account. Resetting a password keeps their data intact.
-        </p>
-      </div>
-
       {deleteTarget && (
         <ConfirmDialog
           message={`Delete "${deleteTarget.username}"? Their account and all personal data will be permanently removed.`}
