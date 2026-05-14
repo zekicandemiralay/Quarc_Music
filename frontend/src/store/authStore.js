@@ -40,7 +40,10 @@ const useAuthStore = create((set) => ({
 
   checkSession: async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch('/api/auth/me', { signal: controller.signal });
+      clearTimeout(timer);
       if (res.ok) {
         const data = await res.json();
         const user = { id: data.id, username: data.username, role: data.role };
@@ -51,7 +54,7 @@ const useAuthStore = create((set) => ({
         set({ user: null, loading: false });
       }
     } catch {
-      // Offline — restore the last known user so the app doesn't force a login
+      // Offline or timeout — restore the last known user so the app doesn't force a login
       set({ user: loadUser(), loading: false });
     }
   },
