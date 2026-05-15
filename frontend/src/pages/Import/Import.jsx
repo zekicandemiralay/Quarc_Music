@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Upload, CheckCircle, AlertCircle, Loader2, X, Music } from 'lucide-react';
+import useUserDataStore from '../../store/userDataStore';
 
 function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
   const [files, setFiles] = useState([]);
@@ -116,6 +117,8 @@ export default function Import() {
   const [tab, setTab] = useState('spotify');
   const [job, setJob] = useState(null);
   const pollRef = useRef(null);
+  const pollCountRef = useRef(0);
+  const loadUserData = useUserDataStore((s) => s.load);
 
   useEffect(() => {
     fetch('/api/import/status').then(r => r.json()).then(data => {
@@ -125,12 +128,20 @@ export default function Import() {
 
   useEffect(() => {
     if (job?.status === 'running') {
+      pollCountRef.current = 0;
       pollRef.current = setInterval(async () => {
         try {
           const res = await fetch('/api/import/status');
           const data = await res.json();
           if (data) setJob(data);
-          if (data?.status !== 'running') clearInterval(pollRef.current);
+          if (data?.status !== 'running') {
+            clearInterval(pollRef.current);
+            loadUserData(); // refresh playlists once import finishes
+          } else {
+            pollCountRef.current++;
+            // refresh playlists every ~20s so new songs appear while running
+            if (pollCountRef.current % 10 === 0) loadUserData();
+          }
         } catch {}
       }, 2000);
     }
