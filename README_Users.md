@@ -11,6 +11,37 @@ The app runs over HTTPS using a self-signed certificate (not from a public autho
 
 ---
 
+### Windows — Desktop App (recommended)
+
+The easiest way on Windows is to use the **Skynet Music desktop app** — ask the admin for the installer (`.exe` file), run it, and Skynet Music will appear in your Start menu like any other app.
+
+You still need to install the certificate first:
+
+#### Step 1 — Download the certificate
+
+1. Go to: `http://100.115.252.65:8888/cert`
+2. The file `cert.crt` downloads automatically
+
+#### Step 2 — Install the certificate
+
+3. Double-click `cert.crt`
+4. Click **Install Certificate**
+5. Select **Local Machine** → click **Next**
+   *(If asked for administrator permission, click Yes)*
+6. Select **"Place all certificates in the following store"** → click **Browse**
+7. Select **Trusted Root Certification Authorities** → click **OK**
+8. Click **Next** → click **Finish**
+9. Click **OK** on the success message
+
+#### Step 3 — Open the app
+
+10. Launch **Skynet Music** from your Start menu
+11. Log in with your username and password
+
+> **Using the browser instead?** After installing the certificate, go to `https://100.115.252.65:4000` in Chrome or Edge.
+
+---
+
 ### iPhone / iPad
 
 #### Step 1 — Download the certificate
@@ -109,11 +140,11 @@ After this, the app works fully offline from the home screen icon.
 #### Step 1 — Download the certificate
 
 1. Go to: `http://100.115.252.65:8888/cert`
-2. Download the `cert.pem` file
+2. The file `cert.crt` downloads automatically
 
 #### Step 2 — Install and trust
 
-3. Double-click the downloaded `cert.pem` file — **Keychain Access** opens
+3. Double-click `cert.crt` — **Keychain Access** opens
 4. The certificate appears in the list — double-click it to open
 5. Expand the **Trust** section at the top
 6. Set **"When using this certificate"** to **Always Trust**
@@ -124,32 +155,6 @@ After this, the app works fully offline from the home screen icon.
 
 9. Go to: `https://100.115.252.65:4000`
 10. Log in with your username and password
-
----
-
-### Windows (Chrome or Edge)
-
-#### Step 1 — Download the certificate
-
-1. Go to: `http://100.115.252.65:8888/cert`
-2. Download the `cert.pem` file
-
-#### Step 2 — Install the certificate
-
-3. Double-click `cert.crt`
-4. Click **Install Certificate**
-5. Select **Local Machine** → click **Next**
-   *(If asked for administrator permission, click Yes)*
-6. Select **"Place all certificates in the following store"** → click **Browse**
-7. Select **Trusted Root Certification Authorities** → click **OK**
-8. Click **Next** → click **Finish**
-9. Click **OK** on the success message
-10. **Restart your browser**
-
-#### Step 3 — Open the app
-
-11. Go to: `https://100.115.252.65:4000`
-12. Log in with your username and password
 
 ---
 
@@ -164,7 +169,20 @@ If you just want to access the app without installing the certificate permanentl
 
 ---
 
+### Setting up offline listening
 
+Once you are logged in and have browsed around at least once while connected:
+
+1. Open any playlist, collection, or **Liked Songs**
+2. Tap the **Save offline** button next to the Shuffle button
+3. Wait for the download to complete — the button turns green when done
+4. You can now listen to those songs without an internet connection
+
+Any song you add to an already-offline playlist is downloaded automatically.
+
+To remove offline copies, tap the green **Offline** button and confirm.
+
+---
 
 ### Troubleshooting
 

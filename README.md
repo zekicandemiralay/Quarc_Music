@@ -7,10 +7,12 @@ A self-hosted music player for your local network. Stream your music library, do
 - Stream from your local music library or download any song from YouTube
 - Smart Shuffle — weighted by play count, artist-interleaved so you never hear the same artist twice in a row
 - Admin-curated Collections visible to all users
-- Per-user Liked Songs and custom playlists
+- Per-user Liked Songs and custom playlists — like or add to playlist directly from the player bar
 - Listening stats: play counts, streaks, weekly listening time
-- Full offline support — download playlists and collections for offline playback
-- PWA — add to your home screen for a native-app experience
+- Full offline support — download playlists and collections; newly added songs auto-download
+- Expanded player view — tap the player bar for a full-screen now-playing screen with swipe-to-close
+- PWA — add to your home screen for a native-app experience on mobile
+- Windows desktop app — distributable `.exe` installer built with Tauri (see `desktop/`)
 
 ---
 
@@ -297,7 +299,7 @@ After this, the app works fully offline from the home screen icon.
 7. Tap **Install a certificate**
 8. Tap **CA certificate**
 9. Tap **Install anyway** on the warning
-10. Find and select the downloaded `cert.pem` file
+10. Find and select the downloaded `cert.crt` file
 11. The certificate is installed
 
 #### Step 3 — Open the app and log in
@@ -325,11 +327,11 @@ After this, the app works fully offline from the home screen icon.
 #### Step 1 — Download the certificate
 
 1. Go to: `http://YOUR_SERVER_IP:8080/cert`
-2. Download the `cert.pem` file
+2. The file `cert.crt` downloads automatically
 
 #### Step 2 — Install and trust
 
-3. Double-click the downloaded `cert.pem` file — **Keychain Access** opens
+3. Double-click `cert.crt` — **Keychain Access** opens
 4. The certificate appears in the list — double-click it to open
 5. Expand the **Trust** section at the top
 6. Set **"When using this certificate"** to **Always Trust**
@@ -343,16 +345,24 @@ After this, the app works fully offline from the home screen icon.
 
 ---
 
-### Windows (Chrome or Edge)
+### Windows — Desktop App (recommended)
+
+A native Windows installer is available in the `desktop/` folder of this repo. See `desktop/BUILD.md` for build instructions. Share the resulting `.exe` with users — they install it once and launch Skynet Music from their Start menu.
+
+Users still need to install the certificate (steps below) before opening the app.
+
+---
+
+### Windows (Chrome, Edge, or Desktop App)
 
 #### Step 1 — Download the certificate
 
 1. Go to: `http://YOUR_SERVER_IP:8080/cert`
-2. Download the `cert.pem` file
+2. The file `cert.crt` downloads automatically
 
 #### Step 2 — Install the certificate
 
-3. Double-click `cert.pem`
+3. Double-click `cert.crt`
 4. Click **Install Certificate**
 5. Select **Local Machine** → click **Next**
    *(If asked for administrator permission, click Yes)*
