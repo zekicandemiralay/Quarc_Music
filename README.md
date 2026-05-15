@@ -13,6 +13,7 @@ A self-hosted music player for your local network. Stream your music library, do
 - Expanded player view — tap the player bar for a full-screen now-playing screen with swipe-to-close
 - PWA — add to your home screen for a native-app experience on mobile
 - Windows desktop app — distributable `.exe` installer built with Tauri (see `desktop/`)
+- Spotify import — upload an Exportify export and all your playlists are downloaded from YouTube Music automatically
 
 ---
 
@@ -400,6 +401,22 @@ Once you are logged in and have browsed around at least once while connected:
 4. You can now listen to those songs without an internet connection
 
 To remove offline copies, tap the green **Offline** button and confirm.
+
+---
+
+### Importing from Spotify
+
+If you have playlists on Spotify you want to bring over:
+
+1. Go to **[exportify.net](https://exportify.net)** and log in with your Spotify account
+2. Click **"Export All"** to download all your playlists as a ZIP file (or export individual playlists as separate CSV files)
+3. In Skynet Music, go to **Import Spotify** in the sidebar
+4. Drop the ZIP file (or select one or more CSV files) and click **Start Import**
+5. The app downloads each song from YouTube Music in the background — you can navigate away and check back on the progress page
+
+Each playlist is created automatically in your account. Songs that are already in the library are not re-downloaded. Tracks that can't be found on YouTube Music are skipped and listed at the end.
+
+> Importing a large playlist (50+ songs) can take 30–60 minutes. The server must have internet access during the import.
 
 ---
 

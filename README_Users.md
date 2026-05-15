@@ -184,6 +184,22 @@ To remove offline copies, tap the green **Offline** button and confirm.
 
 ---
 
+### Importing from Spotify
+
+If you have playlists on Spotify you want to bring over:
+
+1. Go to **exportify.net** and log in with your Spotify account
+2. Click **"Export All"** to download all your playlists as a ZIP — or export individual playlists as separate CSV files
+3. In Skynet Music, open **Import Spotify** in the sidebar
+4. Drop the ZIP file (or select one or more CSV files) and tap **Start Import**
+5. Songs are downloaded from YouTube Music in the background — you can navigate away and come back to check progress
+
+Each playlist is created in your account automatically. Tracks that can't be found are skipped and listed at the end.
+
+> Importing a large playlist can take a while — expect roughly 1–2 minutes per song.
+
+---
+
 ### Troubleshooting
 
 **"Your connection is not private" / certificate warning**  
