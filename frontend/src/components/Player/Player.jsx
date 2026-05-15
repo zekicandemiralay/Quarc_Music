@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import usePlayerStore from '../../store/playerStore';
 import { Play, Pause, SkipBack, SkipForward, Volume2, Music, Shuffle, ChevronDown } from 'lucide-react';
 
@@ -54,17 +55,16 @@ function NowPlayingExpanded({ onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-zinc-950 flex flex-col"
-      style={{ animation: 'slideUp 0.3s ease-out forwards' }}
+      className="fixed inset-0 bg-zinc-950 flex flex-col"
+      style={{ zIndex: 200, animation: 'slideUp 0.3s ease-out forwards' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-10 pb-2 shrink-0">
         <button
           onClick={onClose}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors text-sm font-medium"
+          className="p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
         >
-          <ChevronDown size={18} />
-          Close
+          <ChevronDown size={22} />
         </button>
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Now Playing</p>
         <div className="w-24" />
@@ -154,7 +154,7 @@ export default function Player() {
 
   return (
     <>
-      {expanded && <NowPlayingExpanded onClose={closeExpanded} />}
+      {expanded && createPortal(<NowPlayingExpanded onClose={closeExpanded} />, document.body)}
 
       <div
         className={`bg-zinc-900 border-t border-zinc-800 shrink-0 ${currentSong ? 'cursor-pointer' : ''}`}
