@@ -13,7 +13,8 @@ A self-hosted music player for your local network. Stream your music library, do
 - Expanded player view — tap the player bar for a full-screen now-playing screen with swipe-to-close
 - PWA — add to your home screen for a native-app experience on mobile
 - Windows desktop app — distributable `.exe` installer built with Tauri (see `desktop/`)
-- Spotify import — upload an Exportify export and all your playlists are downloaded from YouTube Music automatically
+- Spotify import — upload an Exportify ZIP/CSV and all your playlists are downloaded automatically
+- YouTube Music import — upload a Google Takeout export and playlists are downloaded by exact video ID (no searching, perfect matches)
 
 ---
 
@@ -404,19 +405,25 @@ To remove offline copies, tap the green **Offline** button and confirm.
 
 ---
 
-### Importing from Spotify
+### Importing playlists (Spotify / YouTube Music)
 
-If you have playlists on Spotify you want to bring over:
+Go to **Import** in the sidebar and choose the source tab.
 
-1. Go to **[exportify.net](https://exportify.net)** and log in with your Spotify account
-2. Click **"Export All"** to download all your playlists as a ZIP file (or export individual playlists as separate CSV files)
-3. In Skynet Music, go to **Import Spotify** in the sidebar
-4. Drop the ZIP file (or select one or more CSV files) and click **Start Import**
-5. The app downloads each song from YouTube Music in the background — you can navigate away and check back on the progress page
+**From Spotify:**
+1. Go to **[exportify.net](https://exportify.net)** and log in with Spotify
+2. Click **"Export All"** for all playlists as a ZIP, or export individual playlists as CSVs
+3. Upload the file(s) and click **Start Import**
 
-Each playlist is created automatically in your account. Songs that are already in the library are not re-downloaded. Tracks that can't be found on YouTube Music are skipped and listed at the end.
+**From YouTube Music:**
+1. Go to **[takeout.google.com](https://takeout.google.com)** and sign in
+2. Click "Deselect all", then check **"YouTube and YouTube Music"**
+3. Click **"All YouTube data included"** and select **playlists only**
+4. Click "Next step" → "Create export" and wait for the download email
+5. Upload the ZIP and click **Start Import**
 
-> Importing a large playlist (50+ songs) can take 30–60 minutes. The server must have internet access during the import.
+Each playlist is created automatically in your account. Songs already in the library are not re-downloaded. Tracks that can't be found are skipped and listed at the end. YouTube Music imports use exact video IDs so every match is perfect.
+
+> Large imports run in the background — you can navigate away and check progress by returning to the Import page. Expect roughly 1 minute per song.
 
 ---
 

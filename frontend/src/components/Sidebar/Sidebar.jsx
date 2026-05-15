@@ -189,7 +189,7 @@ export default function Sidebar({ onNavigate }) {
           </NavLink>
           <NavLink to="/import" className={linkClass} onClick={onNavigate}>
             <Download size={18} className="text-green-400" />
-            Import Spotify
+            Import
           </NavLink>
           {user?.role === 'admin' && (
             <NavLink to="/admin" className={linkClass} onClick={onNavigate}>
