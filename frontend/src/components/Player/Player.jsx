@@ -24,9 +24,8 @@ function TrackBar({ value, max, onChange, large = false }) {
 }
 
 function EqBars({ isPlaying, size = 'sm' }) {
-  const h = size === 'lg' ? 'h-5' : 'h-3.5';
   return (
-    <div className={`flex items-end gap-[2px] ${h} shrink-0 ${isPlaying ? '' : 'eq-paused'}`}>
+    <div className={`flex items-end gap-[2px] shrink-0 ${size === 'lg' ? 'h-5' : 'h-3.5'} ${isPlaying ? '' : 'eq-paused'}`}>
       <span className="eq-bar" />
       <span className="eq-bar" />
       <span className="eq-bar" />
@@ -36,7 +35,7 @@ function EqBars({ isPlaying, size = 'sm' }) {
 
 function Cover({ song, className = '' }) {
   return (
-    <div className={`bg-zinc-800 overflow-hidden flex items-center justify-center ${className}`}>
+    <div className={`bg-zinc-800 overflow-hidden flex items-center justify-center flex-shrink-0 ${className}`}>
       {song?.has_cover
         ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
         : <Music size={24} className="text-zinc-600" />}
@@ -44,7 +43,9 @@ function Cover({ song, className = '' }) {
   );
 }
 
-function NowPlayingExpanded({ onClose }) {
+// Expanded now-playing screen — only mounted when visible so pointer-events
+// work correctly in all browsers (no nested fixed + transform interaction).
+function NowPlayingExpanded({ onClose, closing }) {
   const {
     currentSong, isPlaying, currentTime, duration, shuffle,
     pause, resume, next, prev, seek, toggleShuffle,
@@ -53,28 +54,34 @@ function NowPlayingExpanded({ onClose }) {
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-zinc-950 flex flex-col"
+      style={{ animation: `${closing ? 'slideDown 0.28s' : 'slideUp 0.3s'} ease-out forwards` }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-12 pb-4 shrink-0">
-        <button onClick={onClose} className="p-1 text-zinc-400 hover:text-white transition-colors">
-          <ChevronDown size={28} />
+      <div className="flex items-center justify-between px-5 pt-10 pb-2 shrink-0">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+        >
+          <ChevronDown size={22} />
+          <span className="text-sm font-medium">Close</span>
         </button>
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Now Playing</p>
-        <div className="w-9" />
+        <div className="w-24" />
       </div>
 
       {/* Album art */}
       <div className="flex-1 flex items-center justify-center px-10 py-4 min-h-0">
         <div className="w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-2xl">
-          <Cover song={currentSong} className="w-full h-full rounded-2xl" />
+          <Cover song={currentSong} className="w-full h-full" />
         </div>
       </div>
 
       {/* Song info + controls */}
-      <div className="px-8 pb-12 pt-4 space-y-5 shrink-0">
-        {/* Title + artist */}
+      <div className="px-8 pb-12 pt-2 space-y-5 shrink-0">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-3 mb-1">
             {currentSong && <EqBars isPlaying={isPlaying} size="lg" />}
             <h2 className="text-2xl font-bold text-green-400 truncate">{currentSong?.title ?? 'Nothing playing'}</h2>
           </div>
@@ -82,7 +89,6 @@ function NowPlayingExpanded({ onClose }) {
           {currentSong?.album && <p className="text-zinc-600 text-sm truncate mt-0.5">{currentSong.album}</p>}
         </div>
 
-        {/* Seek bar */}
         <div className="space-y-1">
           <input
             type="range"
@@ -100,7 +106,6 @@ function NowPlayingExpanded({ onClose }) {
           </div>
         </div>
 
-        {/* Controls */}
         <div className="flex items-center justify-between pt-1">
           <button
             onClick={toggleShuffle}
@@ -108,11 +113,7 @@ function NowPlayingExpanded({ onClose }) {
           >
             <Shuffle size={22} />
           </button>
-          <button
-            onClick={prev}
-            disabled={!currentSong}
-            className="p-2 text-zinc-300 hover:text-white transition-colors disabled:opacity-30"
-          >
+          <button onClick={prev} disabled={!currentSong} className="p-2 text-zinc-300 hover:text-white transition-colors disabled:opacity-30">
             <SkipBack size={32} className="fill-current" />
           </button>
           <button
@@ -120,15 +121,9 @@ function NowPlayingExpanded({ onClose }) {
             disabled={!currentSong}
             className="w-16 h-16 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg disabled:opacity-30"
           >
-            {isPlaying
-              ? <Pause size={26} className="text-black" />
-              : <Play size={26} className="text-black ml-1" />}
+            {isPlaying ? <Pause size={26} className="text-black" /> : <Play size={26} className="text-black ml-1" />}
           </button>
-          <button
-            onClick={next}
-            disabled={!currentSong}
-            className="p-2 text-zinc-300 hover:text-white transition-colors disabled:opacity-30"
-          >
+          <button onClick={next} disabled={!currentSong} className="p-2 text-zinc-300 hover:text-white transition-colors disabled:opacity-30">
             <SkipForward size={32} className="fill-current" />
           </button>
           <div className="w-10" />
@@ -143,61 +138,57 @@ export default function Player() {
     currentSong, isPlaying, currentTime, duration, volume, shuffle,
     pause, resume, next, prev, seek, setVolume, toggleShuffle,
   } = usePlayerStore();
-  const [expanded, setExpanded] = useState(false);
 
-  // Close with Escape key
+  const [expanded, setExpanded] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  const openExpanded = () => { if (currentSong) setExpanded(true); };
+
+  const closeExpanded = () => {
+    setClosing(true);
+    setTimeout(() => { setExpanded(false); setClosing(false); }, 280);
+  };
+
+  // Escape key
   useEffect(() => {
     if (!expanded) return;
-    const onKey = (e) => { if (e.key === 'Escape') setExpanded(false); };
+    const onKey = (e) => { if (e.key === 'Escape') closeExpanded(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [expanded]);
 
-  const open = () => { if (currentSong) setExpanded(true); };
+  // stopPropagation helper — prevents clicks on controls from opening expanded view
+  const stop = (e) => e.stopPropagation();
 
   return (
     <>
-      {/* Expanded now-playing overlay — always in DOM so slide animation works */}
+      {expanded && <NowPlayingExpanded onClose={closeExpanded} closing={closing} />}
+
+      {/* Clicking anywhere on the bar opens expanded view; controls stop propagation */}
       <div
-        className={`fixed inset-0 z-50 transition-transform duration-300 ease-out ${expanded ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}
+        className={`bg-zinc-900 border-t border-zinc-800 shrink-0 ${currentSong ? 'cursor-pointer' : ''}`}
+        onClick={openExpanded}
       >
-        <NowPlayingExpanded onClose={() => setExpanded(false)} />
-      </div>
-
-      <div className="bg-zinc-900 border-t border-zinc-800 shrink-0">
-
         {/* ── Mobile player ── */}
-        <div className="flex md:hidden items-center gap-2 px-3 py-2">
-          {/* Clickable song info — opens expanded view */}
-          <button
-            className="flex items-center gap-3 flex-1 min-w-0 text-left"
-            onClick={open}
-            disabled={!currentSong}
-          >
-            <Cover
-              song={currentSong}
-              className="w-12 h-12 rounded shrink-0"
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                {currentSong && <EqBars isPlaying={isPlaying} />}
-                <p className={`text-sm font-medium truncate ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}>
-                  {currentSong?.title ?? 'Nothing playing'}
-                </p>
-              </div>
-              <p className="text-zinc-400 text-xs truncate">{currentSong?.artist ?? ''}</p>
+        <div className="flex md:hidden items-center gap-3 px-3 py-3">
+          <Cover song={currentSong} className="w-12 h-12 rounded" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              {currentSong && <EqBars isPlaying={isPlaying} />}
+              <p className={`text-base font-semibold truncate ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}>
+                {currentSong?.title ?? 'Nothing playing'}
+              </p>
             </div>
-          </button>
-
-          {/* Controls — separate so they don't trigger expand */}
-          <div className="flex items-center gap-1 shrink-0">
+            <p className="text-sm text-zinc-400 truncate">{currentSong?.artist ?? ''}</p>
+          </div>
+          <div className="flex items-center gap-1 shrink-0" onClick={stop}>
             <button onClick={prev} disabled={!currentSong} className="p-2 text-zinc-400 hover:text-white disabled:opacity-30">
               <SkipBack size={20} />
             </button>
             <button
               onClick={isPlaying ? pause : resume}
               disabled={!currentSong}
-              className="w-9 h-9 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-30 shrink-0"
+              className="w-9 h-9 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-30"
             >
               {isPlaying ? <Pause size={16} className="text-black" /> : <Play size={16} className="text-black ml-0.5" />}
             </button>
@@ -208,30 +199,25 @@ export default function Player() {
         </div>
 
         {/* ── Desktop player ── */}
-        <div className="hidden md:flex items-center px-4 py-0 h-24 gap-4">
-
-          {/* Song info — clickable to open expanded view */}
-          <button
-            className="flex items-center gap-3 w-64 shrink-0 min-w-0 text-left group"
-            onClick={open}
-            disabled={!currentSong}
-          >
-            <Cover song={currentSong} className="w-14 h-14 rounded shrink-0 group-hover:opacity-80 transition-opacity" />
+        <div className="hidden md:flex items-center px-4 h-24 gap-4">
+          {/* Song info */}
+          <div className="flex items-center gap-3 w-72 shrink-0 min-w-0">
+            <Cover song={currentSong} className="w-14 h-14 rounded" />
             {currentSong ? (
               <div className="min-w-0 flex items-center gap-2">
                 <EqBars isPlaying={isPlaying} />
                 <div className="min-w-0">
-                  <p className="text-green-400 text-sm font-medium truncate group-hover:underline">{currentSong.title}</p>
-                  <p className="text-zinc-400 text-xs truncate">{currentSong.artist}</p>
+                  <p className="text-green-400 text-base font-semibold truncate">{currentSong.title}</p>
+                  <p className="text-zinc-400 text-sm truncate">{currentSong.artist}</p>
                 </div>
               </div>
             ) : (
               <p className="text-zinc-600 text-sm">Nothing playing</p>
             )}
-          </button>
+          </div>
 
-          {/* Center controls + seek */}
-          <div className="flex flex-col items-center flex-1 gap-2">
+          {/* Center controls + seek — stop propagation so clicking controls doesn't open expanded */}
+          <div className="flex flex-col items-center flex-1 gap-2" onClick={stop}>
             <div className="flex items-center gap-6">
               <button
                 onClick={toggleShuffle}
@@ -261,8 +247,8 @@ export default function Player() {
             </div>
           </div>
 
-          {/* Volume */}
-          <div className="flex items-center gap-2 w-36 shrink-0">
+          {/* Volume — stop propagation */}
+          <div className="flex items-center gap-2 w-36 shrink-0" onClick={stop}>
             <Volume2 size={16} className="text-zinc-400 shrink-0" />
             <TrackBar value={volume} max={1} onChange={setVolume} />
           </div>
