@@ -84,13 +84,55 @@ function NowPlayingExpanded({ onClose }) {
 
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  const [dragY, setDragY] = useState(0);
+  const [snapping, setSnapping] = useState(false);
+  const startY = useRef(0);
+  const dragging = useRef(false);
+
+  const onTouchStart = (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    startY.current = e.touches[0].clientY;
+    dragging.current = true;
+    setSnapping(false);
+  };
+  const onTouchMove = (e) => {
+    if (!dragging.current) return;
+    const delta = e.touches[0].clientY - startY.current;
+    if (delta > 0) setDragY(delta);
+  };
+  const onTouchEnd = () => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    if (dragY > 80) {
+      onClose();
+    } else {
+      setSnapping(true);
+      setDragY(0);
+      setTimeout(() => setSnapping(false), 280);
+    }
+  };
+
+  const panelStyle = (() => {
+    if (dragY > 0) return { zIndex: 200, transform: `translateY(${dragY}px)` };
+    if (snapping) return { zIndex: 200, transform: 'translateY(0)', transition: 'transform 0.25s ease-out' };
+    return { zIndex: 200, animation: 'slideUp 0.3s ease-out forwards' };
+  })();
+
   return (
     <div
       className="fixed inset-0 bg-zinc-950 flex flex-col"
-      style={{ zIndex: 200, animation: 'slideUp 0.3s ease-out forwards' }}
+      style={panelStyle}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
+      {/* Drag handle */}
+      <div className="flex justify-center pt-3 pb-1 shrink-0">
+        <div className="w-10 h-1 rounded-full bg-zinc-700" />
+      </div>
+
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-10 pb-2 shrink-0">
+      <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
         <button
           onClick={onClose}
           className="p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
