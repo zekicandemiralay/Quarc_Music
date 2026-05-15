@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import usePlayerStore from '../../store/playerStore';
 import { Play, Pause, SkipBack, SkipForward, Volume2, Music, Shuffle, ChevronDown } from 'lucide-react';
@@ -6,6 +6,37 @@ import { Play, Pause, SkipBack, SkipForward, Volume2, Music, Shuffle, ChevronDow
 function fmt(s) {
   if (!s || isNaN(s)) return '0:00';
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+}
+
+function ScrollingText({ text, className }) {
+  const containerRef = useRef(null);
+  const textRef = useRef(null);
+  const [offset, setOffset] = useState(0);
+
+  useEffect(() => {
+    const c = containerRef.current;
+    const t = textRef.current;
+    if (!c || !t) return;
+    const d = t.scrollWidth - c.clientWidth;
+    setOffset(d > 0 ? d : 0);
+  }, [text]);
+
+  const duration = Math.max(5, offset / 14);
+
+  return (
+    <div ref={containerRef} className="overflow-hidden min-w-0 flex-1">
+      <span
+        ref={textRef}
+        className={`${className} whitespace-nowrap inline-block`}
+        style={offset > 0 ? {
+          animation: `marquee-slide ${duration}s linear infinite`,
+          '--marquee-offset': `-${offset}px`,
+        } : {}}
+      >
+        {text}
+      </span>
+    </div>
+  );
 }
 
 function TrackBar({ value, max, onChange }) {
@@ -164,11 +195,12 @@ export default function Player() {
         <div className="flex md:hidden items-center gap-3 px-3 py-3">
           <Cover song={currentSong} className="w-12 h-12 rounded" />
           <div className="flex-1 min-w-0 overflow-hidden">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               {currentSong && <EqBars isPlaying={isPlaying} />}
-              <p className={`text-base font-semibold truncate ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}>
-                {currentSong?.title ?? 'Nothing playing'}
-              </p>
+              <ScrollingText
+                text={currentSong?.title ?? 'Nothing playing'}
+                className={`text-base font-semibold ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}
+              />
             </div>
             <p className="text-sm text-zinc-400 truncate">{currentSong?.artist ?? ''}</p>
           </div>

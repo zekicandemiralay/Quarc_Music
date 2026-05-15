@@ -100,6 +100,13 @@ input[type="range"]:focus::-moz-range-thumb { opacity: 1; }
 @keyframes slideUp   { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes slideDown { from { transform: translateY(0); }    to { transform: translateY(100%); } }
 
+/* Scrolling marquee for long song titles */
+@keyframes marquee-slide {
+  0%, 15%  { transform: translateX(0); }
+  50%, 65% { transform: translateX(var(--marquee-offset)); }
+  100%     { transform: translateX(0); }
+}
+
 /* Animated equalizer bars — shown on the currently playing song row */
 @keyframes eq1 { 0%,100% { height: 3px } 50% { height: 12px } }
 @keyframes eq2 { 0%,100% { height: 10px } 50% { height: 3px } }
