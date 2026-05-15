@@ -208,10 +208,13 @@ export default function Library({ view = 'all' }) {
   const currentPlaylist = view === 'playlist' ? playlists.find((p) => p.id === playlistId) : null;
 
   let visibleSongs = songs;
-  if (view === 'liked') visibleSongs = songs.filter((s) => likedSongs.includes(s.id));
+  if (view === 'liked') {
+    // likedSongs is oldest-first (appended); reverse so newest liked appears at top
+    visibleSongs = [...likedSongs].reverse().map((id) => songs.find((s) => s.id === id)).filter(Boolean);
+  }
   if (view === 'playlist' && currentPlaylist) {
-    const order = currentPlaylist.songs;
-    visibleSongs = order.map((id) => songs.find((s) => s.id === id)).filter(Boolean);
+    // Same: newest-added song at top
+    visibleSongs = [...currentPlaylist.songs].reverse().map((id) => songs.find((s) => s.id === id)).filter(Boolean);
   }
   if (view === 'mix') visibleSongs = mixData ? mixData.songs : [];
   if (view === 'featured') visibleSongs = featuredData ? featuredData.songs : [];
