@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import useOfflineStore from './useOfflineStore';
 
 function uuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -23,7 +24,7 @@ async function save(key, data) {
   });
 }
 
-async function load(key) {
+async function loadFromServer(key) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {
@@ -34,21 +35,29 @@ async function load(key) {
   }
 }
 
+// Returns the cached songs list from localStorage (used for auto-download lookups)
+function getCachedSongs() {
+  try { return JSON.parse(localStorage.getItem('skynet_songs') || '[]'); } catch { return []; }
+}
+
 const useUserDataStore = create((set, get) => ({
   likedSongs: [],   // string[] of song IDs
   playlists: [],    // { id, name, songs: string[] }[]
   loaded: false,
+  _mut: 0,          // increments on every mutation; prevents stale server loads from overwriting
 
   load: () => {
+    const genAtLoad = get()._mut;
     // Show cached data immediately — synchronous, no waiting
     set({
       likedSongs: lsGet('skynet_liked_songs') || [],
       playlists: lsGet('skynet_playlists') || [],
       loaded: true,
     });
-    // Refresh from server — truly fire-and-forget, never blocks the caller
-    Promise.all([load('liked_songs'), load('playlists')])
+    // Refresh from server, but only write back if no mutations happened while waiting
+    Promise.all([loadFromServer('liked_songs'), loadFromServer('playlists')])
       .then(([liked, playlists]) => {
+        if (get()._mut !== genAtLoad) return; // a mutation happened — server data is stale
         const likedSongs = liked || lsGet('skynet_liked_songs') || [];
         const pls = playlists || lsGet('skynet_playlists') || [];
         lsSet('skynet_liked_songs', likedSongs);
@@ -58,14 +67,14 @@ const useUserDataStore = create((set, get) => ({
       .catch(() => {});
   },
 
-  reset: () => set({ likedSongs: [], playlists: [], loaded: false }),
+  reset: () => set({ likedSongs: [], playlists: [], loaded: false, _mut: 0 }),
 
   // ── Liked songs ──────────────────────────────────────────────────────────
 
   toggleLike: async (songId) => {
     const prev = get().likedSongs;
     const next = prev.includes(songId) ? prev.filter((id) => id !== songId) : [...prev, songId];
-    set({ likedSongs: next });
+    set((s) => ({ likedSongs: next, _mut: s._mut + 1 }));
     await save('liked_songs', next);
   },
 
@@ -76,38 +85,51 @@ const useUserDataStore = create((set, get) => ({
   createPlaylist: async (name) => {
     const playlist = { id: uuid(), name, songs: [] };
     const next = [...get().playlists, playlist];
-    set({ playlists: next });
+    set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
     return playlist;
   },
 
   renamePlaylist: async (playlistId, name) => {
     const next = get().playlists.map((p) => (p.id === playlistId ? { ...p, name } : p));
-    set({ playlists: next });
+    set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
   },
 
   deletePlaylist: async (playlistId) => {
     const next = get().playlists.filter((p) => p.id !== playlistId);
-    set({ playlists: next });
+    set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
   },
 
   addToPlaylist: async (playlistId, songId) => {
+    const playlist = get().playlists.find((p) => p.id === playlistId);
+    const existingIds = playlist?.songs || [];
+
+    // Check before updating state whether the playlist is fully cached offline
+    const { cachedIds, cacheSong } = useOfflineStore.getState();
+    const isFullyOffline = existingIds.length > 0 && existingIds.every((id) => cachedIds.has(id));
+
     const next = get().playlists.map((p) =>
       p.id === playlistId && !p.songs.includes(songId)
         ? { ...p, songs: [...p.songs, songId] }
         : p
     );
-    set({ playlists: next });
+    set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
+
+    // Auto-download the new song if the playlist was already fully available offline
+    if (isFullyOffline && !existingIds.includes(songId) && !cachedIds.has(songId)) {
+      const song = getCachedSongs().find((s) => s.id === songId);
+      if (song) cacheSong(song);
+    }
   },
 
   removeFromPlaylist: async (playlistId, songId) => {
     const next = get().playlists.map((p) =>
       p.id === playlistId ? { ...p, songs: p.songs.filter((id) => id !== songId) } : p
     );
-    set({ playlists: next });
+    set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
   },
 }));
