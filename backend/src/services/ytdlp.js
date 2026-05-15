@@ -91,7 +91,7 @@ function downloadAudio(videoId, outputDir, onProgress) {
 function downloadBySearch(query, outputDir, onProgress) {
   return new Promise((resolve, reject) => {
     const proc = spawn('yt-dlp', [
-      `ytmsearch1:${query}`,
+      `ytsearch1:${query}`,
       '-x',
       '--audio-format', 'mp3',
       '--audio-quality', '0',

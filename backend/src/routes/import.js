@@ -49,10 +49,18 @@ function playlistNameFromFilename(filename) {
   return path.basename(filename, path.extname(filename)).trim() || 'Imported Playlist';
 }
 
+function firstArtist(raw) {
+  // Exportify separates multiple artists with ";" — use only the first
+  return (raw || '').split(';')[0].trim();
+}
+
 function csvToPlaylist(filename, buffer) {
   const rows = parseCsv(buffer.toString('utf8'));
   const tracks = rows
-    .map(r => ({ name: r['Track Name'] || r['Name'] || '', artist: r['Artist Name(s)'] || r['Artist'] || '' }))
+    .map(r => ({
+      name: r['Track Name'] || r['Name'] || '',
+      artist: firstArtist(r['Artist Name(s)'] || r['Artist'] || ''),
+    }))
     .filter(t => t.name);
   return { playlistName: playlistNameFromFilename(filename), tracks };
 }
