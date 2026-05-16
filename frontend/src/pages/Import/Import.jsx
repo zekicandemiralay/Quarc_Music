@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, CheckCircle, AlertCircle, Loader2, X, Music } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Loader2, X, Music, Pause, Play, Square } from 'lucide-react';
 import useUserDataStore from '../../store/userDataStore';
 
 function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
@@ -127,19 +127,20 @@ export default function Import() {
   }, []);
 
   useEffect(() => {
-    if (job?.status === 'running') {
+    const active = job?.status === 'running' || job?.status === 'paused';
+    if (active) {
       pollCountRef.current = 0;
       pollRef.current = setInterval(async () => {
         try {
           const res = await fetch('/api/import/status');
           const data = await res.json();
           if (data) setJob(data);
-          if (data?.status !== 'running') {
+          const stillActive = data?.status === 'running' || data?.status === 'paused';
+          if (!stillActive) {
             clearInterval(pollRef.current);
-            loadUserData(); // refresh playlists once import finishes
+            loadUserData();
           } else {
             pollCountRef.current++;
-            // refresh playlists every ~20s so new songs appear while running
             if (pollCountRef.current % 10 === 0) loadUserData();
           }
         } catch {}
@@ -151,6 +152,18 @@ export default function Import() {
   async function clearJob() {
     await fetch('/api/import/status', { method: 'DELETE' });
     setJob(null);
+  }
+
+  async function pauseImport() {
+    await fetch('/api/import/pause', { method: 'POST' });
+  }
+
+  async function resumeImport() {
+    await fetch('/api/import/resume', { method: 'POST' });
+  }
+
+  async function cancelImport() {
+    await fetch('/api/import/cancel', { method: 'POST' });
   }
 
   const pct = job?.total > 0 ? Math.round((job.done / job.total) * 100) : 0;
@@ -234,19 +247,40 @@ export default function Import() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {job.status === 'running' && <Loader2 size={18} className="animate-spin text-blue-400" />}
+              {job.status === 'paused' && <Pause size={18} className="text-amber-400" />}
               {job.status === 'done' && <CheckCircle size={18} className="text-green-400" />}
+              {job.status === 'cancelled' && <Square size={18} className="text-zinc-400" />}
               {job.status === 'error' && <AlertCircle size={18} className="text-red-400" />}
               <span className="text-white font-medium">
                 {job.status === 'running' && 'Importing…'}
+                {job.status === 'paused' && 'Paused'}
                 {job.status === 'done' && 'Import complete'}
+                {job.status === 'cancelled' && `Cancelled — ${job.done} of ${job.total} tracks done`}
                 {job.status === 'error' && 'Import failed'}
               </span>
             </div>
-            {job.status !== 'running' && (
-              <button onClick={clearJob} className="text-zinc-500 hover:text-white">
-                <X size={16} />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {job.status === 'running' && (
+                <button onClick={pauseImport} className="text-zinc-400 hover:text-white transition-colors p-1" title="Pause">
+                  <Pause size={15} />
+                </button>
+              )}
+              {job.status === 'paused' && (
+                <button onClick={resumeImport} className="text-zinc-400 hover:text-white transition-colors p-1" title="Resume">
+                  <Play size={15} />
+                </button>
+              )}
+              {(job.status === 'running' || job.status === 'paused') && (
+                <button onClick={cancelImport} className="text-zinc-400 hover:text-red-400 transition-colors p-1" title="Cancel">
+                  <Square size={15} />
+                </button>
+              )}
+              {(job.status === 'done' || job.status === 'cancelled' || job.status === 'error') && (
+                <button onClick={clearJob} className="text-zinc-500 hover:text-white transition-colors">
+                  <X size={16} />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -297,7 +331,7 @@ export default function Import() {
             </div>
           )}
 
-          {job.status === 'done' && (
+          {(job.status === 'done' || job.status === 'cancelled') && (
             <button
               onClick={clearJob}
               className="w-full bg-zinc-800 text-white rounded-lg py-2.5 text-sm hover:bg-zinc-700 transition-colors"

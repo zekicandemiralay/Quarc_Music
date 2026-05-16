@@ -99,6 +99,7 @@ async function runImport(userId, playlists) {
   job.total = total;
   job.done = 0;
   job.errors = [];
+  job.control = 'running'; // 'running' | 'paused' | 'cancel_requested'
 
   // Create all playlists up front
   const playlistIds = {};
@@ -121,11 +122,23 @@ async function runImport(userId, playlists) {
     `).run(userId, 'playlists', JSON.stringify(userPlaylists));
   }
 
-  for (const playlist of playlists) {
+  outer: for (const playlist of playlists) {
     job.currentPlaylist = playlist.playlistName;
     const playlistId = playlistIds[playlist.playlistName];
 
     for (const track of playlist.tracks) {
+      // Pause: wait until resumed or cancelled
+      if (job.control === 'paused') {
+        job.status = 'paused';
+        job.currentTrack = null;
+        while (job.control === 'paused') {
+          await new Promise(r => setTimeout(r, 300));
+        }
+        if (job.control === 'cancel_requested') break outer;
+        job.status = 'running';
+      }
+      if (job.control === 'cancel_requested') break outer;
+
       const label = track.videoId
         ? track.name
         : (track.artist ? `${track.artist} - ${track.name}` : track.name);
@@ -161,13 +174,19 @@ async function runImport(userId, playlists) {
       }
 
       job.done++;
-      await new Promise(r => setTimeout(r, 3000));
+
+      // 3s delay between tracks — checks every 200ms so pause/cancel responds quickly
+      const delayEnd = Date.now() + 3000;
+      while (Date.now() < delayEnd && job.control === 'running') {
+        await new Promise(r => setTimeout(r, 200));
+      }
     }
   }
 
-  job.status = 'done';
+  job.status = job.control === 'cancel_requested' ? 'cancelled' : 'done';
   job.currentTrack = null;
   job.currentPlaylist = null;
+  job.control = 'idle';
 }
 
 // Parse a single Google Takeout playlist JSON buffer
@@ -305,6 +324,30 @@ router.post('/youtube', upload.array('files', 50), async (req, res) => {
     ok: true,
     playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length })),
   });
+});
+
+router.post('/pause', (req, res) => {
+  const job = importJobs.get(req.user.id);
+  if (!job || job.status !== 'running') return res.status(400).json({ error: 'No running import' });
+  job.control = 'paused';
+  res.json({ ok: true });
+});
+
+router.post('/resume', (req, res) => {
+  const job = importJobs.get(req.user.id);
+  if (!job || job.status !== 'paused') return res.status(400).json({ error: 'Import is not paused' });
+  job.control = 'running';
+  job.status = 'running';
+  res.json({ ok: true });
+});
+
+router.post('/cancel', (req, res) => {
+  const job = importJobs.get(req.user.id);
+  if (!job || (job.status !== 'running' && job.status !== 'paused')) {
+    return res.status(400).json({ error: 'No active import to cancel' });
+  }
+  job.control = 'cancel_requested';
+  res.json({ ok: true });
 });
 
 router.get('/status', (req, res) => {
