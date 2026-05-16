@@ -213,8 +213,8 @@ export default function Library({ view = 'all' }) {
     visibleSongs = [...likedSongs].reverse().map((id) => songs.find((s) => s.id === id)).filter(Boolean);
   }
   if (view === 'playlist' && currentPlaylist) {
-    // Same: newest-added song at top
-    visibleSongs = [...currentPlaylist.songs].reverse().map((id) => songs.find((s) => s.id === id)).filter(Boolean);
+    // Oldest-first: matches Spotify playlist order (songs added later appear at the bottom)
+    visibleSongs = [...currentPlaylist.songs].map((id) => songs.find((s) => s.id === id)).filter(Boolean);
   }
   if (view === 'mix') visibleSongs = mixData ? mixData.songs : [];
   if (view === 'featured') visibleSongs = featuredData ? featuredData.songs : [];

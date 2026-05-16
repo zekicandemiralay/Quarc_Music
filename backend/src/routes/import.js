@@ -230,6 +230,12 @@ router.post('/spotify', upload.array('files', 50), async (req, res) => {
     return res.status(400).json({ error: `Failed to parse files: ${err.message}` });
   }
 
+  // Exportify exports Liked Songs newest-first. Our store is oldest-first so
+  // .reverse() in the UI shows newest at top. Flip it so the order is correct.
+  for (const pl of playlists) {
+    if (pl.playlistName.toLowerCase() === 'liked songs') pl.tracks.reverse();
+  }
+
   if (!playlists.length) {
     return res.status(400).json({ error: 'No tracks found in the uploaded files' });
   }
