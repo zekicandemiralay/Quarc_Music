@@ -16,7 +16,12 @@ function sanitizeFolder(name) {
     .replace(/[/\\:*?"<>|]/g, '_')
     .replace(/\.+$/, '')
     .trim()
-    .slice(0, 100) || 'Unknown Artist';
+    .slice(0, 100);
+}
+
+function letterBucket(filepath) {
+  const first = path.basename(filepath, path.extname(filepath))[0]?.toUpperCase() || '';
+  return /[A-Z]/.test(first) ? first : '#';
 }
 
 router.use(requireAdmin);
@@ -159,7 +164,7 @@ router.post('/reorganize', async (req, res) => {
       } catch {}
     }
 
-    const folder = sanitizeFolder(artist || 'Unknown Artist');
+    const folder = artist ? sanitizeFolder(artist) : letterBucket(song.filepath);
     const artistDir = path.join(MUSIC_DIR, folder);
     const filename = path.basename(song.filepath);
     let dest = path.join(artistDir, filename);
