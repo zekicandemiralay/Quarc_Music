@@ -259,7 +259,7 @@ export default function Library({ view = 'all' }) {
           {filtered.length > 0 && (
             <>
               <button
-                onClick={() => shufflePlay(filtered)}
+                onClick={() => shufflePlay(filtered, view === 'playlist' || view === 'liked' ? 'playlist' : 'single')}
                 className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors"
               >
                 <Shuffle size={15} />
@@ -356,7 +356,7 @@ export default function Library({ view = 'all' }) {
                 className={`grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_5rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group border-b border-zinc-800/50 md:border-0 last:border-0 ${
                   active ? 'bg-zinc-700/40' : 'hover:bg-zinc-700/20'
                 }`}
-                onClick={() => playSong(song, filtered, i)}
+                onClick={() => playSong(song, filtered, i, view === 'playlist' || view === 'liked' ? 'playlist' : 'single')}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}
               >

@@ -90,8 +90,9 @@ const usePlayerStore = create((set, get) => ({
   queue: [],
   queueIndex: -1,
   shuffle: false,
+  playContext: 'single',
 
-  playSong: async (song, queue = null, queueIndex = 0) => {
+  playSong: async (song, queue = null, queueIndex = 0, context) => {
     const state = get();
     if (state.currentSong?.id === song.id) {
       // Re-clicking the current song restarts it from the beginning
@@ -105,7 +106,8 @@ const usePlayerStore = create((set, get) => ({
     playTrack = { songId: song.id, accumulated: 0, resumeAt: null };
 
     // Update state immediately so UI responds before the async cache check
-    set({ currentSong: song, isPlaying: true, currentTime: 0, queue: queue || [song], queueIndex });
+    const newContext = context !== undefined ? context : get().playContext;
+    set({ currentSong: song, isPlaying: true, currentTime: 0, queue: queue || [song], queueIndex, playContext: newContext });
     applyMediaSessionMeta(song);
 
     // Only check IndexedDB if the song is known to be cached offline —
@@ -146,11 +148,11 @@ const usePlayerStore = create((set, get) => ({
     }
   },
 
-  shufflePlay: (songs) => {
+  shufflePlay: (songs, context = 'single') => {
     if (!songs.length) return;
     const shuffled = smartShuffle(songs);
     set({ shuffle: true });
-    get().playSong(shuffled[0], shuffled, 0);
+    get().playSong(shuffled[0], shuffled, 0, context);
   },
 
   toggleShuffle: () => {

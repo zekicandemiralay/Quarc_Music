@@ -6,7 +6,7 @@ const seenKeys = new Set();
 let filling = false;
 
 const useRadioStore = create((set, get) => ({
-  radioMode: JSON.parse(localStorage.getItem('skynet_radio') || 'false'),
+  radioMode: JSON.parse(localStorage.getItem('skynet_radio') || 'true'),
 
   toggleRadioMode() {
     const next = !get().radioMode;
@@ -84,9 +84,17 @@ async function pollUntilDone(jobId) {
   return null;
 }
 
-// Auto-fill queue whenever the current song changes
+// Auto-fill queue whenever the current song changes.
+// Also auto-set radio mode when the user explicitly starts a new play context:
+//   playlist / liked songs → radio OFF
+//   anything else          → radio ON
 usePlayerStore.subscribe((state, prev) => {
   if (state.currentSong?.id !== prev.currentSong?.id && state.currentSong) {
+    if (state.playContext !== prev.playContext) {
+      const on = state.playContext !== 'playlist';
+      useRadioStore.setState({ radioMode: on });
+      localStorage.setItem('skynet_radio', JSON.stringify(on));
+    }
     useRadioStore.getState().fillQueue(state.currentSong);
   }
 });
