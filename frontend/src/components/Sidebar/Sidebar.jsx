@@ -92,27 +92,30 @@ function PlaylistItem({ playlist, onNavigate }) {
   }
 
   return (
-    <div className="group flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-zinc-800 transition-colors">
-      <ListMusic size={15} className="text-zinc-500 shrink-0" />
+    <div className="group flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-zinc-800 transition-colors touch-manipulation">
       {renaming ? (
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(false); }}
-          className="flex-1 bg-zinc-700 text-white text-sm rounded px-1.5 py-0.5 focus:outline-none min-w-0"
-        />
+        <>
+          <ListMusic size={15} className="text-zinc-500 shrink-0" />
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(false); }}
+            className="flex-1 bg-zinc-700 text-white text-sm rounded px-1.5 py-0.5 focus:outline-none min-w-0"
+          />
+        </>
       ) : (
         <NavLink
           to={`/playlist/${playlist.id}`}
           className={({ isActive }) =>
-            `flex-1 text-sm truncate transition-colors ${isActive ? 'text-white' : 'text-zinc-400 hover:text-white'}`
+            `flex-1 flex items-center gap-2 min-w-0 text-sm transition-colors ${isActive ? 'text-white' : 'text-zinc-400 hover:text-white'}`
           }
           onClick={onNavigate}
           onDoubleClick={() => setRenaming(true)}
         >
-          {playlist.name}
+          <ListMusic size={15} className="text-zinc-500 shrink-0" />
+          <span className="truncate">{playlist.name}</span>
         </NavLink>
       )}
       {confirming ? (
