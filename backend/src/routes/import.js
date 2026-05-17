@@ -49,6 +49,11 @@ function playlistNameFromFilename(filename) {
   return path.basename(filename, path.extname(filename)).trim() || 'Imported Playlist';
 }
 
+function isLikedSongsName(name) {
+  const n = name.toLowerCase().replace(/[_\-]/g, ' ').trim();
+  return n === 'liked songs' || n === 'liked videos' || n === 'liked from radio';
+}
+
 function firstArtist(raw) {
   // Exportify separates multiple artists with ";" — use only the first
   return (raw || '').split(';')[0].trim();
@@ -62,7 +67,8 @@ function csvToPlaylist(filename, buffer) {
       artist: firstArtist(r['Artist Name(s)'] || r['Artist'] || ''),
     }))
     .filter(t => t.name);
-  return { playlistName: playlistNameFromFilename(filename), tracks };
+  const playlistName = playlistNameFromFilename(filename);
+  return { playlistName, isLiked: isLikedSongsName(playlistName), tracks };
 }
 
 // Accepts: one ZIP, one CSV, or multiple CSVs
@@ -92,6 +98,13 @@ function withTimeout(promise, ms) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+const UPSERT_SQL = `
+  INSERT INTO user_data (user_id, data_key, data_json, updated_at)
+  VALUES (?, ?, ?, datetime('now'))
+  ON CONFLICT(user_id, data_key)
+  DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
+`;
+
 async function runImport(userId, playlists) {
   const job = importJobs.get(userId);
   const db = getDb();
@@ -101,12 +114,13 @@ async function runImport(userId, playlists) {
   job.errors = [];
   job.control = 'running'; // 'running' | 'paused' | 'cancel_requested'
 
-  // Create all playlists up front
+  // Create regular playlists up front (liked songs go to a separate store)
   const playlistIds = {};
   {
     const row = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'playlists');
     const userPlaylists = row ? JSON.parse(row.data_json) : [];
     for (const pl of playlists) {
+      if (pl.isLiked) continue;
       let existing = userPlaylists.find(p => p.name === pl.playlistName);
       if (!existing) {
         existing = { id: uuidv4(), name: pl.playlistName, songs: [] };
@@ -114,12 +128,7 @@ async function runImport(userId, playlists) {
       }
       playlistIds[pl.playlistName] = existing.id;
     }
-    db.prepare(`
-      INSERT INTO user_data (user_id, data_key, data_json, updated_at)
-      VALUES (?, ?, ?, datetime('now'))
-      ON CONFLICT(user_id, data_key)
-      DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
-    `).run(userId, 'playlists', JSON.stringify(userPlaylists));
+    db.prepare(UPSERT_SQL).run(userId, 'playlists', JSON.stringify(userPlaylists));
   }
 
   outer: for (const playlist of playlists) {
@@ -155,17 +164,23 @@ async function runImport(userId, playlists) {
         if (filepath) {
           const song = await scanFile(filepath);
           if (song) {
-            const row = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'playlists');
-            const userPlaylists = row ? JSON.parse(row.data_json) : [];
-            const pl = userPlaylists.find(p => p.id === playlistId);
-            if (pl && !pl.songs.includes(song.id)) {
-              pl.songs.push(song.id);
-              db.prepare(`
-                INSERT INTO user_data (user_id, data_key, data_json, updated_at)
-                VALUES (?, ?, ?, datetime('now'))
-                ON CONFLICT(user_id, data_key)
-                DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
-              `).run(userId, 'playlists', JSON.stringify(userPlaylists));
+            if (playlist.isLiked) {
+              // Add to liked songs store
+              const likedRow = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'liked');
+              const liked = likedRow ? JSON.parse(likedRow.data_json) : [];
+              if (!liked.includes(song.id)) {
+                liked.push(song.id);
+                db.prepare(UPSERT_SQL).run(userId, 'liked', JSON.stringify(liked));
+              }
+            } else {
+              // Add to playlist
+              const row = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'playlists');
+              const userPlaylists = row ? JSON.parse(row.data_json) : [];
+              const pl = userPlaylists.find(p => p.id === playlistId);
+              if (pl && !pl.songs.includes(song.id)) {
+                pl.songs.push(song.id);
+                db.prepare(UPSERT_SQL).run(userId, 'playlists', JSON.stringify(userPlaylists));
+              }
             }
           }
         }
@@ -201,7 +216,7 @@ function takeoutJsonToPlaylist(entryName, buffer) {
         name: item.snippet?.title || item.contentDetails.videoId,
         videoId: item.contentDetails.videoId,
       }));
-    return tracks.length > 0 ? { playlistName: name, tracks } : null;
+    return tracks.length > 0 ? { playlistName: name, isLiked: isLikedSongsName(name), tracks } : null;
   } catch {
     return null;
   }
@@ -249,10 +264,10 @@ router.post('/spotify', upload.array('files', 50), async (req, res) => {
     return res.status(400).json({ error: `Failed to parse files: ${err.message}` });
   }
 
-  // Exportify exports Liked Songs newest-first. Our store is oldest-first so
-  // .reverse() in the UI shows newest at top. Flip it so the order is correct.
+  // Exportify exports Liked Songs newest-first; our liked store is oldest-first
+  // (the UI reverses for display). Flip tracks so the oldest ends up at index 0.
   for (const pl of playlists) {
-    if (pl.playlistName.toLowerCase() === 'liked songs') pl.tracks.reverse();
+    if (pl.isLiked) pl.tracks.reverse();
   }
 
   if (!playlists.length) {
