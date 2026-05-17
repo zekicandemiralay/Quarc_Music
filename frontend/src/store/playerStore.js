@@ -102,6 +102,7 @@ const usePlayerStore = create((set, get) => ({
   queueIndex: -1,
   shuffle: false,
   playContext: 'single',
+  waitingForRadio: false,
 
   playSong: async (song, queue = null, queueIndex = 0, context) => {
     const state = get();
@@ -118,7 +119,7 @@ const usePlayerStore = create((set, get) => ({
 
     // Update state immediately so UI responds before the async cache check
     const newContext = context !== undefined ? context : get().playContext;
-    set({ currentSong: song, isPlaying: true, currentTime: 0, queue: queue || [song], queueIndex, playContext: newContext });
+    set({ currentSong: song, isPlaying: true, currentTime: 0, queue: queue || [song], queueIndex, playContext: newContext, waitingForRadio: false });
     applyMediaSessionMeta(song);
 
     // Play immediately from stream URL — no await before play() so iOS keeps
@@ -153,13 +154,17 @@ const usePlayerStore = create((set, get) => ({
     const { queue, queueIndex } = get();
     if (!queue.length) return;
     const idx = queueIndex + 1;
-    if (idx >= queue.length) return;
+    if (idx >= queue.length) {
+      // Queue exhausted — signal radio to resume playback when a new song arrives
+      set({ waitingForRadio: true });
+      return;
+    }
     // If preloader already buffered this song, swap it in directly for instant start
     const nextSrc = `/api/music/${queue[idx].id}/stream`;
     if (preloader.src === nextSrc && !preloader.error) {
       if (playTrack.songId) flushPlay(playTrack.songId);
       playTrack = { songId: queue[idx].id, accumulated: 0, resumeAt: null };
-      set({ currentSong: queue[idx], isPlaying: true, currentTime: 0, queueIndex: idx });
+      set({ currentSong: queue[idx], isPlaying: true, currentTime: 0, queueIndex: idx, waitingForRadio: false });
       applyMediaSessionMeta(queue[idx]);
       audio.src = nextSrc;
       audio.play().catch(() => {});

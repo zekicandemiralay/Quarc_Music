@@ -67,11 +67,16 @@ async function startRadioDownload(track) {
     if (!song) return;
     if (!useRadioStore.getState().radioMode) return;
 
+    const wasWaiting = usePlayerStore.getState().waitingForRadio;
     usePlayerStore.setState(s => {
       const newQueue = [...s.queue, song];
       schedulePreload(newQueue, s.queueIndex);
       return { queue: newQueue };
     });
+    // Player stalled waiting for a radio song — resume automatically
+    if (wasWaiting) {
+      usePlayerStore.getState().next();
+    }
   } catch {}
 }
 
@@ -99,6 +104,11 @@ usePlayerStore.subscribe((state, prev) => {
       useRadioStore.setState({ radioMode: on });
       localStorage.setItem('skynet_radio', JSON.stringify(on));
     }
+    useRadioStore.getState().fillQueue(state.currentSong);
+  }
+  // Player hit end of queue — kick off a fresh fill so downloads start immediately
+  if (state.waitingForRadio && !prev.waitingForRadio && state.currentSong) {
+    filling = false; // allow re-entry even if a prior fill just completed
     useRadioStore.getState().fillQueue(state.currentSong);
   }
 });
