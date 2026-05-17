@@ -12,6 +12,7 @@ services:
       - OPENVPN_PASSWORD=${SURFSHARK_PASSWORD}
       - SERVER_COUNTRIES=${VPN_COUNTRY:-Netherlands}
       - OPENVPN_PROTOCOL=tcp
+      - HTTPPROXY=on
     healthcheck:
       test: ["CMD-SHELL", "ping -c 1 -W 10 1.1.1.1"]
       interval: 15s
