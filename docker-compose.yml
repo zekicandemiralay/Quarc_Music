@@ -9,6 +9,7 @@ services:
       - VPN_SERVICE_PROVIDER=surfshark
       - VPN_TYPE=wireguard
       - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
       - SERVER_COUNTRIES=${VPN_COUNTRY:-Netherlands}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8000/v1/vpn/status | grep -q running"]
