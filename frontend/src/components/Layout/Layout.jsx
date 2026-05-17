@@ -47,7 +47,7 @@ export default function Layout({ children }) {
           !online ? 'bg-[#1DB954] text-black' : 'bg-amber-600 text-amber-50'
         }`}>
           {!online ? <WifiOff size={13} /> : <ServerCrash size={13} />}
-          {!online ? "You're offline — playing from cache" : 'Server not reachable — some features may be unavailable'}
+          {!online ? "You're offline" : 'Server not reachable — some features may be unavailable'}
         </div>
       )}
 
