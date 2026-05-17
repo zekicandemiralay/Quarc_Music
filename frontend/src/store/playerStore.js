@@ -49,6 +49,17 @@ function smartShuffle(songs) {
 const audio = new Audio();
 audio.preload = 'metadata';
 
+// Silent preloader — buffers the next song in the background so it starts instantly
+const preloader = new Audio();
+preloader.preload = 'auto';
+
+function schedulePreload(queue, queueIndex) {
+  const next = queue[queueIndex + 1];
+  if (!next) return;
+  const src = `/api/music/${next.id}/stream`;
+  if (preloader.src !== src) preloader.src = src;
+}
+
 // iOS shows seek buttons whenever setPositionState is called — skip it on iOS
 // so the lock screen always shows prev/next track buttons instead.
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -125,6 +136,8 @@ const usePlayerStore = create((set, get) => ({
     if (usePlayerStore.getState().currentSong?.id === song.id) {
       audio.src = src;
       audio.play().catch(() => {});
+      const { queue: q, queueIndex: qi } = usePlayerStore.getState();
+      schedulePreload(q, qi);
     }
   },
 
@@ -136,7 +149,19 @@ const usePlayerStore = create((set, get) => ({
     if (!queue.length) return;
     const idx = queueIndex + 1;
     if (idx >= queue.length) return;
-    get().playSong(queue[idx], queue, idx);
+    // If preloader already buffered this song, swap it in directly for instant start
+    const nextSrc = `/api/music/${queue[idx].id}/stream`;
+    if (preloader.src === nextSrc && !preloader.error) {
+      if (playTrack.songId) flushPlay(playTrack.songId);
+      playTrack = { songId: queue[idx].id, accumulated: 0, resumeAt: null };
+      set({ currentSong: queue[idx], isPlaying: true, currentTime: 0, queueIndex: idx });
+      applyMediaSessionMeta(queue[idx]);
+      audio.src = nextSrc;
+      audio.play().catch(() => {});
+      schedulePreload(queue, idx);
+    } else {
+      get().playSong(queue[idx], queue, idx);
+    }
   },
 
   prev: () => {
@@ -282,4 +307,5 @@ try {
   }
 } catch {}
 
+export { schedulePreload };
 export default usePlayerStore;

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import usePlayerStore from './playerStore';
+import usePlayerStore, { schedulePreload } from './playerStore';
 
 // Module-level: not reactive, just dedup guards
 const seenKeys = new Set();
@@ -67,7 +67,11 @@ async function startRadioDownload(track) {
     if (!song) return;
     if (!useRadioStore.getState().radioMode) return;
 
-    usePlayerStore.setState(s => ({ queue: [...s.queue, song] }));
+    usePlayerStore.setState(s => {
+      const newQueue = [...s.queue, song];
+      schedulePreload(newQueue, s.queueIndex);
+      return { queue: newQueue };
+    });
   } catch {}
 }
 
