@@ -11,9 +11,20 @@ The app runs over HTTPS using a self-signed certificate (not from a public autho
 
 ---
 
-### Windows — Desktop App (recommended)
+### Desktop App — Windows, macOS, Linux (recommended)
 
-The easiest way on Windows is to use the **Skynet Music desktop app** — ask the admin for the installer (`.exe` file), run it, and Skynet Music will appear in your Start menu like any other app.
+The easiest way on a computer is to use the **Skynet Music desktop app**. Download the installer for your platform:
+
+**[→ Download from GitHub Releases](https://github.com/zekicandemiralay/Skynet_Music/releases/latest)**
+
+| Platform | File to download |
+|----------|-----------------|
+| Windows | `*_x64-setup.exe` |
+| macOS (Apple Silicon M1/M2/M3) | `*_aarch64.dmg` |
+| macOS (Intel) | `*_x64.dmg` |
+| Linux | `*_amd64.deb` or `*_amd64.AppImage` |
+
+> **macOS:** Right-click the app → Open the first time to bypass the unsigned app warning.
 
 You still need to install the certificate first:
 

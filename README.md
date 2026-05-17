@@ -12,7 +12,7 @@ A self-hosted music player for your local network. Stream your music library, do
 - Full offline support — download playlists and collections; newly added songs auto-download
 - Expanded player view — tap the player bar for a full-screen now-playing screen with swipe-to-close
 - PWA — add to your home screen for a native-app experience on mobile
-- Windows desktop app — distributable `.exe` installer built with Tauri (see `desktop/`)
+- Desktop app — native installers for Windows, macOS, and Linux built with Tauri — download from [Releases](https://github.com/zekicandemiralay/Skynet_Music/releases/latest)
 - Spotify import — upload an Exportify ZIP/CSV and all your playlists are downloaded automatically
 - YouTube Music import — upload a Google Takeout export and playlists are downloaded by exact video ID (no searching, perfect matches)
 
@@ -190,6 +190,9 @@ Users will need to reinstall the certificate on their devices after this.
 | `ADMIN_USERNAME` | `admin` | Admin account username |
 | `ADMIN_PASSWORD` | *(auto-generated)* | Set to override; otherwise printed once in logs |
 | `SECURE_COOKIE` | `true` | Keep true — required for HTTPS cookie handling |
+| `SURFSHARK_USER` | *(empty)* | Surfshark OpenVPN service credential username — routes downloads through VPN |
+| `SURFSHARK_PASSWORD` | *(empty)* | Surfshark OpenVPN service credential password |
+| `VPN_COUNTRY` | `Netherlands` | VPN server country for downloads |
 
 ---
 
@@ -347,11 +350,20 @@ After this, the app works fully offline from the home screen icon.
 
 ---
 
-### Windows — Desktop App (recommended)
+### Desktop App (Windows / macOS / Linux — recommended)
 
-A native Windows installer is available in the `desktop/` folder of this repo. See `desktop/BUILD.md` for build instructions. Share the resulting `.exe` with users — they install it once and launch Skynet Music from their Start menu.
+Download the installer for your platform from the [Releases page](https://github.com/zekicandemiralay/Skynet_Music/releases/latest):
 
-Users still need to install the certificate (steps below) before opening the app.
+| Platform | File |
+|----------|------|
+| Windows | `*_x64-setup.exe` |
+| macOS (Apple Silicon M1/M2/M3) | `*_aarch64.dmg` |
+| macOS (Intel) | `*_x64.dmg` |
+| Linux | `*_amd64.deb` or `*_amd64.AppImage` |
+
+Install it once and launch Skynet Music from your Start menu / Applications / app launcher. Users still need to install the certificate (steps below) before opening the app.
+
+**macOS note:** Right-click the app → Open the first time to bypass the unsigned app warning.
 
 ---
 
