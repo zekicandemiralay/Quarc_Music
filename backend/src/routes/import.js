@@ -203,25 +203,45 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
       job.currentTrack = label;
 
       try {
-        const filepath = await downloadWithRetry(track);
-        if (filepath) {
-          const song = await scanFile(filepath);
-          if (song) {
-            if (playlist.isLiked) {
-              const likedRow = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'liked_songs');
-              const liked = likedRow ? JSON.parse(likedRow.data_json) : [];
-              if (!liked.includes(song.id)) {
-                liked.push(song.id);
-                db.prepare(UPSERT_SQL).run(userId, 'liked_songs', JSON.stringify(liked));
-              }
-            } else {
-              const row = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'playlists');
-              const userPlaylists = row ? JSON.parse(row.data_json) : [];
-              const pl = userPlaylists.find(p => p.id === playlistId);
-              if (pl && !pl.songs.includes(song.id)) {
-                pl.songs.push(song.id);
-                db.prepare(UPSERT_SQL).run(userId, 'playlists', JSON.stringify(userPlaylists));
-              }
+        // Check library first — avoid re-downloading songs already in the library
+        let song = null;
+        if (track.videoId) {
+          song = db.prepare(
+            'SELECT * FROM songs WHERE LOWER(TRIM(title)) = LOWER(TRIM(?)) LIMIT 1'
+          ).get(track.name) || null;
+        } else if (track.name) {
+          const q = track.artist
+            ? 'SELECT * FROM songs WHERE LOWER(TRIM(title)) = LOWER(TRIM(?)) AND LOWER(TRIM(artist)) = LOWER(TRIM(?)) LIMIT 1'
+            : 'SELECT * FROM songs WHERE LOWER(TRIM(title)) = LOWER(TRIM(?)) LIMIT 1';
+          song = (track.artist
+            ? db.prepare(q).get(track.name, track.artist)
+            : db.prepare(q).get(track.name)) || null;
+        }
+
+        if (!song) {
+          const filepath = await downloadWithRetry(track);
+          if (filepath) {
+            song = await scanFile(filepath);
+          } else {
+            job.errors.push({ track: label, error: 'Download returned no file path' });
+          }
+        }
+
+        if (song) {
+          if (playlist.isLiked) {
+            const likedRow = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'liked_songs');
+            const liked = likedRow ? JSON.parse(likedRow.data_json) : [];
+            if (!liked.includes(song.id)) {
+              liked.push(song.id);
+              db.prepare(UPSERT_SQL).run(userId, 'liked_songs', JSON.stringify(liked));
+            }
+          } else {
+            const row = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'playlists');
+            const userPlaylists = row ? JSON.parse(row.data_json) : [];
+            const pl = userPlaylists.find(p => p.id === playlistId);
+            if (pl && !pl.songs.includes(song.id)) {
+              pl.songs.push(song.id);
+              db.prepare(UPSERT_SQL).run(userId, 'playlists', JSON.stringify(userPlaylists));
             }
           }
         }
@@ -230,14 +250,7 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
       }
 
       job.done++;
-      // Persist progress every 5 tracks so a restart can resume roughly where we left off
       if (job.done % 5 === 0) persistImportState(userId, job, playlists, pli, ti + 1);
-
-      // 3s delay between tracks — checks every 200ms so pause/cancel responds quickly
-      const delayEnd = Date.now() + 3000;
-      while (Date.now() < delayEnd && job.control === 'running') {
-        await new Promise(r => setTimeout(r, 200));
-      }
     }
   }
 
