@@ -166,11 +166,11 @@ async function runImport(userId, playlists) {
           if (song) {
             if (playlist.isLiked) {
               // Add to liked songs store
-              const likedRow = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'liked');
+              const likedRow = db.prepare('SELECT data_json FROM user_data WHERE user_id = ? AND data_key = ?').get(userId, 'liked_songs');
               const liked = likedRow ? JSON.parse(likedRow.data_json) : [];
               if (!liked.includes(song.id)) {
                 liked.push(song.id);
-                db.prepare(UPSERT_SQL).run(userId, 'liked', JSON.stringify(liked));
+                db.prepare(UPSERT_SQL).run(userId, 'liked_songs', JSON.stringify(liked));
               }
             } else {
               // Add to playlist
