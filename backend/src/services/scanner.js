@@ -24,15 +24,7 @@ async function scanFile(filepath) {
   const db = getDb();
   try {
     const existing = db.prepare('SELECT * FROM songs WHERE filepath = ?').get(filepath);
-
-    // Skip re-scan only if metadata is already complete
-    const needsRescan = !existing ||
-      existing.artist === 'Unknown Artist' ||
-      existing.album === 'Unknown Album' ||
-      !existing.has_cover ||
-      existing.genre === null;
-
-    if (!needsRescan) return existing;
+    if (existing) return existing;
 
     const meta = await mm.parseFile(filepath, { duration: true, skipCovers: false });
     const { common, format } = meta;
@@ -86,10 +78,20 @@ async function scanFile(filepath) {
 
 async function scanMusicDir(dir) {
   const files = walkDir(dir);
-  let count = 0;
-  for (const file of files) {
-    const result = await scanFile(file);
-    if (result) count++;
+  const db = getDb();
+
+  // Only process files not already in the DB — existing songs are already indexed
+  const known = new Set(
+    db.prepare('SELECT filepath FROM songs').all().map(r => r.filepath)
+  );
+  const newFiles = files.filter(f => !known.has(f));
+
+  const CONCURRENCY = 8;
+  let count = known.size;
+  for (let i = 0; i < newFiles.length; i += CONCURRENCY) {
+    const batch = newFiles.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map(f => scanFile(f)));
+    count += results.filter(Boolean).length;
   }
   return count;
 }
