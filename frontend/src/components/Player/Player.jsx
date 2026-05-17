@@ -317,6 +317,16 @@ export default function Player() {
         className={`bg-zinc-900 border-t border-zinc-800 shrink-0 ${currentSong ? 'cursor-pointer' : ''}`}
         onClick={openExpanded}
       >
+        {/* Progress line — mobile only; desktop has the full seek bar */}
+        <div className="md:hidden h-0.5 bg-zinc-800 w-full">
+          {currentSong && duration > 0 && (
+            <div
+              className="h-full bg-white"
+              style={{ width: `${(currentTime / duration) * 100}%`, transition: 'none' }}
+            />
+          )}
+        </div>
+
         {/* ── Mobile player ── */}
         <div className="flex md:hidden items-center gap-3 px-3 py-3">
           <Cover song={currentSong} className="w-12 h-12 rounded" />
