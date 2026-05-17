@@ -29,7 +29,7 @@ export default function Layout({ children }) {
       </div>
 
       {/* Scrollable content area — padded so content never hides under fixed bars */}
-      <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] md:pb-24 ${showBanner ? 'pt-[53px] md:pt-9' : 'pt-[53px] md:pt-0'}`}>
+      <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] md:pb-24 ${showBanner ? 'pt-[83px] md:pt-[30px]' : 'pt-[53px] md:pt-0'}`}>
         {children}
       </main>
 
@@ -44,7 +44,7 @@ export default function Layout({ children }) {
       {/* Network status banner */}
       {showBanner && (
         <div className={`fixed top-[53px] md:top-0 left-0 md:left-64 right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium ${
-          !online ? 'bg-zinc-700 text-zinc-200' : 'bg-amber-600 text-amber-50'
+          !online ? 'bg-[#1DB954] text-black' : 'bg-amber-600 text-amber-50'
         }`}>
           {!online ? <WifiOff size={13} /> : <ServerCrash size={13} />}
           {!online ? "You're offline — playing from cache" : 'Server not reachable — some features may be unavailable'}
