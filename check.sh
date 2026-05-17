@@ -103,10 +103,16 @@ docker ps --format "  · {{.Names}}\t{{.Status}}" 2>/dev/null | head -10
 hdr "VPN (Gluetun)"
 # ════════════════════════════════════════════════════════════════════════
 
-VPN_IP=$(dexec backend \
-  curl -s --max-time 15 --proxy http://gluetun:8888 https://api.ipify.org 2>/dev/null || echo "")
-if [ -n "$VPN_IP" ]; then
-  ok "VPN proxy reachable — exit IP: ${VPN_IP}"
+# Check TCP reachability of gluetun proxy from backend using node (no curl in container)
+VPN_REACH=$(dexec backend node -e "
+  const net = require('net');
+  const s = net.connect(8888, 'gluetun');
+  s.on('connect', () => { console.log('ok'); s.destroy(); process.exit(0); });
+  s.on('error',   () => { console.log('fail'); process.exit(1); });
+  setTimeout(() => { console.log('fail'); process.exit(1); }, 8000);
+" 2>/dev/null || echo "fail")
+if [ "$VPN_REACH" = "ok" ]; then
+  ok "VPN proxy (gluetun:8888) reachable from backend — full test via yt-dlp below"
 else
   fail "VPN proxy (gluetun:8888) unreachable from backend"
 fi
@@ -241,8 +247,7 @@ DB_RESULT=$(dexec backend node -e "
     const downloads = db.prepare('SELECT COUNT(*) as c FROM downloads').get().c;
     const pending   = db.prepare(\"SELECT COUNT(*) as c FROM downloads WHERE status='pending' OR status='downloading'\").get().c;
     const wal       = Object.values(db.prepare('PRAGMA journal_mode').get())[0];
-    const size      = db.prepare('PRAGMA page_count').get().page_count * db.prepare('PRAGMA page_size').get().page_size;
-    console.log(JSON.stringify({ songs, users, downloads, pending, wal, size }));
+    console.log(JSON.stringify({ songs, users, downloads, pending, wal }));
   } catch(e) {
     console.log(JSON.stringify({ error: e.message }));
   }
@@ -257,10 +262,9 @@ else
   DB_DL=$(echo "$DB_RESULT"    | grep -oP '"downloads":\K\d+' || echo "?")
   DB_PEND=$(echo "$DB_RESULT"  | grep -oP '"pending":\K\d+'   || echo "0")
   DB_WAL=$(echo "$DB_RESULT"   | grep -oP '"wal":"\K[^"]+'    || echo "?")
-  DB_SIZE=$(echo "$DB_RESULT"  | grep -oP '"size":\K\d+'      || echo "0")
-  DB_SIZE_MB=$(( ${DB_SIZE:-0} / 1024 / 1024 ))
   ok "DB accessible — ${DB_SONGS} songs, ${DB_USERS} users, ${DB_DL} downloads"
-  info "DB size: ${DB_SIZE_MB} MB"
+  DB_SIZE_HUMAN=$(dexec backend du -sh /app/data/music.db 2>/dev/null | awk '{print $1}' || echo "?")
+  info "DB size: ${DB_SIZE_HUMAN}"
   [ "$DB_WAL" = "wal" ] && ok "SQLite WAL mode enabled" || warn "SQLite journal mode: ${DB_WAL} (expected wal)"
   [ "${DB_PEND:-0}" -gt 10 ] && warn "${DB_PEND} downloads stuck in pending/downloading state" || true
 fi
@@ -285,11 +289,13 @@ else
 fi
 
 # Disk space for music
-MUSIC_DISK=$(dexec backend df -h /music 2>/dev/null | awk 'NR==2{print $5, $4}' || echo "? ?")
-MDISK_PCT=${MUSIC_DISK% *}; MDISK_FREE=${MUSIC_DISK#* }; MDISK_NUM=${MDISK_PCT//%/}
-if   [ "${MDISK_NUM:-0}" -gt 95 ] 2>/dev/null; then fail "Music disk ${MDISK_PCT} full — only ${MDISK_FREE} free"
-elif [ "${MDISK_NUM:-0}" -gt 85 ] 2>/dev/null; then warn "Music disk ${MDISK_PCT} used — ${MDISK_FREE} free"
-else info "Music disk: ${MDISK_PCT} used, ${MDISK_FREE} free"; fi
+MDISK_PCT=$(dexec backend df /music 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5); print $5}' || echo "")
+MDISK_FREE=$(dexec backend df -h /music 2>/dev/null | awk 'NR==2{print $4}' || echo "?")
+if [ -z "$MDISK_PCT" ]; then
+  info "Music disk: could not read"
+elif [ "$MDISK_PCT" -gt 95 ] 2>/dev/null; then fail "Music disk ${MDISK_PCT}% full — only ${MDISK_FREE} free"
+elif [ "$MDISK_PCT" -gt 85 ] 2>/dev/null; then warn "Music disk ${MDISK_PCT}% used — ${MDISK_FREE} free"
+else info "Music disk: ${MDISK_PCT}% used, ${MDISK_FREE} free"; fi
 
 # ════════════════════════════════════════════════════════════════════════
 hdr "yt-dlp"
