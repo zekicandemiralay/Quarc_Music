@@ -463,12 +463,12 @@ router.get('/status', (req, res) => {
   if (!row) return res.json(null);
   try {
     const state = JSON.parse(row.data_json);
-    // Only surface interrupted (non-terminal) jobs — done/cancelled are shown and then cleared
+    // state.playlists contains full playlist objects (for resume); UI expects name strings
+    const names = state.playlistNames || [];
     if (state.status === 'running' || state.status === 'paused') {
-      // Was running when server went down — mark as interrupted so UI offers Resume
-      return res.json({ ...state, status: 'paused', currentTrack: null });
+      return res.json({ ...state, playlists: names, status: 'paused', currentTrack: null });
     }
-    return res.json(state);
+    return res.json({ ...state, playlists: names });
   } catch {
     return res.json(null);
   }
