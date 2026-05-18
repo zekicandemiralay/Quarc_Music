@@ -16,6 +16,8 @@ const MUSIC_DIR = () => process.env.MUSIC_DIR || '/music';
 const importJobs = new Map();
 
 function parseCsv(text) {
+  // Strip UTF-8 BOM — present when exported from Windows or some Android email clients
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
   const lines = text.split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return [];
 
@@ -38,7 +40,7 @@ function parseCsv(text) {
     return fields;
   }
 
-  const headers = parseRow(lines[0]).map(h => h.trim());
+  const headers = parseRow(lines[0]).map(h => h.trim().toLowerCase());
   return lines.slice(1).map(line => {
     const values = parseRow(line);
     return Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
@@ -63,8 +65,8 @@ function csvToPlaylist(filename, buffer) {
   const rows = parseCsv(buffer.toString('utf8'));
   const tracks = rows
     .map(r => ({
-      name: r['Track Name'] || r['Name'] || '',
-      artist: firstArtist(r['Artist Name(s)'] || r['Artist'] || ''),
+      name: r['track name'] || r['name'] || '',
+      artist: firstArtist(r['artist name(s)'] || r['artist'] || ''),
     }))
     .filter(t => t.name);
   const playlistName = playlistNameFromFilename(filename);

@@ -122,11 +122,14 @@ function downloadBySearch(query, outputDir, onProgress) {
         const pct = line.match(/\[download\]\s+([\d.]+)%/);
         if (pct) onProgress(parseFloat(pct[1]));
 
-        const dest = line.match(/\[(?:ExtractAudio|download)\] Destination: (.+)/);
+        const dest = line.match(/\[(?:ExtractAudio|download|Merger)\] Destination: (.+)/);
         if (dest) lastFile = dest[1].trim();
 
+        const moved = line.match(/\[MoveFiles\] Moving file "(.+)" to "(.+)"/);
+        if (moved) lastFile = moved[2].trim();
+
         const already = line.match(/\[download\] (.+) has already been downloaded/);
-        if (already) { lastFile = already[1].trim(); onProgress(100); }
+        if (already) { lastFile = already[1].trim().replace(/\.\w+$/, '.mp3'); onProgress(100); }
       }
     });
 
