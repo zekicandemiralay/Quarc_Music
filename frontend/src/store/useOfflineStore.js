@@ -1,11 +1,43 @@
 import { create } from 'zustand';
 import { saveAudio, getAudioBlob, removeAudio, getAllCachedIds, getStorageEstimate } from '../lib/offlineLib';
 
+// ── Wake Lock ────────────────────────────────────────────────────────────
+let wakeLock = null;
+
+async function acquireWakeLock() {
+  if (wakeLock || !('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    useOfflineStore.setState({ wakeLockActive: true });
+    wakeLock.addEventListener('release', () => {
+      wakeLock = null;
+      useOfflineStore.setState({ wakeLockActive: false });
+    });
+  } catch {}
+}
+
+async function releaseWakeLock() {
+  try { await wakeLock?.release(); } catch {}
+  wakeLock = null;
+  useOfflineStore.setState({ wakeLockActive: false });
+}
+
+// Re-acquire when user unlocks screen while downloads are still running
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      const { downloading } = useOfflineStore.getState();
+      if (Object.keys(downloading).length > 0 && !wakeLock) acquireWakeLock();
+    }
+  });
+}
+
 const useOfflineStore = create((set, get) => ({
   cachedIds: new Set(),
   downloading: {},   // songId → number (0–100) | 'error'
   storageEstimate: null,
   initialized: false,
+  wakeLockActive: false,
 
   init: async () => {
     try {
@@ -31,6 +63,8 @@ const useOfflineStore = create((set, get) => ({
     const { cachedIds, downloading } = get();
     if (cachedIds.has(song.id) || downloading[song.id] !== undefined) return;
 
+    // Acquire wake lock when first download starts
+    if (Object.keys(downloading).length === 0) acquireWakeLock();
     set((s) => ({ downloading: { ...s.downloading, [song.id]: 0 } }));
 
     try {
@@ -65,6 +99,9 @@ const useOfflineStore = create((set, get) => ({
 
       const storageEstimate = await getStorageEstimate();
       if (storageEstimate) set({ storageEstimate });
+
+      // Release wake lock when last download finishes
+      if (Object.keys(get().downloading).length === 0) releaseWakeLock();
     } catch {
       set((s) => ({ downloading: { ...s.downloading, [song.id]: 'error' } }));
       setTimeout(() => {
@@ -72,6 +109,7 @@ const useOfflineStore = create((set, get) => ({
           const { [song.id]: _removed, ...rest } = s.downloading;
           return { downloading: rest };
         });
+        if (Object.keys(get().downloading).length === 0) releaseWakeLock();
       }, 3000);
     }
   },

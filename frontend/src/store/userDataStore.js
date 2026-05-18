@@ -104,12 +104,6 @@ const useUserDataStore = create((set, get) => ({
 
   addToPlaylist: async (playlistId, songId) => {
     const playlist = get().playlists.find((p) => p.id === playlistId);
-    const existingIds = playlist?.songs || [];
-
-    // Check before updating state whether the playlist is fully cached offline
-    const { cachedIds, cacheSong } = useOfflineStore.getState();
-    const isFullyOffline = existingIds.length > 0 && existingIds.every((id) => cachedIds.has(id));
-
     const next = get().playlists.map((p) =>
       p.id === playlistId && !p.songs.includes(songId)
         ? { ...p, songs: [...p.songs, songId] }
@@ -118,11 +112,22 @@ const useUserDataStore = create((set, get) => ({
     set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
 
-    // Auto-download the new song if the playlist was already fully available offline
-    if (isFullyOffline && !existingIds.includes(songId) && !cachedIds.has(songId)) {
-      const song = getCachedSongs().find((s) => s.id === songId);
-      if (song) cacheSong(song);
+    // Auto-download if the playlist is marked as offline
+    if (playlist?.offline) {
+      const { cachedIds, cacheSong } = useOfflineStore.getState();
+      if (!cachedIds.has(songId)) {
+        const song = getCachedSongs().find((s) => s.id === songId);
+        if (song) cacheSong(song);
+      }
     }
+  },
+
+  setPlaylistOffline: async (playlistId, offline) => {
+    const next = get().playlists.map((p) =>
+      p.id === playlistId ? { ...p, offline } : p
+    );
+    set((s) => ({ playlists: next, _mut: s._mut + 1 }));
+    await save('playlists', next);
   },
 
   removeFromPlaylist: async (playlistId, songId) => {

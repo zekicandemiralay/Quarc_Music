@@ -8,8 +8,9 @@ import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
 import useRadioStore from '../../store/useRadioStore';
 
-function OfflineButton({ songs }) {
+function OfflineButton({ songs, playlistId }) {
   const { cachedIds, downloading, cacheSongs, removeSongs } = useOfflineStore();
+  const setPlaylistOffline = useUserDataStore((s) => s.setPlaylistOffline);
   const [confirmRemove, setConfirmRemove] = useState(false);
   if (!songs.length) return null;
 
@@ -18,6 +19,17 @@ function OfflineButton({ songs }) {
   const activeDownloads = ids.filter((id) => typeof downloading[id] === 'number');
   const isDownloading = activeDownloads.length > 0;
   const allCached = cachedCount === songs.length;
+
+  function handleSaveOffline() {
+    if (playlistId) setPlaylistOffline(playlistId, true);
+    cacheSongs(songs);
+  }
+
+  function handleRemoveOffline() {
+    if (playlistId) setPlaylistOffline(playlistId, false);
+    removeSongs(ids);
+    setConfirmRemove(false);
+  }
 
   if (isDownloading) {
     const overallProgress = Math.round(
@@ -43,7 +55,7 @@ function OfflineButton({ songs }) {
                   Cancel
                 </button>
                 <button
-                  onClick={() => { removeSongs(ids); setConfirmRemove(false); }}
+                  onClick={handleRemoveOffline}
                   className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
                 >
                   Remove
@@ -66,7 +78,7 @@ function OfflineButton({ songs }) {
 
   return (
     <button
-      onClick={() => cacheSongs(songs)}
+      onClick={handleSaveOffline}
       className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors shrink-0"
       title="Save for offline listening"
     >
@@ -268,7 +280,7 @@ export default function Library({ view = 'all' }) {
                 <Shuffle size={15} />
                 <span className="hidden sm:inline">Shuffle</span>
               </button>
-              <OfflineButton songs={filtered} />
+              <OfflineButton songs={filtered} playlistId={view === 'playlist' ? playlistId : undefined} />
             </>
           )}
           {view === 'all' && (
