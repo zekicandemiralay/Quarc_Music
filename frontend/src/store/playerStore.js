@@ -148,7 +148,10 @@ const usePlayerStore = create((set, get) => ({
   },
 
   pause: () => { audio.pause(); set({ isPlaying: false }); },
-  resume: () => { audio.play(); set({ isPlaying: true }); },
+  resume: () => {
+    set({ isPlaying: true }); // optimistic — reverted below if play() rejects
+    audio.play().catch(() => set({ isPlaying: false }));
+  },
 
   next: () => {
     const { queue, queueIndex } = get();
@@ -227,6 +230,7 @@ audio.addEventListener('error', () => usePlayerStore.setState({ isPlaying: false
 audio.addEventListener('play', () => {
   playTrack.resumeAt = Date.now();
   usePlayerStore.setState({ isPlaying: true });
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
 });
 
 audio.addEventListener('pause', () => {
@@ -235,6 +239,7 @@ audio.addEventListener('pause', () => {
     playTrack.resumeAt = null;
   }
   usePlayerStore.setState({ isPlaying: false });
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
 });
 
 audio.addEventListener('ended', () => {
@@ -247,8 +252,8 @@ audio.addEventListener('ended', () => {
 // Lock screen / headphone controls
 if ('mediaSession' in navigator) {
   navigator.mediaSession.setActionHandler('play', () => {
-    audio.play();
     usePlayerStore.setState({ isPlaying: true });
+    audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
   });
   navigator.mediaSession.setActionHandler('pause', () => {
     audio.pause();
@@ -273,12 +278,19 @@ if ('mediaSession' in navigator) {
 // ── Persist / restore last-played song ───────────────────────────────────────
 
 function saveState() {
-  const { currentSong, currentTime } = usePlayerStore.getState();
+  const { currentSong, currentTime, queue, queueIndex, shuffle, playContext } = usePlayerStore.getState();
   if (!currentSong) return;
   try {
+    // Keep up to 500 songs from current position to stay within storage limits
+    const savedQueue = queue.length <= 500 ? queue : queue.slice(queueIndex, queueIndex + 500);
+    const savedIndex = queue.length <= 500 ? queueIndex : 0;
     localStorage.setItem('skynet_player_state', JSON.stringify({
       song: currentSong,
       time: Math.floor(currentTime),
+      queue: savedQueue,
+      queueIndex: savedIndex,
+      shuffle,
+      playContext,
     }));
   } catch {}
 }
@@ -301,8 +313,10 @@ try {
   if (saved?.song) {
     usePlayerStore.setState({
       currentSong: saved.song,
-      queue: [saved.song],
-      queueIndex: 0,
+      queue: saved.queue?.length ? saved.queue : [saved.song],
+      queueIndex: saved.queueIndex ?? 0,
+      shuffle: saved.shuffle ?? false,
+      playContext: saved.playContext || 'single',
       currentTime: saved.time || 0,
       isPlaying: false,
     });

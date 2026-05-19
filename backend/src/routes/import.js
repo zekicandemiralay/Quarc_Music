@@ -146,6 +146,28 @@ async function downloadWithRetry(track, maxAttempts = 3) {
   throw lastErr;
 }
 
+// Normalize for case-insensitive comparison including Turkish and other diacritics
+function normalizeStr(s) {
+  return (s || '').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+function buildSongLookup(db) {
+  const map = new Map();
+  for (const s of db.prepare('SELECT id, title, artist, filepath FROM songs').all()) {
+    const t = normalizeStr(s.title);
+    const a = normalizeStr(s.artist || '');
+    if (!map.has(`${t}||${a}`)) map.set(`${t}||${a}`, s);
+    if (!map.has(`t:${t}`)) map.set(`t:${t}`, s);
+  }
+  return map;
+}
+
+function lookupSong(map, title, artist) {
+  const t = normalizeStr(title);
+  const a = normalizeStr(artist || '');
+  return map.get(`${t}||${a}`) || map.get(`t:${t}`) || null;
+}
+
 async function runImport(userId, playlists, startPli = 0, startTi = 0) {
   const job = importJobs.get(userId);
   const db = getDb();
@@ -157,6 +179,9 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
     job.errors = [];
   }
   job.control = 'running';
+
+  // JS-side song lookup: avoids per-track SQL queries and handles non-ASCII case folding
+  const songLookup = buildSongLookup(db);
 
   // Create regular playlists up front (liked songs go to a separate store)
   const playlistIds = {};
@@ -205,25 +230,20 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
       job.currentTrack = label;
 
       try {
-        // Check library first — avoid re-downloading songs already in the library
-        let song = null;
-        if (track.videoId) {
-          song = db.prepare(
-            'SELECT * FROM songs WHERE LOWER(TRIM(title)) = LOWER(TRIM(?)) LIMIT 1'
-          ).get(track.name) || null;
-        } else if (track.name) {
-          const q = track.artist
-            ? 'SELECT * FROM songs WHERE LOWER(TRIM(title)) = LOWER(TRIM(?)) AND LOWER(TRIM(artist)) = LOWER(TRIM(?)) LIMIT 1'
-            : 'SELECT * FROM songs WHERE LOWER(TRIM(title)) = LOWER(TRIM(?)) LIMIT 1';
-          song = (track.artist
-            ? db.prepare(q).get(track.name, track.artist)
-            : db.prepare(q).get(track.name)) || null;
-        }
+        // Check library first (JS-side map handles non-ASCII case folding)
+        let song = track.name ? lookupSong(songLookup, track.name, track.artist) : null;
 
         if (!song) {
           const filepath = await downloadWithRetry(track);
           if (filepath) {
             song = await scanFile(filepath);
+            // Keep lookup map current so later tracks in the same import don't re-download
+            if (song) {
+              const t = normalizeStr(song.title);
+              const a = normalizeStr(song.artist || '');
+              songLookup.set(`${t}||${a}`, song);
+              if (!songLookup.has(`t:${t}`)) songLookup.set(`t:${t}`, song);
+            }
           } else {
             job.errors.push({ track: label, error: 'Download returned no file path' });
           }

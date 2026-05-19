@@ -8,6 +8,12 @@ import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
 import useRadioStore from '../../store/useRadioStore';
 
+// Normalize for search: strips diacritics (ş→s, ü→u, é→e, etc.) and lowercases.
+// ı (Turkish dotless-i, U+0131) has no NFD decomposition so we replace it explicitly.
+function norm(s) {
+  return (s || '').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
 function OfflineButton({ songs, playlistId }) {
   const { cachedIds, downloading, cacheSongs, removeSongs } = useOfflineStore();
   const setPlaylistOffline = useUserDataStore((s) => s.setPlaylistOffline);
@@ -234,8 +240,9 @@ export default function Library({ view = 'all' }) {
   if (view === 'mix') visibleSongs = mixData ? mixData.songs : [];
   if (view === 'featured') visibleSongs = featuredData ? featuredData.songs : [];
 
+  const normSearch = norm(search);
   const filtered = visibleSongs.filter(
-    (s) => !search || [s.title, s.artist, s.album].some((f) => f?.toLowerCase().includes(search.toLowerCase()))
+    (s) => !search || [s.title, s.artist, s.album].some((f) => norm(f).includes(normSearch))
   );
 
   const heading =
