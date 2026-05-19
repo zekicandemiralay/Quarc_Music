@@ -252,8 +252,20 @@ audio.addEventListener('ended', () => {
 // Lock screen / headphone controls
 if ('mediaSession' in navigator) {
   navigator.mediaSession.setActionHandler('play', () => {
+    const { currentSong, currentTime: storeTime } = usePlayerStore.getState();
+    if (!currentSong) return;
     usePlayerStore.setState({ isPlaying: true });
-    audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+    if (audio.readyState < 2) {
+      // Stream connection dropped while screen was locked — reload before playing
+      const t = audio.currentTime || storeTime;
+      audio.src = `/api/music/${currentSong.id}/stream`;
+      audio.addEventListener('canplay', () => {
+        if (t > 0) audio.currentTime = t;
+        audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+      }, { once: true });
+    } else {
+      audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+    }
   });
   navigator.mediaSession.setActionHandler('pause', () => {
     audio.pause();
