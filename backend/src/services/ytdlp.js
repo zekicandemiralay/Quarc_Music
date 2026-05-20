@@ -15,6 +15,21 @@ function searchYoutube(query, limit = 20) {
     const results = [];
     let buffer = '';
     let errorOut = '';
+    let settled = false;
+
+    function finish(fn) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    }
+
+    // Kill yt-dlp if it stalls (rate-limited, VPN reconnecting, etc.)
+    // Return partial results if any arrived; otherwise reject so the UI shows an error.
+    const timer = setTimeout(() => {
+      proc.kill();
+      finish(() => results.length > 0 ? resolve(results) : reject(new Error('Search timed out — yt-dlp took too long')));
+    }, 45000);
 
     proc.stdout.on('data', (chunk) => {
       buffer += chunk.toString();
@@ -39,14 +54,16 @@ function searchYoutube(query, limit = 20) {
     proc.stderr.on('data', (c) => { errorOut += c.toString(); });
 
     proc.on('close', (code) => {
-      if (code !== 0 && results.length === 0) {
-        reject(new Error(`yt-dlp search failed: ${errorOut.slice(0, 300)}`));
-      } else {
-        resolve(results);
-      }
+      finish(() => {
+        if (code !== 0 && results.length === 0) {
+          reject(new Error(`yt-dlp search failed: ${errorOut.slice(0, 300)}`));
+        } else {
+          resolve(results);
+        }
+      });
     });
 
-    proc.on('error', reject);
+    proc.on('error', (err) => finish(() => reject(err)));
   });
 }
 

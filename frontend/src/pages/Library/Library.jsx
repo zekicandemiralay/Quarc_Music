@@ -178,6 +178,7 @@ export default function Library({ view = 'all' }) {
   // Only show loading spinner if we have no cached songs to display
   const [loading, setLoading] = useState(() => view !== 'mix' && view !== 'featured' && !localStorage.getItem('skynet_songs'));
   const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState(null); // brief feedback after scan
   const [search, setSearch] = useState('');
   const [hovered, setHovered] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null); // song ID with open playlist menu
@@ -206,14 +207,15 @@ export default function Library({ view = 'all' }) {
     setLoading(true);
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
+      // 30s — enough for large libraries on a slow mobile connection
+      const timer = setTimeout(() => controller.abort(), 30000);
       const res = await fetch('/api/music', { signal: controller.signal });
       clearTimeout(timer);
       const data = await res.json();
       setSongs(data);
       try { localStorage.setItem('skynet_songs', JSON.stringify(data)); } catch {}
     } catch {
-      // Offline — keep whatever was restored from localStorage
+      // Offline or timeout — keep cached songs
     } finally {
       setLoading(false);
     }
@@ -221,8 +223,21 @@ export default function Library({ view = 'all' }) {
 
   async function scan() {
     setScanning(true);
-    try { await fetch('/api/music/scan', { method: 'POST' }); await load(); }
-    finally { setScanning(false); }
+    setScanMsg(null);
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 60000);
+      const res = await fetch('/api/music/scan', { method: 'POST', signal: controller.signal });
+      clearTimeout(timer);
+      const data = await res.json();
+      await load();
+      setScanMsg(data.count != null ? `${data.count} songs` : 'Done');
+    } catch {
+      setScanMsg('Failed');
+    } finally {
+      setScanning(false);
+      setTimeout(() => setScanMsg(null), 3000);
+    }
   }
 
   // Resolve which songs to show based on view
@@ -294,10 +309,16 @@ export default function Library({ view = 'all' }) {
             <button
               onClick={scan}
               disabled={scanning}
-              className="flex items-center gap-2 px-3 md:px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors disabled:opacity-50"
+              className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-50 ${
+                scanMsg === 'Failed' ? 'bg-red-700 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-white'
+              }`}
             >
               <RefreshCw size={15} className={scanning ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">{scanning ? 'Scanning…' : 'Scan Library'}</span>
+              <span className="hidden sm:inline">
+                {scanning ? 'Scanning…' : scanMsg ?? 'Scan Library'}
+              </span>
+              {/* Mobile: show result message as tooltip-style badge */}
+              {scanMsg && <span className="sm:hidden text-xs">{scanMsg}</span>}
             </button>
           )}
           {view === 'mix' && (
