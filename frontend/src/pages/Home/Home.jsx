@@ -188,35 +188,6 @@ export default function Home() {
         </div>
       ) : (
         <>
-          {/* ── Jump back in ─────────────────────────────────────────────── */}
-          {recentlyPlayed.length > 0 && (
-            <section className="mb-8">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-white font-bold text-lg">Jump back in</h2>
-                {recentlyPlayed.length > 0 && (
-                  <button
-                    onClick={() => shufflePlay(recentlyPlayed)}
-                    className="flex items-center gap-1.5 text-zinc-400 hover:text-white text-sm transition-colors"
-                  >
-                    <Play size={13} className="fill-current" />
-                    Play all
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {recentlyPlayed.map((song, i) => (
-                  <SongCard
-                    key={song.id}
-                    song={song}
-                    queue={recentlyPlayed}
-                    queueIndex={i}
-                    onPlay={playSong}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* ── Your Playlists ───────────────────────────────────────────── */}
           {recentPlaylists.length > 0 && (
             <section className="mb-8">
@@ -240,6 +211,33 @@ export default function Home() {
                     </div>
                     <span className="text-white text-sm font-medium truncate">{pl.name}</span>
                   </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── Jump back in ─────────────────────────────────────────────── */}
+          {recentlyPlayed.length > 0 && (
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-white font-bold text-lg">Jump back in</h2>
+                <button
+                  onClick={() => shufflePlay(recentlyPlayed)}
+                  className="flex items-center gap-1.5 text-zinc-400 hover:text-white text-sm transition-colors"
+                >
+                  <Play size={13} className="fill-current" />
+                  Play all
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {recentlyPlayed.map((song, i) => (
+                  <SongCard
+                    key={song.id}
+                    song={song}
+                    queue={recentlyPlayed}
+                    queueIndex={i}
+                    onPlay={playSong}
+                  />
                 ))}
               </div>
             </section>
