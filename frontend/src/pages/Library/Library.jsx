@@ -519,7 +519,7 @@ export default function Library({ view = 'all' }) {
     `${songs.length} songs`;
 
   return (
-    <div className="p-4 md:p-6">
+    <div className="p-4 md:p-6" ref={songListRef}>
       <div className="flex items-start justify-between mb-5 md:mb-6">
         <div className="flex items-center gap-3">
           {view === 'liked' && <Heart size={32} className="text-red-400 fill-current md:text-4xl" />}
@@ -622,7 +622,7 @@ export default function Library({ view = 'all' }) {
           )}
         </div>
       ) : (
-        <div ref={songListRef}>
+        <div>
           {/* Desktop-only header row */}
           <div className="hidden md:grid md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-3 px-4 py-2 text-zinc-500 text-xs uppercase tracking-wider border-b border-zinc-800 mb-1">
             <span>#</span>
