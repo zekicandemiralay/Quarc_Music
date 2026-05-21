@@ -389,6 +389,8 @@ export default function Library({ view = 'all' }) {
   const [queueToast, setQueueToast] = useState(null); // brief "Added to queue" feedback
   const [actionSheet, setActionSheet] = useState(null); // song object for mobile action sheet
   const queueToastTimer = useRef(null);
+  const swipeRef = useRef({ startX: 0, startY: 0, song: null, el: null, isH: false, lastDx: 0 });
+  const songListRef = useRef(null);
   const { playSong, currentSong, isPlaying, shufflePlay, addToQueue } = usePlayerStore();
   const { cachedIds, downloading } = useOfflineStore();
   const { likedSongs, playlists, toggleLike, removeFromPlaylist } = useUserDataStore();
@@ -402,6 +404,35 @@ export default function Library({ view = 'all' }) {
     setQueueToast(true);
     queueToastTimer.current = setTimeout(() => setQueueToast(null), 2000);
   }
+
+  useEffect(() => {
+    const el = songListRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      const sr = swipeRef.current;
+      if (!sr.song || !e.touches[0]) return;
+      const dx = e.touches[0].clientX - sr.startX;
+      const dy = e.touches[0].clientY - sr.startY;
+      if (!sr.isH) {
+        if (Math.abs(dy) > 8) { sr.song = null; return; }
+        if (Math.abs(dx) > 8) {
+          if (dx > 0) sr.isH = true;
+          else { sr.song = null; return; }
+        }
+        return;
+      }
+      if (dx > 0) {
+        e.preventDefault();
+        sr.lastDx = dx;
+        const inner = sr.el;
+        const reveal = inner?.previousElementSibling;
+        if (inner) inner.style.transform = `translateX(${Math.min(dx, 110)}px)`;
+        if (reveal) reveal.style.opacity = String(Math.min(dx / 80, 1));
+      }
+    };
+    el.addEventListener('touchmove', handler, { passive: false });
+    return () => el.removeEventListener('touchmove', handler);
+  }, []);
 
   useEffect(() => { if (view !== 'mix' && view !== 'featured') load(); }, []);
 
@@ -591,7 +622,7 @@ export default function Library({ view = 'all' }) {
           )}
         </div>
       ) : (
-        <div>
+        <div ref={songListRef}>
           {/* Desktop-only header row */}
           <div className="hidden md:grid md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-3 px-4 py-2 text-zinc-500 text-xs uppercase tracking-wider border-b border-zinc-800 mb-1">
             <span>#</span>
@@ -607,10 +638,18 @@ export default function Library({ view = 'all' }) {
             const liked = likedSongs.includes(song.id);
             const isHov = hovered === song.id;
             return (
+              <div key={song.id} className="relative overflow-hidden md:overflow-visible border-b border-zinc-800/50 md:border-0 last:border-0 rounded-md md:rounded-none">
+                {/* Swipe-right reveal layer — mobile only */}
+                <div
+                  className="md:hidden absolute inset-0 flex items-center gap-2 px-5 pointer-events-none rounded-md"
+                  style={{ background: '#0d2818', opacity: 0 }}
+                >
+                  <ListOrdered size={20} className="text-green-400" />
+                  <span className="text-sm font-medium text-green-400">Add to queue</span>
+                </div>
               <div
-                key={song.id}
-                className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group border-b border-zinc-800/50 md:border-0 last:border-0 ${
-                  active ? 'bg-zinc-700/40' : 'hover:bg-zinc-700/20'
+                className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group ${
+                  active ? 'bg-zinc-700/40' : 'bg-[#121212] md:bg-transparent hover:bg-zinc-700/20'
                 }`}
                 onClick={() => playSong(song, isPlaylist || !radioMode ? filtered : [song], isPlaylist || !radioMode ? i : 0, isPlaylist ? 'playlist' : 'single', heading)}
                 onMouseEnter={() => setHovered(song.id)}
@@ -623,9 +662,11 @@ export default function Library({ view = 'all' }) {
                   const { song: sw, el, isH, lastDx } = swipeRef.current;
                   swipeRef.current = { startX: 0, startY: 0, song: null, el: null, isH: false, lastDx: 0 };
                   if (!el) return;
+                  const reveal = el.previousElementSibling;
                   el.style.transition = 'transform 0.2s ease-out';
                   el.style.transform = '';
-                  setTimeout(() => { el.style.transition = ''; }, 250);
+                  if (reveal) { reveal.style.transition = 'opacity 0.2s ease-out'; reveal.style.opacity = '0'; }
+                  setTimeout(() => { el.style.transition = ''; if (reveal) reveal.style.transition = ''; }, 250);
                   if (isH && lastDx >= 80 && sw) { addToQueue(sw); showQueueToast(); }
                 }}
               >
@@ -743,6 +784,7 @@ export default function Library({ view = 'all' }) {
                     <Youtube size={14} />
                   </button>
                 </div>
+              </div>
               </div>
             );
           })}
