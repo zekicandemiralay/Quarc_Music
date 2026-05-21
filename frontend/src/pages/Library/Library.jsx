@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered } from 'lucide-react';
+import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered, MoreHorizontal, ListMusic } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
 import useOfflineStore from '../../store/useOfflineStore';
@@ -178,6 +178,131 @@ function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded }) {
   );
 }
 
+function MobileSongActionSheet({ song, onClose, onQueueAdded, currentPlaylistId, onRemoveFromPlaylist }) {
+  const { likedSongs, toggleLike, playlists, addToPlaylist, createPlaylist } = useUserDataStore();
+  const { addToQueue } = usePlayerStore();
+  const navigate = useNavigate();
+  const liked = likedSongs.includes(song.id);
+  const [newName, setNewName] = useState('');
+
+  async function handleAddToPlaylist(playlistId) {
+    await addToPlaylist(playlistId, song.id);
+    onClose();
+  }
+
+  async function handleCreate() {
+    const name = newName.trim();
+    if (!name) return;
+    const p = await createPlaylist(name);
+    if (p) await addToPlaylist(p.id, song.id);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex flex-col justify-end" onClick={onClose}>
+      <div
+        className="bg-zinc-900 rounded-t-2xl border-t border-zinc-800 max-h-[85vh] flex flex-col"
+        style={{ animation: 'slideUp 0.25s ease-out forwards' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Song info header */}
+        <div className="flex items-center gap-3 px-4 pt-5 pb-4 border-b border-zinc-800 shrink-0">
+          <div className="w-11 h-11 rounded bg-zinc-800 overflow-hidden shrink-0">
+            {song.has_cover
+              ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={14} /></div>}
+          </div>
+          <div className="min-w-0">
+            <p className="text-white font-semibold text-sm truncate">{song.title}</p>
+            <p className="text-zinc-400 text-xs truncate">{song.artist || 'Unknown'}</p>
+          </div>
+        </div>
+
+        {/* Scrollable actions */}
+        <div className="overflow-y-auto flex-1">
+          {/* Like / Unlike */}
+          <button
+            onClick={() => { toggleLike(song.id); onClose(); }}
+            className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
+          >
+            <Heart size={20} className={liked ? 'text-red-400 fill-current' : 'text-zinc-400'} />
+            <span className="text-white text-sm">{liked ? 'Unlike' : 'Like'}</span>
+          </button>
+
+          {/* Add to queue */}
+          <button
+            onClick={() => { addToQueue(song); if (onQueueAdded) onQueueAdded(song.title); onClose(); }}
+            className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
+          >
+            <ListOrdered size={20} className="text-zinc-400" />
+            <span className="text-white text-sm">Add to queue</span>
+          </button>
+
+          {/* Remove from playlist (if in a playlist view) */}
+          {currentPlaylistId && onRemoveFromPlaylist && (
+            <button
+              onClick={() => { onRemoveFromPlaylist(); onClose(); }}
+              className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
+            >
+              <X size={20} className="text-red-400" />
+              <span className="text-red-400 text-sm">Remove from playlist</span>
+            </button>
+          )}
+
+          {/* Find on YouTube */}
+          <button
+            onClick={() => { navigate(`/youtube?q=${encodeURIComponent(`${song.artist} ${song.title}`)}`); onClose(); }}
+            className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
+          >
+            <Youtube size={20} className="text-zinc-400" />
+            <span className="text-white text-sm">Find on YouTube</span>
+          </button>
+
+          {/* Add to playlist */}
+          <div className="border-t border-zinc-800 mt-1 pt-1">
+            <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-5 py-2">Add to playlist</p>
+            {playlists.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => handleAddToPlaylist(p.id)}
+                className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
+              >
+                <ListMusic size={20} className="text-zinc-400" />
+                <span className="text-white text-sm truncate">{p.name}</span>
+              </button>
+            ))}
+            {/* New playlist */}
+            <div className="flex items-center gap-2 px-5 py-3">
+              <input
+                type="text"
+                placeholder="New playlist…"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+                className="flex-1 bg-zinc-800 text-white text-sm rounded-lg px-3 py-2.5 focus:outline-none placeholder-zinc-500"
+              />
+              <button
+                onClick={handleCreate}
+                className="px-3 py-2.5 bg-zinc-700 hover:bg-zinc-600 text-white text-sm rounded-lg transition-colors"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Cancel */}
+        <button
+          onClick={onClose}
+          className="w-full py-4 text-zinc-400 text-sm font-medium border-t border-zinc-800 shrink-0 active:bg-zinc-800"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const MIX_ICONS = {
   your_mix: <Sparkles size={32} className="text-purple-400" />,
   rediscovery: <Clock size={32} className="text-amber-400" />,
@@ -200,9 +325,8 @@ export default function Library({ view = 'all' }) {
   const [hovered, setHovered] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null); // song ID with open playlist menu
   const [queueToast, setQueueToast] = useState(null); // brief "Added to queue" feedback
+  const [actionSheet, setActionSheet] = useState(null); // song object for mobile action sheet
   const queueToastTimer = useRef(null);
-  const swipeData = useRef(new Map()); // songId → { startX, startY, triggered }
-  const swipeBlocked = useRef(false); // prevents click from firing after a swipe
   const { playSong, currentSong, isPlaying, shufflePlay, addToQueue } = usePlayerStore();
   const { cachedIds, downloading } = useOfflineStore();
   const { likedSongs, playlists, toggleLike, removeFromPlaylist } = useUserDataStore();
@@ -420,7 +544,7 @@ export default function Library({ view = 'all' }) {
                 className={`grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_5rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group border-b border-zinc-800/50 md:border-0 last:border-0 ${
                   active ? 'bg-zinc-700/40' : 'hover:bg-zinc-700/20'
                 }`}
-                onClick={() => playSong(song, isPlaylist || !radioMode ? filtered : [song], isPlaylist || !radioMode ? i : 0, isPlaylist ? 'playlist' : 'single')}
+                onClick={() => playSong(song, isPlaylist || !radioMode ? filtered : [song], isPlaylist || !radioMode ? i : 0, isPlaylist ? 'playlist' : 'single', heading)}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}
               >
@@ -473,10 +597,19 @@ export default function Library({ view = 'all' }) {
 
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-0.5 relative" onClick={(e) => e.stopPropagation()}>
-                  {/* Heart — always visible on mobile; on desktop visible if liked, hover-only otherwise */}
+                  {/* Mobile: ⋮ button opens full action sheet */}
+                  <button
+                    onClick={() => setActionSheet(song)}
+                    className="md:hidden p-2 text-zinc-500 hover:text-white transition-colors shrink-0"
+                    title="More options"
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
+
+                  {/* Desktop: heart (liked indicator / toggle) */}
                   <button
                     onClick={() => toggleLike(song.id)}
-                    className={`p-2 md:p-1.5 transition-colors shrink-0 ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-300 md:opacity-0 md:group-hover:opacity-100'}`}
+                    className={`hidden md:block p-1.5 transition-colors shrink-0 ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100'}`}
                     title={liked ? 'Unlike' : 'Like'}
                   >
                     <Heart size={15} className={liked ? 'fill-current' : ''} />
@@ -532,6 +665,17 @@ export default function Library({ view = 'all' }) {
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white text-black text-sm font-medium px-4 py-2 rounded-full shadow-xl z-50 pointer-events-none queue-toast">
           Added to queue
         </div>
+      )}
+
+      {/* Mobile action sheet */}
+      {actionSheet && (
+        <MobileSongActionSheet
+          song={actionSheet}
+          onClose={() => setActionSheet(null)}
+          onQueueAdded={showQueueToast}
+          currentPlaylistId={view === 'playlist' ? playlistId : null}
+          onRemoveFromPlaylist={currentPlaylist ? () => removeFromPlaylist(currentPlaylist.id, actionSheet.id) : null}
+        />
       )}
     </div>
   );
