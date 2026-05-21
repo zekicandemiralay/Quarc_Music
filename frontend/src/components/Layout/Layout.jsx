@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, WifiOff, ServerCrash, Download, Search, X, Music, Youtube } from 'lucide-react';
+import { Menu, WifiOff, ServerCrash, Download, Search, X, Music, Youtube, ListOrdered } from 'lucide-react';
 import Sidebar from '../Sidebar/Sidebar';
 import Player from '../Player/Player';
 import useNetworkStatus from '../../hooks/useNetworkStatus';
@@ -18,9 +18,13 @@ function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [songs, setSongs] = useState([]);
   const [dropdownStyle, setDropdownStyle] = useState({});
+  const [toastVisible, setToastVisible] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
-  const { playSong } = usePlayerStore();
+  const dropdownRef = useRef(null);
+  const swipeRef = useRef({ startX: 0, startY: 0, song: null, el: null, isH: false, lastDx: 0 });
+  const toastTimer = useRef(null);
+  const { playSong, addToQueue } = usePlayerStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,7 +35,7 @@ function GlobalSearch() {
   useEffect(() => {
     if (!query.trim()) { setResults([]); return; }
     const q = norm(query);
-    setResults(songs.filter((s) => [s.title, s.artist, s.album].some((f) => norm(f).includes(q))).slice(0, 8));
+    setResults(songs.filter((s) => [s.title, s.artist, s.album].some((f) => norm(f).includes(q))).slice(0, 20));
   }, [query, songs]);
 
   useEffect(() => {
@@ -40,14 +44,58 @@ function GlobalSearch() {
     setDropdownStyle({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 320) });
   }, [open, query]);
 
+  // Close when touching/clicking outside both the input container AND the dropdown portal
   useEffect(() => {
-    const handler = (e) => { if (!containerRef.current?.contains(e.target)) setOpen(false); };
+    const handler = (e) => {
+      if (containerRef.current?.contains(e.target)) return;
+      if (dropdownRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
     document.addEventListener('touchstart', handler);
-    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
   }, []);
 
+  // Non-passive touchmove for swipe-right on dropdown rows
+  useEffect(() => {
+    const el = dropdownRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      const sr = swipeRef.current;
+      if (!sr.song || !e.touches[0]) return;
+      const dx = e.touches[0].clientX - sr.startX;
+      const dy = e.touches[0].clientY - sr.startY;
+      if (!sr.isH) {
+        if (Math.abs(dy) > 8) { sr.song = null; return; }
+        if (Math.abs(dx) > 8) {
+          if (dx > 0) sr.isH = true;
+          else { sr.song = null; return; }
+        }
+        return;
+      }
+      if (dx > 0) {
+        e.preventDefault();
+        sr.lastDx = dx;
+        const inner = sr.el;
+        const reveal = inner?.previousElementSibling;
+        if (inner) inner.style.transform = `translateX(${Math.min(dx, 90)}px)`;
+        if (reveal) reveal.style.opacity = String(Math.min(dx / 70, 1));
+      }
+    };
+    el.addEventListener('touchmove', handler, { passive: false });
+    return () => el.removeEventListener('touchmove', handler);
+  }, [open, results.length]);
+
   const showDropdown = open && (results.length > 0 || query.trim().length > 0);
+
+  function showToast() {
+    clearTimeout(toastTimer.current);
+    setToastVisible(true);
+    toastTimer.current = setTimeout(() => setToastVisible(false), 2000);
+  }
 
   function handleSelect(song) {
     playSong(song, results.length > 1 ? results : [song], results.indexOf(song), 'single', 'Search results');
@@ -92,35 +140,62 @@ function GlobalSearch() {
 
       {showDropdown && createPortal(
         <div
-          className="fixed bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl overflow-hidden"
-          style={{ ...dropdownStyle, zIndex: 400 }}
+          ref={dropdownRef}
+          className="fixed bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl overflow-y-auto"
+          style={{ ...dropdownStyle, zIndex: 400, maxHeight: '60vh' }}
         >
           {results.length === 0 && query.trim() && (
             <p className="text-zinc-500 text-xs px-4 py-3">No matches in library</p>
           )}
+
           {results.map((song) => (
-            <div
-              key={song.id}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handleSelect(song)}
-              className="flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-800 cursor-pointer transition-colors"
-            >
-              <div className="w-9 h-9 bg-zinc-800 rounded shrink-0 overflow-hidden">
-                {song.has_cover
-                  ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center"><Music size={12} className="text-zinc-600" /></div>}
+            <div key={song.id} className="relative overflow-hidden">
+              {/* Swipe-right reveal */}
+              <div
+                className="absolute inset-0 flex items-center gap-2 px-4 pointer-events-none"
+                style={{ background: '#0d2818', opacity: 0 }}
+              >
+                <ListOrdered size={16} className="text-green-400" />
+                <span className="text-xs font-medium text-green-400">Add to queue</span>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-white truncate">{song.title}</p>
-                <p className="text-xs text-zinc-400 truncate">{song.artist || 'Unknown'}</p>
+              {/* Row */}
+              <div
+                className="relative flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors bg-zinc-900 hover:bg-zinc-800"
+                onClick={() => handleSelect(song)}
+                onTouchStart={(e) => {
+                  if (e.touches.length !== 1) return;
+                  swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, song, el: e.currentTarget, isH: false, lastDx: 0 };
+                }}
+                onTouchEnd={() => {
+                  const { song: sw, el, isH, lastDx } = swipeRef.current;
+                  swipeRef.current = { startX: 0, startY: 0, song: null, el: null, isH: false, lastDx: 0 };
+                  if (!el) return;
+                  const reveal = el.previousElementSibling;
+                  el.style.transition = 'transform 0.2s ease-out';
+                  el.style.transform = '';
+                  if (reveal) { reveal.style.transition = 'opacity 0.2s ease-out'; reveal.style.opacity = '0'; }
+                  setTimeout(() => { el.style.transition = ''; if (reveal) reveal.style.transition = ''; }, 250);
+                  if (isH && lastDx >= 70 && sw) { addToQueue(sw); showToast(); }
+                }}
+              >
+                <div className="w-9 h-9 bg-zinc-800 rounded shrink-0 overflow-hidden">
+                  {song.has_cover
+                    ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center"><Music size={12} className="text-zinc-600" /></div>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-white truncate">{song.title}</p>
+                  <p className="text-xs text-zinc-400 truncate">{song.artist || 'Unknown'}</p>
+                </div>
               </div>
             </div>
           ))}
+
           {query.trim() && (
             <div
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleYouTube}
-              className="flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-800 cursor-pointer transition-colors border-t border-zinc-800"
+              className="flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-800 cursor-pointer transition-colors border-t border-zinc-800 sticky bottom-0 bg-zinc-900"
             >
               <div className="w-9 h-9 bg-red-950/50 rounded flex items-center justify-center shrink-0">
                 <Youtube size={14} className="text-red-400" />
@@ -130,6 +205,14 @@ function GlobalSearch() {
               </p>
             </div>
           )}
+        </div>,
+        document.body
+      )}
+
+      {/* Toast */}
+      {toastVisible && createPortal(
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white text-black text-sm font-medium px-4 py-2 rounded-full shadow-xl z-[500] pointer-events-none queue-toast">
+          Added to queue
         </div>,
         document.body
       )}
@@ -181,14 +264,13 @@ export default function Layout({ children }) {
       {/* Scrollable content area */}
       <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] md:pb-24 ${
         bannerCount === 2 ? (hideSearch ? 'pt-[113px] md:pt-[60px]' : 'pt-[113px]') :
-        bannerCount === 1 ? (hideSearch ? 'pt-[83px] md:pt-[30px]' : 'pt-[83px]') :
-                            (hideSearch ? 'pt-[53px] md:pt-0'      : 'pt-[53px]')
+        bannerCount === 1 ? (hideSearch ? 'pt-[83px] md:pt-[30px]'  : 'pt-[83px]')  :
+                            (hideSearch ? 'pt-[53px] md:pt-0'        : 'pt-[53px]')
       }`}>
         {children}
       </main>
 
-      {/* Top bar — full width on mobile, right of sidebar on desktop.
-          Hidden on desktop for pages that have their own search (library, youtube). */}
+      {/* Top bar */}
       <div className={`fixed top-0 left-0 right-0 md:left-64 z-30 flex items-center gap-3 px-4 py-3 bg-zinc-900 border-b border-zinc-800 ${
         hideSearch ? 'md:hidden' : ''
       }`}>
