@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2 } from 'lucide-react';
+import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
 import useOfflineStore from '../../store/useOfflineStore';
@@ -101,8 +101,9 @@ function fmt(s) {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 }
 
-function AddToPlaylistMenu({ songId, onClose }) {
+function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded }) {
   const { playlists, addToPlaylist, createPlaylist } = useUserDataStore();
+  const { addToQueue } = usePlayerStore();
   const [newName, setNewName] = useState('');
   const ref = useRef();
 
@@ -111,6 +112,10 @@ function AddToPlaylistMenu({ songId, onClose }) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
+
+  function handleAddToQueue() {
+    if (song) { addToQueue(song); onClose(); if (onQueueAdded) onQueueAdded(song.title); }
+  }
 
   async function handleAdd(playlistId) {
     await addToPlaylist(playlistId, songId);
@@ -130,6 +135,18 @@ function AddToPlaylistMenu({ songId, onClose }) {
       ref={ref}
       className="absolute right-0 top-8 z-40 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl w-52 py-1 overflow-hidden"
     >
+      {song && (
+        <>
+          <button
+            onClick={handleAddToQueue}
+            className="w-full text-left flex items-center gap-2 text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors"
+          >
+            <ListOrdered size={13} className="text-zinc-400 shrink-0" />
+            Add to queue
+          </button>
+          <div className="border-t border-zinc-700/60 my-1" />
+        </>
+      )}
       <p className="text-zinc-500 text-xs px-3 py-1.5 font-semibold uppercase tracking-wider">Add to playlist</p>
       {playlists.length === 0 && (
         <p className="text-zinc-600 text-xs px-3 py-1.5">No playlists yet</p>
@@ -182,7 +199,11 @@ export default function Library({ view = 'all' }) {
   const [search, setSearch] = useState('');
   const [hovered, setHovered] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null); // song ID with open playlist menu
-  const { playSong, currentSong, isPlaying, shufflePlay } = usePlayerStore();
+  const [queueToast, setQueueToast] = useState(null); // brief "Added to queue" feedback
+  const queueToastTimer = useRef(null);
+  const swipeData = useRef(new Map()); // songId → { startX, startY, triggered }
+  const swipeBlocked = useRef(false); // prevents click from firing after a swipe
+  const { playSong, currentSong, isPlaying, shufflePlay, addToQueue } = usePlayerStore();
   const { cachedIds, downloading } = useOfflineStore();
   const { likedSongs, playlists, toggleLike, removeFromPlaylist } = useUserDataStore();
   const radioMode = useRadioStore((s) => s.radioMode);
@@ -472,6 +493,13 @@ export default function Library({ view = 'all' }) {
                         <X size={14} />
                       </button>
                     )}
+                    <button
+                      onClick={() => { addToQueue(song); showQueueToast(song.title); }}
+                      className="p-1.5 text-zinc-600 hover:text-zinc-300 transition-colors"
+                      title="Add to queue"
+                    >
+                      <ListOrdered size={14} />
+                    </button>
                     <div className="relative">
                       <button
                         onClick={() => setMenuOpen(menuOpen === song.id ? null : song.id)}
@@ -481,7 +509,7 @@ export default function Library({ view = 'all' }) {
                         <ListPlus size={14} />
                       </button>
                       {menuOpen === song.id && (
-                        <AddToPlaylistMenu songId={song.id} onClose={() => setMenuOpen(null)} />
+                        <AddToPlaylistMenu songId={song.id} song={song} onClose={() => setMenuOpen(null)} onQueueAdded={showQueueToast} />
                       )}
                     </div>
                     <button
@@ -496,6 +524,13 @@ export default function Library({ view = 'all' }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Queue toast — brief feedback when a song is added to queue */}
+      {queueToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white text-black text-sm font-medium px-4 py-2 rounded-full shadow-xl z-50 pointer-events-none queue-toast">
+          Added to queue
         </div>
       )}
     </div>

@@ -102,9 +102,11 @@ const usePlayerStore = create((set, get) => ({
   queueIndex: -1,
   shuffle: false,
   playContext: 'single',
+  playContextLabel: '',
+  manualQueue: [],
   waitingForRadio: false,
 
-  playSong: async (song, queue = null, queueIndex = 0, context) => {
+  playSong: async (song, queue = null, queueIndex = 0, context, contextLabel) => {
     const state = get();
     if (state.currentSong?.id === song.id) {
       // Re-clicking the current song restarts it from the beginning
@@ -117,9 +119,20 @@ const usePlayerStore = create((set, get) => ({
     if (playTrack.songId) flushPlay(playTrack.songId);
     playTrack = { songId: song.id, accumulated: 0, resumeAt: null };
 
-    // Update state immediately so UI responds before the async cache check
     const newContext = context !== undefined ? context : get().playContext;
-    set({ currentSong: song, isPlaying: true, currentTime: 0, queue: queue || [song], queueIndex, playContext: newContext, waitingForRadio: false });
+    const newContextLabel = contextLabel !== undefined ? contextLabel : get().playContextLabel;
+
+    // Update state immediately so UI responds before the async cache check
+    set({
+      currentSong: song,
+      isPlaying: true,
+      currentTime: 0,
+      queue: queue || [song],
+      queueIndex,
+      playContext: newContext,
+      playContextLabel: newContextLabel,
+      waitingForRadio: false,
+    });
     applyMediaSessionMeta(song);
 
     // Play immediately from stream URL — no await before play() so iOS keeps
@@ -154,7 +167,17 @@ const usePlayerStore = create((set, get) => ({
   },
 
   next: () => {
-    const { queue, queueIndex } = get();
+    const { queue, queueIndex, manualQueue, playContext, playContextLabel } = get();
+
+    // Manual queue items always play before the auto-queue (Spotify behaviour)
+    if (manualQueue.length > 0) {
+      const [nextSong, ...rest] = manualQueue;
+      set({ manualQueue: rest });
+      // Keep auto-queue position intact so after manual items the auto-queue continues
+      get().playSong(nextSong, queue, queueIndex, playContext, playContextLabel);
+      return;
+    }
+
     if (!queue.length) return;
     const idx = queueIndex + 1;
     if (idx >= queue.length) {
@@ -173,7 +196,7 @@ const usePlayerStore = create((set, get) => ({
       audio.play().catch(() => {});
       schedulePreload(queue, idx);
     } else {
-      get().playSong(queue[idx], queue, idx);
+      get().playSong(queue[idx], queue, idx, playContext, playContextLabel);
     }
   },
 
@@ -186,11 +209,11 @@ const usePlayerStore = create((set, get) => ({
     }
   },
 
-  shufflePlay: (songs, context = 'single') => {
+  shufflePlay: (songs, context = 'single', contextLabel = '') => {
     if (!songs.length) return;
     const shuffled = smartShuffle(songs);
     set({ shuffle: true });
-    get().playSong(shuffled[0], shuffled, 0, context);
+    get().playSong(shuffled[0], shuffled, 0, context, contextLabel);
   },
 
   toggleShuffle: () => {
@@ -207,6 +230,22 @@ const usePlayerStore = create((set, get) => ({
 
   seek: (time) => { audio.currentTime = time; set({ currentTime: time }); },
   setVolume: (v) => { audio.volume = v; set({ volume: v }); },
+
+  // ── Manual queue management ──────────────────────────────────────────────
+  addToQueue: (song) => set((s) => ({ manualQueue: [...s.manualQueue, song] })),
+
+  removeFromManualQueue: (idx) =>
+    set((s) => ({ manualQueue: s.manualQueue.filter((_, i) => i !== idx) })),
+
+  reorderManualQueue: (from, to) =>
+    set((s) => {
+      const q = [...s.manualQueue];
+      const [item] = q.splice(from, 1);
+      q.splice(to, 0, item);
+      return { manualQueue: q };
+    }),
+
+  clearManualQueue: () => set({ manualQueue: [] }),
 }));
 
 // Audio event → store sync
@@ -287,10 +326,36 @@ if ('mediaSession' in navigator) {
   }
 }
 
+// Sync state on unlock: if the store says playing but audio is paused after
+// the screen was locked, reload the stream and resume.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  const { isPlaying, currentSong, currentTime: storeTime } = usePlayerStore.getState();
+  if (isPlaying && audio.paused) {
+    if (audio.readyState < 2 && currentSong) {
+      const t = audio.currentTime || storeTime;
+      audio.src = `/api/music/${currentSong.id}/stream`;
+      audio.addEventListener('canplay', () => {
+        if (t > 0) audio.currentTime = t;
+        audio.play().catch(() => {
+          usePlayerStore.setState({ isPlaying: false });
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        });
+      }, { once: true });
+    } else {
+      audio.play().catch(() => {
+        usePlayerStore.setState({ isPlaying: false });
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+      });
+    }
+  }
+});
+
 // ── Persist / restore last-played song ───────────────────────────────────────
 
 function saveState() {
-  const { currentSong, currentTime, queue, queueIndex, shuffle, playContext } = usePlayerStore.getState();
+  const { currentSong, currentTime, queue, queueIndex, shuffle, playContext, playContextLabel, manualQueue } =
+    usePlayerStore.getState();
   if (!currentSong) return;
   try {
     // Keep up to 500 songs from current position to stay within storage limits
@@ -303,6 +368,8 @@ function saveState() {
       queueIndex: savedIndex,
       shuffle,
       playContext,
+      playContextLabel: playContextLabel || '',
+      manualQueue: manualQueue.slice(0, 20), // cap at 20 manual items
     }));
   } catch {}
 }
@@ -329,6 +396,8 @@ try {
       queueIndex: saved.queueIndex ?? 0,
       shuffle: saved.shuffle ?? false,
       playContext: saved.playContext || 'single',
+      playContextLabel: saved.playContextLabel || '',
+      manualQueue: saved.manualQueue || [],
       currentTime: saved.time || 0,
       isPlaying: false,
     });

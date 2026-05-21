@@ -7,6 +7,7 @@ let filling = false;
 
 const useRadioStore = create((set, get) => ({
   radioMode: JSON.parse(localStorage.getItem('skynet_radio') || 'true'),
+  pendingDownloads: [], // [{ id, title, artist, progress }]
 
   toggleRadioMode() {
     const next = !get().radioMode;
@@ -60,6 +61,11 @@ const useRadioStore = create((set, get) => ({
 }));
 
 async function startRadioDownload(track) {
+  const downloadId = Math.random().toString(36).slice(2);
+  useRadioStore.setState((s) => ({
+    pendingDownloads: [...s.pendingDownloads, { id: downloadId, title: track.title, artist: track.artist, progress: 0 }],
+  }));
+
   try {
     const res = await fetch('/api/radio/download', {
       method: 'POST',
@@ -67,29 +73,43 @@ async function startRadioDownload(track) {
       body: JSON.stringify({ artist: track.artist, title: track.title }),
     });
     const { jobId } = await res.json();
-    if (!jobId) { await addLibrarySongToQueue(); return; }
+    if (!jobId) {
+      useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
+      await addLibrarySongToQueue();
+      return;
+    }
 
-    const song = await pollUntilDone(jobId);
-    if (!useRadioStore.getState().radioMode) return;
+    const song = await pollUntilDone(jobId, (progress) => {
+      useRadioStore.setState((s) => ({
+        pendingDownloads: s.pendingDownloads.map((d) => d.id === downloadId ? { ...d, progress } : d),
+      }));
+    });
+
+    if (!useRadioStore.getState().radioMode) {
+      useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
+      return;
+    }
+
+    useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
 
     if (song) {
       appendSongToQueue(song);
     } else {
-      // Download failed or file couldn't be indexed — fill gap with a library song
       await addLibrarySongToQueue();
     }
   } catch {
+    useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
     await addLibrarySongToQueue();
   }
 }
 
-async function pollUntilDone(jobId) {
+async function pollUntilDone(jobId, onProgress) {
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 3000));
     try {
       const res = await fetch(`/api/radio/status/${jobId}`);
       const job = await res.json();
-      // status=done: return song (may be null if scan failed) — don't loop forever
+      if (onProgress && typeof job.progress === 'number') onProgress(job.progress);
       if (job.status === 'done') return job.song || null;
       if (job.status === 'error') return null;
     } catch {}

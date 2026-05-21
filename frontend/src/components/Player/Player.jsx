@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered } from 'lucide-react';
 import useRadioStore from '../../store/useRadioStore';
+import QueuePanel from './QueuePanel';
 
 function fmt(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -78,8 +79,9 @@ function Cover({ song, className = '' }) {
   );
 }
 
-function AddToPlaylistMenu({ songId, onClose, upward = false }) {
+function SongActionsMenu({ songId, song, onClose, upward = false }) {
   const { playlists, addToPlaylist, createPlaylist } = useUserDataStore();
+  const { addToQueue } = usePlayerStore();
   const [newName, setNewName] = useState('');
   const ref = useRef(null);
 
@@ -89,6 +91,10 @@ function AddToPlaylistMenu({ songId, onClose, upward = false }) {
     document.addEventListener('touchstart', handler);
     return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler); };
   }, [onClose]);
+
+  function handleAddToQueue() {
+    if (song) { addToQueue(song); onClose(); }
+  }
 
   async function handleAdd(playlistId) { await addToPlaylist(playlistId, songId); onClose(); }
   async function handleCreate() {
@@ -104,6 +110,18 @@ function AddToPlaylistMenu({ songId, onClose, upward = false }) {
       ref={ref}
       className={`absolute right-0 z-50 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl w-52 py-1 overflow-hidden ${upward ? 'bottom-full mb-2' : 'top-full mt-2'}`}
     >
+      {song && (
+        <>
+          <button
+            onClick={handleAddToQueue}
+            className="w-full text-left flex items-center gap-2 text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors"
+          >
+            <ListOrdered size={13} className="text-zinc-400 shrink-0" />
+            Add to queue
+          </button>
+          <div className="border-t border-zinc-700/60 my-1" />
+        </>
+      )}
       <p className="text-zinc-500 text-xs px-3 py-1.5 font-semibold uppercase tracking-wider">Add to playlist</p>
       {playlists.length === 0 && <p className="text-zinc-600 text-xs px-3 py-1.5">No playlists yet</p>}
       {playlists.map((p) => (
@@ -127,7 +145,7 @@ function AddToPlaylistMenu({ songId, onClose, upward = false }) {
   );
 }
 
-function NowPlayingExpanded({ onClose }) {
+function NowPlayingExpanded({ onClose, onOpenQueue }) {
   const {
     currentSong, isPlaying, currentTime, duration, shuffle,
     pause, resume, next, prev, seek, toggleShuffle,
@@ -276,11 +294,20 @@ function NowPlayingExpanded({ onClose }) {
           <button onClick={next} disabled={!currentSong} className="p-2 text-zinc-300 hover:text-white disabled:opacity-30">
             <SkipForward size={32} className="fill-current" />
           </button>
-          <div className="relative">
-            <button onClick={() => currentSong && setShowMenu((v) => !v)} className={`p-2 transition-colors ${showMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}>
-              <ListPlus size={22} />
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { onClose(); onOpenQueue(); }}
+              className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors"
+              title="View queue"
+            >
+              <ListOrdered size={22} />
             </button>
-            {showMenu && currentSong && <AddToPlaylistMenu songId={currentSong.id} onClose={() => setShowMenu(false)} upward />}
+            <div className="relative">
+              <button onClick={() => currentSong && setShowMenu((v) => !v)} className={`p-2 transition-colors ${showMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}>
+                <ListPlus size={22} />
+              </button>
+              {showMenu && currentSong && <SongActionsMenu songId={currentSong.id} song={currentSong} onClose={() => setShowMenu(false)} upward />}
+            </div>
           </div>
         </div>
       </div>
@@ -299,9 +326,12 @@ export default function Player() {
 
   const [expanded, setExpanded] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
 
   const openExpanded = () => { if (currentSong) setExpanded(true); };
   const closeExpanded = () => setExpanded(false);
+  const openQueue = () => setShowQueue(true);
+  const closeQueue = () => setShowQueue(false);
 
   useEffect(() => {
     if (!expanded) return;
@@ -313,11 +343,11 @@ export default function Player() {
   // Buttons inside the bar stop propagation so they don't open the expanded view.
   // Clicking anywhere else on the bar (empty space) does open it.
   const sp = (fn) => (e) => { e.stopPropagation(); fn(); };
-  const spToggle = (fn) => (e) => { e.stopPropagation(); fn(e); };
 
   return (
     <>
-      {expanded && createPortal(<NowPlayingExpanded onClose={closeExpanded} />, document.body)}
+      {expanded && createPortal(<NowPlayingExpanded onClose={closeExpanded} onOpenQueue={openQueue} />, document.body)}
+      {showQueue && <QueuePanel onClose={closeQueue} />}
 
       <div
         className={`bg-zinc-900 border-t border-zinc-800 shrink-0 ${currentSong ? 'cursor-pointer' : ''}`}
@@ -362,7 +392,7 @@ export default function Player() {
               >
                 <ListPlus size={18} />
               </button>
-              {showMenu && currentSong && <AddToPlaylistMenu songId={currentSong.id} onClose={() => setShowMenu(false)} upward />}
+              {showMenu && currentSong && <SongActionsMenu songId={currentSong.id} song={currentSong} onClose={() => setShowMenu(false)} upward />}
             </div>
             <button
               onClick={sp(isPlaying ? pause : resume)}
@@ -406,7 +436,7 @@ export default function Player() {
                     >
                       <ListPlus size={15} />
                     </button>
-                    {showMenu && <AddToPlaylistMenu songId={currentSong.id} onClose={() => setShowMenu(false)} upward />}
+                    {showMenu && <SongActionsMenu songId={currentSong.id} song={currentSong} onClose={() => setShowMenu(false)} upward />}
                   </div>
                 </div>
               </>
@@ -445,8 +475,16 @@ export default function Player() {
             </div>
           </div>
 
-          {/* Volume */}
-          <div className="flex items-center gap-2 w-32 shrink-0">
+          {/* Volume + Queue */}
+          <div className="flex items-center gap-3 w-36 shrink-0">
+            <button
+              onClick={sp(openQueue)}
+              disabled={!currentSong}
+              className={`transition-colors disabled:opacity-30 shrink-0 ${showQueue ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
+              title="View queue"
+            >
+              <ListOrdered size={16} />
+            </button>
             <Volume2 size={16} className="text-zinc-400 shrink-0" onClick={(e) => e.stopPropagation()} />
             <TrackBar value={volume} max={1} onChange={setVolume} />
           </div>
