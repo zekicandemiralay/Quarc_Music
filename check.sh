@@ -270,6 +270,45 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════════
+hdr "Duplicate Songs"
+# ════════════════════════════════════════════════════════════════════════
+
+DUPE_RESULT=$(dexec backend node -e "
+  try {
+    const { getDb } = require('./src/db');
+    const db = getDb();
+    function norm(s) {
+      return (s || '').replace(/ı/g, 'i')
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .toLowerCase().trim();
+    }
+    const all = db.prepare('SELECT id, title, artist FROM songs').all();
+    const groups = {};
+    for (const s of all) {
+      const key = norm(s.title) + '||' + norm(s.artist || '');
+      (groups[key] = groups[key] || []).push(s);
+    }
+    const dupes = Object.values(groups).filter(g => g.length > 1);
+    const extra = dupes.reduce((n, g) => n + g.length - 1, 0);
+    console.log(JSON.stringify({ groups: dupes.length, extra }));
+  } catch(e) {
+    console.log(JSON.stringify({ error: e.message }));
+  }
+" 2>/dev/null || echo '{"error":"exec failed"}')
+
+if echo "$DUPE_RESULT" | grep -q '"error"'; then
+  warn "Could not check duplicates: $(echo "$DUPE_RESULT" | grep -oP '"error":"\K[^"]+' || echo "unknown")"
+else
+  DUPE_GROUPS=$(echo "$DUPE_RESULT" | grep -oP '"groups":\K\d+' || echo "0")
+  DUPE_EXTRA=$(echo "$DUPE_RESULT"  | grep -oP '"extra":\K\d+'  || echo "0")
+  if [ "${DUPE_GROUPS:-0}" -gt 0 ]; then
+    warn "${DUPE_GROUPS} duplicate group(s) found — ${DUPE_EXTRA} extra song(s) to remove → run: bash dedupe.sh"
+  else
+    ok "No duplicate songs found"
+  fi
+fi
+
+# ════════════════════════════════════════════════════════════════════════
 hdr "Music Library (Disk)"
 # ════════════════════════════════════════════════════════════════════════
 
