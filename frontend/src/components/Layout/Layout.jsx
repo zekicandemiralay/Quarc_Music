@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, WifiOff, ServerCrash, Download, Search, X, Music, Youtube } from 'lucide-react';
 import Sidebar from '../Sidebar/Sidebar';
 import Player from '../Player/Player';
@@ -37,7 +37,7 @@ function GlobalSearch() {
   useEffect(() => {
     if (!open || !inputRef.current) return;
     const rect = inputRef.current.getBoundingClientRect();
-    setDropdownStyle({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 280) });
+    setDropdownStyle({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 320) });
   }, [open, query]);
 
   useEffect(() => {
@@ -63,13 +63,13 @@ function GlobalSearch() {
   }
 
   return (
-    <div ref={containerRef} className="relative flex-1 max-w-sm">
+    <div ref={containerRef} className="relative w-full">
       <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
-          placeholder="Search songs…"
+          placeholder="Search your library…"
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
@@ -77,33 +77,33 @@ function GlobalSearch() {
             if (e.key === 'Escape') { setQuery(''); setOpen(false); inputRef.current?.blur(); }
             if (e.key === 'Enter' && query.trim()) handleYouTube();
           }}
-          className="w-full bg-zinc-800 text-white placeholder-zinc-500 rounded-full pl-8 pr-7 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-white/20"
+          className="w-full bg-zinc-800 hover:bg-zinc-700 focus:bg-zinc-700 text-white placeholder-zinc-500 rounded-full pl-10 pr-8 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-white/20 transition-colors"
         />
         {query && (
           <button
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => { setQuery(''); setOpen(false); }}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
           >
-            <X size={13} />
+            <X size={14} />
           </button>
         )}
       </div>
 
       {showDropdown && createPortal(
         <div
-          className="fixed bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden"
+          className="fixed bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl overflow-hidden"
           style={{ ...dropdownStyle, zIndex: 400 }}
         >
           {results.length === 0 && query.trim() && (
-            <p className="text-zinc-500 text-xs px-4 py-2.5">No matches in library</p>
+            <p className="text-zinc-500 text-xs px-4 py-3">No matches in library</p>
           )}
           {results.map((song) => (
             <div
               key={song.id}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(song)}
-              className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 cursor-pointer transition-colors"
+              className="flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-800 cursor-pointer transition-colors"
             >
               <div className="w-9 h-9 bg-zinc-800 rounded shrink-0 overflow-hidden">
                 {song.has_cover
@@ -137,6 +137,18 @@ function GlobalSearch() {
   );
 }
 
+function useHideSearch() {
+  const { pathname } = useLocation();
+  return (
+    pathname.startsWith('/youtube') ||
+    pathname.startsWith('/library') ||
+    pathname.startsWith('/liked') ||
+    pathname.startsWith('/playlist') ||
+    pathname.startsWith('/mix') ||
+    pathname.startsWith('/featured')
+  );
+}
+
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { online, serverOk } = useNetworkStatus();
@@ -145,6 +157,7 @@ export default function Layout({ children }) {
   const downloading = useOfflineStore((s) => s.downloading);
   const showDownloadBanner = wakeLockActive && Object.keys(downloading).length > 0;
   const bannerCount = (showBanner ? 1 : 0) + (showDownloadBanner ? 1 : 0);
+  const hideSearch = useHideSearch();
 
   return (
     <div className="flex overflow-hidden bg-black h-full">
@@ -165,25 +178,32 @@ export default function Layout({ children }) {
         <Sidebar onNavigate={() => setSidebarOpen(false)} />
       </div>
 
-      {/* Scrollable content area — padded so content never hides under fixed bars */}
+      {/* Scrollable content area */}
       <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] md:pb-24 ${
-        bannerCount === 2 ? 'pt-[113px]' :
-        bannerCount === 1 ? 'pt-[83px]' : 'pt-[53px]'
+        bannerCount === 2 ? (hideSearch ? 'pt-[113px] md:pt-[60px]' : 'pt-[113px]') :
+        bannerCount === 1 ? (hideSearch ? 'pt-[83px] md:pt-[30px]' : 'pt-[83px]') :
+                            (hideSearch ? 'pt-[53px] md:pt-0'      : 'pt-[53px]')
       }`}>
         {children}
       </main>
 
-      {/* Top bar — mobile + desktop */}
-      <div className="fixed top-0 left-0 right-0 md:left-64 z-30 flex items-center gap-3 px-4 py-3 bg-zinc-900 border-b border-zinc-800">
+      {/* Top bar — full width on mobile, right of sidebar on desktop.
+          Hidden on desktop for pages that have their own search (library, youtube). */}
+      <div className={`fixed top-0 left-0 right-0 md:left-64 z-30 flex items-center gap-3 px-4 py-3 bg-zinc-900 border-b border-zinc-800 ${
+        hideSearch ? 'md:hidden' : ''
+      }`}>
         <button onClick={() => setSidebarOpen(true)} className="md:hidden text-zinc-400 hover:text-white transition-colors shrink-0">
           <Menu size={22} />
         </button>
-        <GlobalSearch />
+        {hideSearch
+          ? <span className="text-white font-bold text-base md:hidden">Skynet Music</span>
+          : <GlobalSearch />
+        }
       </div>
 
       {/* Network status banner */}
       {showBanner && (
-        <div className={`fixed top-[53px] left-0 md:left-64 right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium ${
+        <div className={`fixed top-[53px] left-0 ${hideSearch ? 'md:left-64 md:top-0' : 'md:left-64'} right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium ${
           !online ? 'bg-[#1DB954] text-black' : 'bg-amber-600 text-amber-50'
         }`}>
           {!online ? <WifiOff size={13} /> : <ServerCrash size={13} />}
@@ -193,13 +213,13 @@ export default function Layout({ children }) {
 
       {/* Download wake lock banner */}
       {showDownloadBanner && (
-        <div className={`fixed ${showBanner ? 'top-[83px]' : 'top-[53px]'} left-0 md:left-64 right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium bg-blue-600 text-white`}>
+        <div className={`fixed ${showBanner ? (hideSearch ? 'top-[83px] md:top-[30px]' : 'top-[83px]') : (hideSearch ? 'top-[53px] md:top-0' : 'top-[53px]')} left-0 md:left-64 right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium bg-blue-600 text-white`}>
           <Download size={13} className="animate-bounce" />
           Downloading offline songs — screen won&apos;t lock automatically
         </div>
       )}
 
-      {/* Player — fixed so it stays at bottom regardless of scroll position */}
+      {/* Player */}
       <div className="fixed bottom-0 left-0 right-0 md:left-64 z-30">
         <Player />
       </div>
