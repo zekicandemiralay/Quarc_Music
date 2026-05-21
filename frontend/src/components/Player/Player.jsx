@@ -53,7 +53,7 @@ function TrackBar({ value, max, onChange }) {
       step={0.1}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => onChange(parseFloat(e.target.value))}
-      style={{ background: `linear-gradient(to right, white ${pct}%, #3f3f46 ${pct}%)` }}
+      style={{ '--pct': `${pct}%` }}
       className="w-full"
     />
   );
@@ -260,7 +260,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
             value={currentTime}
             step={0.1}
             onChange={(e) => seek(parseFloat(e.target.value))}
-            style={{ background: `linear-gradient(to right, white ${pct}%, #3f3f46 ${pct}%)` }}
+            style={{ '--pct': `${pct}%` }}
             className="w-full track-bar-large"
           />
           <div className="flex justify-between text-xs text-zinc-500">
@@ -459,14 +459,14 @@ export default function Player() {
 
           {/* Center controls + seek */}
           <div className="flex flex-col items-center flex-1 gap-2">
-            <div className="flex items-center gap-6">
-              <button onClick={sp(toggleShuffle)} className={`transition-colors ${shuffle ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`} title={shuffle ? 'Shuffle on' : 'Shuffle off'}>
+            <div className="flex items-center gap-4">
+              <button onClick={sp(toggleShuffle)} className={`p-2 transition-colors ${shuffle ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`} title={shuffle ? 'Shuffle on' : 'Shuffle off'}>
                 <Shuffle size={16} />
               </button>
-              <button onClick={sp(toggleRadioMode)} title={radioMode ? 'Radio on' : 'Radio off'} className={`transition-colors ${radioMode ? 'text-green-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
+              <button onClick={sp(toggleRadioMode)} title={radioMode ? 'Radio on' : 'Radio off'} className={`p-2 transition-colors ${radioMode ? 'text-green-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
                 <Radio size={16} />
               </button>
-              <button onClick={sp(prev)} disabled={!currentSong} className="text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
+              <button onClick={sp(prev)} disabled={!currentSong} className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
                 <SkipBack size={20} />
               </button>
               <button
@@ -476,7 +476,7 @@ export default function Player() {
               >
                 {isPlaying ? <Pause size={16} className="text-black" /> : <Play size={16} className="text-black ml-0.5" />}
               </button>
-              <button onClick={sp(next)} disabled={!currentSong} className="text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
+              <button onClick={sp(next)} disabled={!currentSong} className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
                 <SkipForward size={20} />
               </button>
             </div>
@@ -488,11 +488,11 @@ export default function Player() {
           </div>
 
           {/* Volume + Queue */}
-          <div className="flex items-center gap-3 w-36 shrink-0">
+          <div className="flex items-center gap-2 w-36 shrink-0">
             <button
               onClick={sp(openQueue)}
               disabled={!currentSong}
-              className={`transition-colors disabled:opacity-30 shrink-0 ${showQueue ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
+              className={`p-2 transition-colors disabled:opacity-30 shrink-0 ${showQueue ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
               title="View queue"
             >
               <ListOrdered size={16} />

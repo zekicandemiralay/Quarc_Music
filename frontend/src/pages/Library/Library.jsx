@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered, MoreHorizontal, ListMusic } from 'lucide-react';
@@ -185,6 +185,57 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, currentPlaylistId,
   const liked = likedSongs.includes(song.id);
   const [newName, setNewName] = useState('');
 
+  // Swipe-down to dismiss
+  const sheetRef = useRef(null);
+  const dragStartY = useRef(0);
+  const dragging = useRef(false);
+  const dragYRef = useRef(0);
+  const [dragY, setDragY] = useState(0);
+  const [snapping, setSnapping] = useState(false);
+  const entered = useRef(false);
+
+  const onDragStart = (e) => {
+    if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
+    dragStartY.current = e.touches[0].clientY;
+    dragging.current = true;
+    setSnapping(false);
+  };
+  const onDragEnd = useCallback(() => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    if (dragYRef.current > 80) {
+      onClose();
+    } else if (dragYRef.current > 0) {
+      setSnapping(true);
+      setDragY(0);
+      dragYRef.current = 0;
+      setTimeout(() => setSnapping(false), 280);
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      if (!dragging.current) return;
+      const delta = e.touches[0].clientY - dragStartY.current;
+      if (delta > 0) {
+        e.preventDefault();
+        dragYRef.current = delta;
+        setDragY(delta);
+      }
+    };
+    el.addEventListener('touchmove', handler, { passive: false });
+    return () => el.removeEventListener('touchmove', handler);
+  }, []);
+
+  const sheetStyle = (() => {
+    if (dragY > 0) return { transform: `translateY(${dragY}px)` };
+    if (snapping) return { transform: 'translateY(0)', transition: 'transform 0.25s ease-out' };
+    if (!entered.current) return { animation: 'slideUp 0.25s ease-out forwards' };
+    return {};
+  })();
+
   async function handleAddToPlaylist(playlistId) {
     await addToPlaylist(playlistId, song.id);
     onClose();
@@ -201,12 +252,21 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, currentPlaylistId,
   return createPortal(
     <div className="fixed inset-0 z-[200] flex flex-col justify-end bg-black/60" onClick={onClose}>
       <div
+        ref={sheetRef}
         className="bg-zinc-900 rounded-t-2xl border-t border-zinc-800 max-h-[85vh] flex flex-col"
-        style={{ animation: 'slideUp 0.25s ease-out forwards' }}
+        style={sheetStyle}
+        onAnimationEnd={() => { entered.current = true; }}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={onDragStart}
+        onTouchEnd={onDragEnd}
       >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-zinc-700" />
+        </div>
+
         {/* Song info header */}
-        <div className="flex items-center gap-3 px-4 pt-5 pb-4 border-b border-zinc-800 shrink-0">
+        <div className="flex items-center gap-3 px-4 pt-3 pb-4 border-b border-zinc-800 shrink-0">
           <div className="w-11 h-11 rounded bg-zinc-800 overflow-hidden shrink-0">
             {song.has_cover
               ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
@@ -555,6 +615,19 @@ export default function Library({ view = 'all' }) {
                 onClick={() => playSong(song, isPlaylist || !radioMode ? filtered : [song], isPlaylist || !radioMode ? i : 0, isPlaylist ? 'playlist' : 'single', heading)}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}
+                onTouchStart={(e) => {
+                  if (e.touches.length !== 1 || e.target.closest('button')) return;
+                  swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, song, el: e.currentTarget, isH: false, lastDx: 0 };
+                }}
+                onTouchEnd={() => {
+                  const { song: sw, el, isH, lastDx } = swipeRef.current;
+                  swipeRef.current = { startX: 0, startY: 0, song: null, el: null, isH: false, lastDx: 0 };
+                  if (!el) return;
+                  el.style.transition = 'transform 0.2s ease-out';
+                  el.style.transform = '';
+                  setTimeout(() => { el.style.transition = ''; }, 250);
+                  if (isH && lastDx >= 80 && sw) { addToQueue(sw); showQueueToast(); }
+                }}
               >
                 {/* Index / play indicator — desktop only */}
                 <div className="hidden md:flex items-center justify-center">

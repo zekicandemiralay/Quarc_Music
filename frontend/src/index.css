@@ -29,12 +29,14 @@ body {
 ::-webkit-scrollbar-thumb { background: #535353; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #b3b3b3; }
 
-/* Range input — shared by player seek bar and volume */
+/* Range input — shared by player seek bar and volume.
+   height: 20px gives a large transparent hit area; visual track is 4px via pseudo-elements.
+   Progress fill uses CSS variable --pct set by JS. */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
-  border-radius: 2px;
+  height: 20px;
+  background: transparent;
   cursor: pointer;
   outline: none;
 }
@@ -43,6 +45,7 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
+  background: linear-gradient(to right, white var(--pct, 0%), #3f3f46 var(--pct, 0%));
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -83,8 +86,8 @@ input[type="range"]::-moz-range-thumb {
 input[type="range"]:hover::-moz-range-thumb,
 input[type="range"]:focus::-moz-range-thumb { opacity: 1; }
 
-/* Expanded player — always-visible, larger seek thumb */
-.track-bar-large { height: 6px; border-radius: 3px; }
+/* Expanded player — larger touch area + always-visible bigger thumb */
+.track-bar-large { height: 24px; }
 .track-bar-large::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
 .track-bar-large::-webkit-slider-thumb {
   opacity: 1 !important;
