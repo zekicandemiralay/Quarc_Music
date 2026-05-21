@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered, MoreHorizontal, ListMusic } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
@@ -198,7 +199,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, currentPlaylistId,
     onClose();
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[200] flex flex-col justify-end" onClick={onClose}>
       <div
         className="bg-zinc-900 rounded-t-2xl border-t border-zinc-800 max-h-[85vh] flex flex-col"
@@ -299,7 +300,8 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, currentPlaylistId,
           Cancel
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -616,7 +618,7 @@ export default function Library({ view = 'all' }) {
                   </button>
 
                   {/* Extra actions — desktop hover only; hidden by default so they take NO layout space */}
-                  <div className="hidden md:group-hover:flex items-center gap-0.5">
+                  <div className={menuOpen === song.id ? 'flex items-center gap-0.5' : 'hidden md:group-hover:flex items-center gap-0.5'}>
                     {view === 'playlist' && currentPlaylist && (
                       <button
                         onClick={() => removeFromPlaylist(currentPlaylist.id, song.id)}
