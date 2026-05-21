@@ -122,13 +122,23 @@ const usePlayerStore = create((set, get) => ({
     const newContext = context !== undefined ? context : get().playContext;
     const newContextLabel = contextLabel !== undefined ? contextLabel : get().playContextLabel;
 
+    // If shuffle is on and a multi-song queue is provided, shuffle it now
+    // (keeps clicked song first so it plays immediately)
+    let finalQueue = queue || [song];
+    let finalIndex = queueIndex;
+    if (state.shuffle && finalQueue.length > 1) {
+      const others = finalQueue.filter((s) => s.id !== song.id);
+      finalQueue = [song, ...smartShuffle(others)];
+      finalIndex = 0;
+    }
+
     // Update state immediately so UI responds before the async cache check
     set({
       currentSong: song,
       isPlaying: true,
       currentTime: 0,
-      queue: queue || [song],
-      queueIndex,
+      queue: finalQueue,
+      queueIndex: finalIndex,
       playContext: newContext,
       playContextLabel: newContextLabel,
       waitingForRadio: false,
@@ -140,8 +150,7 @@ const usePlayerStore = create((set, get) => ({
     const streamSrc = `/api/music/${song.id}/stream`;
     audio.src = streamSrc;
     audio.play().catch(() => {});
-    const { queue: q, queueIndex: qi } = usePlayerStore.getState();
-    schedulePreload(q, qi);
+    schedulePreload(finalQueue, finalIndex);
 
     // Background: if this song is cached, load the blob and swap in only when
     // offline (stream would fail anyway) or before audio has started buffering.
