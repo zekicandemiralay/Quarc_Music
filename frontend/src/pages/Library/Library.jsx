@@ -102,17 +102,10 @@ function fmt(s) {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 }
 
-function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded }) {
+function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded, position }) {
   const { playlists, addToPlaylist, createPlaylist } = useUserDataStore();
   const { addToQueue } = usePlayerStore();
   const [newName, setNewName] = useState('');
-  const ref = useRef();
-
-  useEffect(() => {
-    function handler(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
 
   function handleAddToQueue() {
     if (song) { addToQueue(song); onClose(); if (onQueueAdded) onQueueAdded(song.title); }
@@ -131,51 +124,57 @@ function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded }) {
     onClose();
   }
 
-  return (
-    <div
-      ref={ref}
-      className="absolute right-0 top-8 z-40 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl w-52 py-1 overflow-hidden"
-    >
-      {song && (
-        <>
+  return createPortal(
+    <>
+      {/* Invisible click-away layer */}
+      <div className="fixed inset-0 z-[195]" onClick={onClose} />
+      <div
+        className="fixed z-[196] bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl w-52 py-1"
+        style={{ top: position.top, right: position.right }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {song && (
+          <>
+            <button
+              onClick={handleAddToQueue}
+              className="w-full text-left flex items-center gap-2 text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors"
+            >
+              <ListOrdered size={13} className="text-zinc-400 shrink-0" />
+              Add to queue
+            </button>
+            <div className="border-t border-zinc-700/60 my-1" />
+          </>
+        )}
+        <p className="text-zinc-500 text-xs px-3 py-1.5 font-semibold uppercase tracking-wider">Add to playlist</p>
+        {playlists.length === 0 && (
+          <p className="text-zinc-600 text-xs px-3 py-1.5">No playlists yet</p>
+        )}
+        {playlists.map((p) => (
           <button
-            onClick={handleAddToQueue}
-            className="w-full text-left flex items-center gap-2 text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors"
+            key={p.id}
+            onClick={() => handleAdd(p.id)}
+            className="w-full text-left text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors truncate"
           >
-            <ListOrdered size={13} className="text-zinc-400 shrink-0" />
-            Add to queue
+            {p.name}
           </button>
-          <div className="border-t border-zinc-700/60 my-1" />
-        </>
-      )}
-      <p className="text-zinc-500 text-xs px-3 py-1.5 font-semibold uppercase tracking-wider">Add to playlist</p>
-      {playlists.length === 0 && (
-        <p className="text-zinc-600 text-xs px-3 py-1.5">No playlists yet</p>
-      )}
-      {playlists.map((p) => (
-        <button
-          key={p.id}
-          onClick={() => handleAdd(p.id)}
-          className="w-full text-left text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors truncate"
-        >
-          {p.name}
-        </button>
-      ))}
-      <div className="border-t border-zinc-700 mt-1 pt-1">
-        <div className="flex items-center gap-1 px-2 py-1">
-          <input
-            autoFocus={playlists.length === 0}
-            type="text"
-            placeholder="New playlist…"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
-            className="flex-1 bg-zinc-700 text-white text-xs rounded px-2 py-1.5 focus:outline-none placeholder-zinc-500 min-w-0"
-          />
-          <button onClick={handleCreate} className="text-zinc-400 hover:text-white text-xs px-1.5 py-1.5">+</button>
+        ))}
+        <div className="border-t border-zinc-700 mt-1 pt-1">
+          <div className="flex items-center gap-1 px-2 py-1">
+            <input
+              autoFocus={playlists.length === 0}
+              type="text"
+              placeholder="New playlist…"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+              className="flex-1 bg-zinc-700 text-white text-xs rounded px-2 py-1.5 focus:outline-none placeholder-zinc-500 min-w-0"
+            />
+            <button onClick={handleCreate} className="text-zinc-400 hover:text-white text-xs px-1.5 py-1.5">+</button>
+          </div>
         </div>
       </div>
-    </div>
+    </>,
+    document.body
   );
 }
 
@@ -200,7 +199,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, currentPlaylistId,
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex flex-col justify-end" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex flex-col justify-end bg-black/60" onClick={onClose}>
       <div
         className="bg-zinc-900 rounded-t-2xl border-t border-zinc-800 max-h-[85vh] flex flex-col"
         style={{ animation: 'slideUp 0.25s ease-out forwards' }}
@@ -326,6 +325,7 @@ export default function Library({ view = 'all' }) {
   const [search, setSearch] = useState('');
   const [hovered, setHovered] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null); // song ID with open playlist menu
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const [queueToast, setQueueToast] = useState(null); // brief "Added to queue" feedback
   const [actionSheet, setActionSheet] = useState(null); // song object for mobile action sheet
   const queueToastTimer = useRef(null);
@@ -336,6 +336,12 @@ export default function Library({ view = 'all' }) {
   const isPlaylist = view === 'playlist' || view === 'liked';
   const loadMixes = useMixStore((s) => s.loadMixes);
   const navigate = useNavigate();
+
+  function showQueueToast() {
+    clearTimeout(queueToastTimer.current);
+    setQueueToast(true);
+    queueToastTimer.current = setTimeout(() => setQueueToast(null), 2000);
+  }
 
   useEffect(() => { if (view !== 'mix' && view !== 'featured') load(); }, []);
 
@@ -527,7 +533,7 @@ export default function Library({ view = 'all' }) {
       ) : (
         <div>
           {/* Desktop-only header row */}
-          <div className="hidden md:grid md:grid-cols-[2rem_1fr_1fr_1fr_4rem_5rem] gap-3 px-4 py-2 text-zinc-500 text-xs uppercase tracking-wider border-b border-zinc-800 mb-1">
+          <div className="hidden md:grid md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-3 px-4 py-2 text-zinc-500 text-xs uppercase tracking-wider border-b border-zinc-800 mb-1">
             <span>#</span>
             <span>Title</span>
             <span>Artist</span>
@@ -543,7 +549,7 @@ export default function Library({ view = 'all' }) {
             return (
               <div
                 key={song.id}
-                className={`grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_5rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group border-b border-zinc-800/50 md:border-0 last:border-0 ${
+                className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group border-b border-zinc-800/50 md:border-0 last:border-0 ${
                   active ? 'bg-zinc-700/40' : 'hover:bg-zinc-700/20'
                 }`}
                 onClick={() => playSong(song, isPlaylist || !radioMode ? filtered : [song], isPlaylist || !radioMode ? i : 0, isPlaylist ? 'playlist' : 'single', heading)}
@@ -597,64 +603,72 @@ export default function Library({ view = 'all' }) {
                 {/* Time */}
                 <span className="text-zinc-500 text-xs md:text-sm text-right self-center">{fmt(song.duration)}</span>
 
-                {/* Actions */}
-                <div className="flex items-center justify-end gap-0.5 relative" onClick={(e) => e.stopPropagation()}>
-                  {/* Mobile: ⋮ button opens full action sheet */}
+                {/* Last grid column — mobile ⋮ + desktop liked indicator (non-interactive placeholder) */}
+                <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => setActionSheet(song)}
-                    className="md:hidden p-2 text-zinc-500 hover:text-white transition-colors shrink-0"
+                    className="md:hidden p-2 text-zinc-500 hover:text-white transition-colors"
                     title="More options"
                   >
                     <MoreHorizontal size={18} />
                   </button>
+                  {/* Liked indicator — visible when liked and not hovering; covered by overlay on hover */}
+                  <Heart
+                    size={15}
+                    className={`hidden md:block mr-1.5 ${liked ? 'text-red-400 fill-current' : 'invisible'}`}
+                  />
+                </div>
 
-                  {/* Desktop: heart (liked indicator / toggle) */}
+                {/* Desktop hover overlay — absolute, covers right side of row */}
+                <div
+                  className={`absolute inset-y-0 right-0 hidden items-center gap-1 px-3 bg-gradient-to-l from-zinc-900 from-70% to-transparent ${menuOpen === song.id ? '!flex' : 'md:group-hover:flex'}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <button
                     onClick={() => toggleLike(song.id)}
-                    className={`hidden md:block p-1.5 transition-colors shrink-0 ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100'}`}
+                    className={`p-1.5 transition-colors ${liked ? 'text-red-400' : 'text-zinc-500 hover:text-white'}`}
                     title={liked ? 'Unlike' : 'Like'}
                   >
-                    <Heart size={15} className={liked ? 'fill-current' : ''} />
+                    <Heart size={14} className={liked ? 'fill-current' : ''} />
                   </button>
-
-                  {/* Extra actions — desktop hover only; hidden by default so they take NO layout space */}
-                  <div className={menuOpen === song.id ? 'flex items-center gap-0.5' : 'hidden md:group-hover:flex items-center gap-0.5'}>
-                    {view === 'playlist' && currentPlaylist && (
-                      <button
-                        onClick={() => removeFromPlaylist(currentPlaylist.id, song.id)}
-                        className="p-1.5 text-zinc-600 hover:text-red-400 transition-colors"
-                        title="Remove from playlist"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
+                  {view === 'playlist' && currentPlaylist && (
                     <button
-                      onClick={() => { addToQueue(song); showQueueToast(song.title); }}
-                      className="p-1.5 text-zinc-600 hover:text-zinc-300 transition-colors"
-                      title="Add to queue"
+                      onClick={() => removeFromPlaylist(currentPlaylist.id, song.id)}
+                      className="p-1.5 text-zinc-500 hover:text-red-400 transition-colors"
+                      title="Remove from playlist"
                     >
-                      <ListOrdered size={14} />
+                      <X size={14} />
                     </button>
-                    <div className="relative">
-                      <button
-                        onClick={() => setMenuOpen(menuOpen === song.id ? null : song.id)}
-                        className="p-1.5 text-zinc-600 hover:text-zinc-300 transition-colors"
-                        title="Add to playlist"
-                      >
-                        <ListPlus size={14} />
-                      </button>
-                      {menuOpen === song.id && (
-                        <AddToPlaylistMenu songId={song.id} song={song} onClose={() => setMenuOpen(null)} onQueueAdded={showQueueToast} />
-                      )}
-                    </div>
-                    <button
-                      className="p-1.5 text-zinc-600 hover:text-red-400 transition-colors"
-                      title="Find on YouTube"
-                      onClick={() => navigate(`/youtube?q=${encodeURIComponent(`${song.artist} ${song.title}`)}`)}
-                    >
-                      <Youtube size={14} />
-                    </button>
-                  </div>
+                  )}
+                  <button
+                    onClick={() => { addToQueue(song); showQueueToast(); }}
+                    className="p-1.5 text-zinc-500 hover:text-white transition-colors"
+                    title="Add to queue"
+                  >
+                    <ListOrdered size={14} />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      if (menuOpen === song.id) { setMenuOpen(null); return; }
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setMenuPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                      setMenuOpen(song.id);
+                    }}
+                    className="p-1.5 text-zinc-500 hover:text-white transition-colors"
+                    title="Add to playlist"
+                  >
+                    <ListPlus size={14} />
+                  </button>
+                  {menuOpen === song.id && (
+                    <AddToPlaylistMenu songId={song.id} song={song} onClose={() => setMenuOpen(null)} onQueueAdded={showQueueToast} position={menuPosition} />
+                  )}
+                  <button
+                    onClick={() => navigate(`/youtube?q=${encodeURIComponent(`${song.artist} ${song.title}`)}`)}
+                    className="p-1.5 text-zinc-500 hover:text-red-400 transition-colors"
+                    title="Find on YouTube"
+                  >
+                    <Youtube size={14} />
+                  </button>
                 </div>
               </div>
             );

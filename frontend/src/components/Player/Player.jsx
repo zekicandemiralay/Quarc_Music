@@ -340,6 +340,18 @@ export default function Player() {
     return () => document.removeEventListener('keydown', onKey);
   }, [expanded]);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== ' ') return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      e.preventDefault();
+      if (isPlaying) pause(); else if (currentSong) resume();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isPlaying, currentSong, pause, resume]);
+
   // Buttons inside the bar stop propagation so they don't open the expanded view.
   // Clicking anywhere else on the bar (empty space) does open it.
   const sp = (fn) => (e) => { e.stopPropagation(); fn(); };
