@@ -184,7 +184,7 @@ Users will need to reinstall the certificate on their devices after this.
 |---|---|---|
 | `SERVER_IP` | `127.0.0.1` | Server's LAN IP — embedded in the TLS certificate |
 | `HTTP_PORT` | `8080` | Port for certificate download (`http://IP:8080/cert`) |
-| `HTTPS_PORT` | `8443` | Port for the main app (`https://IP:8443`) |
+| `HTTPS_PORT` | `4000` | Port for the main app (`https://IP:4000`) |
 | `MUSIC_DIR` | `./music` | Path to the music folder on the host |
 | `JWT_SECRET` | *(insecure default)* | Secret for signing login tokens — change this |
 | `ADMIN_USERNAME` | `admin` | Admin account username |
