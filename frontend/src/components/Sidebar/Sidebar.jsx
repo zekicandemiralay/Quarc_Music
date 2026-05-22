@@ -180,7 +180,7 @@ export default function Sidebar({ onNavigate }) {
   }
 
   return (
-    <div className="w-64 h-full bg-black flex flex-col gap-2 p-2 shrink-0 overflow-y-auto">
+    <div className="w-64 h-full bg-black flex flex-col gap-2 p-2 pb-28 shrink-0 overflow-y-auto">
       {/* App header + nav */}
       <div className="bg-zinc-900 rounded-lg p-4">
         <div className="flex items-center gap-2 mb-5">

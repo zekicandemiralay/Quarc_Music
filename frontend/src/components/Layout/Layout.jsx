@@ -302,7 +302,7 @@ export default function Layout({ children }) {
       )}
 
       {/* Player */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 z-30">
+      <div className="fixed bottom-0 left-0 right-0 z-30">
         <Player />
       </div>
 
