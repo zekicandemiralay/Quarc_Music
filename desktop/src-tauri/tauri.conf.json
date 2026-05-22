@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
-    "devUrl": "https://100.115.252.65:4000",
+    "devUrl": "https://100.115.252.65",
     "frontendDist": "../dist"
   },
   "bundle": {
@@ -25,7 +25,7 @@
     "windows": [
       {
         "title": "Skynet Music",
-        "url": "https://100.115.252.65:4000",
+        "url": "https://100.115.252.65",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

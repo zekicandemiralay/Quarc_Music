@@ -98,7 +98,7 @@ Look for a box like this:
 ### Step 4 — Access the app
 
 ```
-https://YOUR_SERVER_IP:4000
+https://YOUR_SERVER_IP
 ```
 
 Your browser will warn about an untrusted certificate — this is expected for a self-signed cert. See **Part 2** below for how to properly trust it on any device.
@@ -135,7 +135,7 @@ After seeding, all users will see the collections in the sidebar and on the Home
 
 1. Go to **Admin** in the sidebar
 2. Click **New User**, enter a username and password
-3. Share the server address (`https://YOUR_SERVER_IP:4000`) and their credentials with them
+3. Share the server address (`https://YOUR_SERVER_IP`) and their credentials with them
 4. Direct them to **Part 2** of this guide to set up their device
 
 ---
@@ -184,7 +184,7 @@ Users will need to reinstall the certificate on their devices after this.
 |---|---|---|
 | `SERVER_IP` | `127.0.0.1` | Server's LAN IP — embedded in the TLS certificate |
 | `HTTP_PORT` | `8080` | Port for certificate download (`http://IP:8080/cert`) |
-| `HTTPS_PORT` | `4000` | Port for the main app (`https://IP:4000`) |
+| `HTTPS_PORT` | `443` | Port for the main app (`https://IP`) |
 | `MUSIC_DIR` | `./music` | Path to the music folder on the host |
 | `JWT_SECRET` | *(insecure default)* | Secret for signing login tokens — change this |
 | `ADMIN_USERNAME` | `admin` | Admin account username |
@@ -203,7 +203,7 @@ Users will need to reinstall the certificate on their devices after this.
 For people who have been given an account on the server.
 
 You need two things from the server admin:
-- The **server address** (something like `https://192.168.1.x:4000`)
+- The **server address** (something like `https://192.168.1.x`)
 - Your **username and password**
 
 The app runs over HTTPS using a self-signed certificate (not from a public authority like Let's Encrypt). You need to install and trust this certificate once on each device. After that, the app works like any normal website and can be added to your home screen like a native app.
@@ -261,7 +261,7 @@ Mixes refresh each time you log in. Use the **Refresh Mix** button inside a mix 
 
 #### Step 4 — Open the app in Safari and log in
 
-14. Open **Safari** and go to: `https://YOUR_SERVER_IP:4000`
+14. Open **Safari** and go to: `https://YOUR_SERVER_IP`
 15. Log in with your username and password
 16. Browse around for a moment — the app caches itself in the background
 
@@ -271,7 +271,7 @@ Mixes refresh each time you log in. Use the **Refresh Mix** button inside a mix 
 
 Adding the app to your home screen gives you a full-screen experience with no browser UI, similar to a native app.
 
-17. While on `https://YOUR_SERVER_IP:4000` in Safari, tap the **Share** button (the square with an arrow pointing up, at the bottom of the screen)
+17. While on `https://YOUR_SERVER_IP` in Safari, tap the **Share** button (the square with an arrow pointing up, at the bottom of the screen)
 18. Scroll down in the share sheet and tap **Add to Home Screen**
 19. Edit the name if you like, then tap **Add** in the top-right corner
 20. The Skynet Music icon now appears on your home screen
@@ -309,7 +309,7 @@ After this, the app works fully offline from the home screen icon.
 
 #### Step 3 — Open the app and log in
 
-12. Open **Chrome** and go to: `https://YOUR_SERVER_IP:4000`
+12. Open **Chrome** and go to: `https://YOUR_SERVER_IP`
 13. Log in with your username and password
 14. Browse around for a moment — the app caches itself in the background
 
@@ -345,7 +345,7 @@ After this, the app works fully offline from the home screen icon.
 
 #### Step 3 — Open the app
 
-9. Go to: `https://YOUR_SERVER_IP:4000`
+9. Go to: `https://YOUR_SERVER_IP`
 10. Log in with your username and password
 
 ---
@@ -388,7 +388,7 @@ Install it once and launch Skynet Music from your Start menu / Applications / ap
 
 #### Step 3 — Open the app
 
-11. Go to: `https://YOUR_SERVER_IP:4000`
+11. Go to: `https://YOUR_SERVER_IP`
 12. Log in with your username and password
 
 ---
@@ -454,7 +454,7 @@ Make sure you completed Step 3 (Certificate Trust Settings → toggle ON). Witho
 This is normal on first launch — the home screen app has its own separate session from Safari. Make sure you are connected to the server's network, log in, and browse around once. After that it works offline too.
 
 **Can't find the cert download page**  
-Make sure you're using `http://` (not `https://`) and port `8080` (not `4000`).
+Make sure you're using `http://` (not `https://`) and the cert download port (not the app port).
 
 **Daily Mixes are empty**  
 Mixes are generated from your listening history. Play some songs first — after a few listens they will start to populate.

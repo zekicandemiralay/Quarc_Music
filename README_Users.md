@@ -4,7 +4,7 @@
 For people who have been given an account on the server.
 
 You need two things from the server admin:
-- The **server address** (`https://100.115.252.65:4000/`)
+- The **server address** (`https://100.115.252.65/`)
 - Your **username and password**
 
 The app runs over HTTPS using a self-signed certificate (not from a public authority). You need to install and trust this certificate once on each device. After that, the app works like any normal website and can be added to your home screen like a native app.
@@ -49,7 +49,7 @@ You still need to install the certificate first:
 10. Launch **Skynet Music** from your Start menu
 11. Log in with your username and password
 
-> **Using the browser instead?** After installing the certificate, go to `https://100.115.252.65:4000` in Chrome or Edge.
+> **Using the browser instead?** After installing the certificate, go to `https://100.115.252.65` in Chrome or Edge.
 
 ---
 
@@ -80,7 +80,7 @@ You still need to install the certificate first:
 
 #### Step 4 — Open the app in Safari and log in
 
-14. Open **Safari** and go to: `https://100.115.252.65:4000`
+14. Open **Safari** and go to: `https://100.115.252.65`
 15. Log in with your username and password
 16. Browse around for a moment — the app caches itself in the background
 
@@ -90,7 +90,7 @@ You still need to install the certificate first:
 
 Adding the app to your home screen gives you a full-screen experience with no browser UI, similar to a native app.
 
-17. While on `https://100.115.252.65:4000` in Safari, tap the **Share** button (the square with an arrow pointing up, at the bottom of the screen)
+17. While on `https://100.115.252.65` in Safari, tap the **Share** button (the square with an arrow pointing up, at the bottom of the screen)
 18. Scroll down in the share sheet and tap **Add to Home Screen**
 19. Edit the name if you like, then tap **Add** in the top-right corner
 20. The Skynet Music icon now appears on your home screen
@@ -128,7 +128,7 @@ After this, the app works fully offline from the home screen icon.
 
 #### Step 3 — Open the app and log in
 
-12. Open **Chrome** and go to: `https://100.115.252.65:4000`
+12. Open **Chrome** and go to: `https://100.115.252.65`
 13. Log in with your username and password
 14. Browse around for a moment — the app caches itself in the background
 
@@ -164,7 +164,7 @@ After this, the app works fully offline from the home screen icon.
 
 #### Step 3 — Open the app
 
-9. Go to: `https://100.115.252.65:4000`
+9. Go to: `https://100.115.252.65`
 10. Log in with your username and password
 
 ---
