@@ -180,9 +180,8 @@ function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded, position }) {
 
 async function shareSong(song) {
   const url = `${window.location.origin}/?share=${song.id}`;
-  const text = `${song.title}${song.artist ? ` — ${song.artist}` : ''}`;
   if (navigator.share) {
-    try { await navigator.share({ title: 'Skynet Music', text, url }); return 'shared'; } catch { return null; }
+    try { await navigator.share({ title: 'Skynet Music', text: url, url }); return 'shared'; } catch { return null; }
   } else {
     try { await navigator.clipboard.writeText(url); return 'copied'; } catch { return null; }
   }
