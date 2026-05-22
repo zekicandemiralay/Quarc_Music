@@ -149,7 +149,7 @@ const usePlayerStore = create((set, get) => ({
     // the user gesture context and audio starts without delay.
     const streamSrc = `/api/music/${song.id}/stream`;
     audio.src = streamSrc;
-    audio.play().catch(() => {});
+    audio.play().catch(() => set({ isPlaying: false }));
     schedulePreload(finalQueue, finalIndex);
 
     // Background: if this song is cached, load the blob and swap in only when
