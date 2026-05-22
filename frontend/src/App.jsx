@@ -13,6 +13,7 @@ import Import from './pages/Import/Import';
 import useOfflineStore from './store/useOfflineStore';
 import useMixStore from './store/useMixStore';
 import useFeaturedStore from './store/useFeaturedStore';
+import usePlayerStore from './store/playerStore';
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuthStore();
@@ -35,11 +36,32 @@ export default function App() {
   useEffect(() => {
     checkSession();
     initOffline();
+    // Stash ?share=ID before the router strips it, so it survives a login redirect
+    const shareId = new URLSearchParams(window.location.search).get('share');
+    if (shareId) {
+      sessionStorage.setItem('skynet_pending_share', shareId);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
 
   useEffect(() => {
     if (user) { loadUserData(); loadMixes(); loadFeatured(); }
     else { resetUserData(); resetMixes(); resetFeatured(); }
+  }, [user?.id]);
+
+  // Play a shared song once the user is authenticated
+  useEffect(() => {
+    if (!user) return;
+    const shareId = sessionStorage.getItem('skynet_pending_share');
+    if (!shareId) return;
+    sessionStorage.removeItem('skynet_pending_share');
+    fetch('/api/music')
+      .then((r) => r.json())
+      .then((songs) => {
+        const song = songs.find((s) => String(s.id) === String(shareId));
+        if (song) usePlayerStore.getState().playSong(song, [song], 0, 'single', 'Shared');
+      })
+      .catch(() => {});
   }, [user?.id]);
 
   if (loading) {

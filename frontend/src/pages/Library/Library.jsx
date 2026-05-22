@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered, MoreHorizontal, ListMusic } from 'lucide-react';
+import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered, MoreHorizontal, ListMusic, Share2 } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
 import useOfflineStore from '../../store/useOfflineStore';
@@ -178,7 +178,17 @@ function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded, position }) {
   );
 }
 
-function MobileSongActionSheet({ song, onClose, onQueueAdded, currentPlaylistId, onRemoveFromPlaylist }) {
+async function shareSong(song) {
+  const url = `${window.location.origin}/?share=${song.id}`;
+  const text = `${song.title}${song.artist ? ` — ${song.artist}` : ''}`;
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Skynet Music', text, url }); return 'shared'; } catch { return null; }
+  } else {
+    try { await navigator.clipboard.writeText(url); return 'copied'; } catch { return null; }
+  }
+}
+
+function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPlaylistId, onRemoveFromPlaylist }) {
   const { likedSongs, toggleLike, playlists, addToPlaylist, createPlaylist } = useUserDataStore();
   const { addToQueue } = usePlayerStore();
   const navigate = useNavigate();
@@ -318,6 +328,15 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, currentPlaylistId,
             <span className="text-white text-sm">Find on YouTube</span>
           </button>
 
+          {/* Share */}
+          <button
+            onClick={() => onShare && onShare()}
+            className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
+          >
+            <Share2 size={20} className="text-zinc-400" />
+            <span className="text-white text-sm">Share song</span>
+          </button>
+
           {/* Add to playlist */}
           <div className="border-t border-zinc-800 mt-1 pt-1">
             <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-5 py-2">Add to playlist</p>
@@ -400,11 +419,13 @@ export default function Library({ view = 'all' }) {
   const loadMixes = useMixStore((s) => s.loadMixes);
   const navigate = useNavigate();
 
-  function showQueueToast() {
+  function showToast(msg) {
     clearTimeout(queueToastTimer.current);
-    setQueueToast(true);
+    setQueueToast(msg);
     queueToastTimer.current = setTimeout(() => setQueueToast(null), 2000);
   }
+  function showQueueToast() { showToast('Added to queue'); }
+  function showShareToast() { showToast('Link copied'); }
 
   useEffect(() => {
     const el = songListRef.current;
@@ -791,6 +812,16 @@ export default function Library({ view = 'all' }) {
                   >
                     <Youtube size={14} />
                   </button>
+                  <button
+                    onClick={async () => {
+                      const result = await shareSong(song);
+                      if (result === 'copied') showShareToast();
+                    }}
+                    className="p-1.5 text-zinc-500 hover:text-white transition-colors"
+                    title="Share song"
+                  >
+                    <Share2 size={14} />
+                  </button>
                 </div>
               </div>
               </div>
@@ -817,10 +848,10 @@ export default function Library({ view = 'all' }) {
         </div>
       )}
 
-      {/* Queue toast — brief feedback when a song is added to queue */}
+      {/* Toast — feedback for queue add, share, etc. */}
       {queueToast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white text-black text-sm font-medium px-4 py-2 rounded-full shadow-xl z-50 pointer-events-none queue-toast">
-          Added to queue
+          {queueToast}
         </div>
       )}
 
@@ -830,6 +861,11 @@ export default function Library({ view = 'all' }) {
           song={actionSheet}
           onClose={() => setActionSheet(null)}
           onQueueAdded={showQueueToast}
+          onShare={async () => {
+            const result = await shareSong(actionSheet);
+            setActionSheet(null);
+            if (result === 'copied') showShareToast();
+          }}
           currentPlaylistId={view === 'playlist' ? playlistId : null}
           onRemoveFromPlaylist={currentPlaylist ? () => removeFromPlaylist(currentPlaylist.id, actionSheet.id) : null}
         />
