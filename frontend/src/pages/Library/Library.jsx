@@ -388,6 +388,7 @@ export default function Library({ view = 'all' }) {
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const [queueToast, setQueueToast] = useState(null); // brief "Added to queue" feedback
   const [actionSheet, setActionSheet] = useState(null); // song object for mobile action sheet
+  const [visibleCount, setVisibleCount] = useState(50);
   const queueToastTimer = useRef(null);
   const swipeRef = useRef({ startX: 0, startY: 0, song: null, el: null, isH: false, lastDx: 0 });
   const songListRef = useRef(null);
@@ -435,6 +436,7 @@ export default function Library({ view = 'all' }) {
   }, []);
 
   useEffect(() => { if (view !== 'mix' && view !== 'featured') load(); }, []);
+  useEffect(() => { setVisibleCount(50); }, [search]);
 
   // Track recently accessed playlists for home page quick access
   useEffect(() => {
@@ -503,6 +505,10 @@ export default function Library({ view = 'all' }) {
   const filtered = visibleSongs.filter(
     (s) => !search || [s.title, s.artist, s.album].some((f) => norm(f).includes(normSearch))
   );
+
+  // Paginate only on the main library view; search results and other views show all
+  const PAGE = 50;
+  const paginated = view === 'all' && !search ? filtered.slice(0, visibleCount) : filtered;
 
   const heading =
     view === 'liked' ? 'Liked Songs' :
@@ -633,10 +639,12 @@ export default function Library({ view = 'all' }) {
             <span />
           </div>
 
-          {filtered.map((song, i) => {
+          {paginated.map((song, i) => {
             const active = currentSong?.id === song.id;
             const liked = likedSongs.includes(song.id);
             const isHov = hovered === song.id;
+            // i within the full filtered list — needed for correct queue position
+            const fullIndex = filtered.indexOf(song);
             return (
               <div key={song.id} className="relative overflow-hidden md:overflow-visible border-b border-zinc-800/50 md:border-0 last:border-0 rounded-md md:rounded-none">
                 {/* Swipe-right reveal layer — mobile only */}
@@ -651,7 +659,7 @@ export default function Library({ view = 'all' }) {
                 className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group ${
                   active ? 'bg-zinc-700/40' : 'bg-[#121212] md:bg-transparent hover:bg-zinc-700/20'
                 }`}
-                onClick={() => playSong(song, isPlaylist || !radioMode ? filtered : [song], isPlaylist || !radioMode ? i : 0, isPlaylist ? 'playlist' : 'single', heading)}
+                onClick={() => playSong(song, isPlaylist || !radioMode ? filtered : [song], isPlaylist || !radioMode ? fullIndex : 0, isPlaylist ? 'playlist' : 'single', heading)}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}
                 onTouchStart={(e) => {
@@ -788,6 +796,24 @@ export default function Library({ view = 'all' }) {
               </div>
             );
           })}
+
+          {/* Show more / Show all — library view only, when there are hidden songs */}
+          {view === 'all' && !search && visibleCount < filtered.length && (
+            <div className="flex items-center justify-center gap-3 pt-6 pb-2">
+              <button
+                onClick={() => setVisibleCount((c) => c + PAGE)}
+                className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-medium rounded-full transition-colors"
+              >
+                Show more ({Math.min(PAGE, filtered.length - visibleCount)} more)
+              </button>
+              <button
+                onClick={() => setVisibleCount(filtered.length)}
+                className="px-5 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm font-medium rounded-full transition-colors"
+              >
+                Show all ({filtered.length})
+              </button>
+            </div>
+          )}
         </div>
       )}
 
