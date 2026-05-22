@@ -243,7 +243,7 @@ export default function Layout({ children }) {
   const hideSearch = useHideSearch();
 
   return (
-    <div className="flex overflow-hidden bg-black h-full">
+    <div className="flex flex-col overflow-hidden bg-black h-full">
 
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
@@ -252,23 +252,28 @@ export default function Layout({ children }) {
         </div>
       )}
 
-      {/* Sidebar — fixed overlay on mobile, static column on desktop */}
-      <div className={`
-        fixed md:static inset-y-0 left-0 z-50
-        transform transition-transform duration-300 ease-in-out md:transform-none
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <Sidebar onNavigate={() => setSidebarOpen(false)} />
-      </div>
+      {/* Content row: sidebar + main (fills all space above the player bar) */}
+      <div className="flex flex-1 overflow-hidden min-h-0">
 
-      {/* Scrollable content area */}
-      <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] md:pb-24 ${
-        bannerCount === 2 ? (hideSearch ? 'pt-[113px] md:pt-[60px]' : 'pt-[113px]') :
-        bannerCount === 1 ? (hideSearch ? 'pt-[83px] md:pt-[30px]'  : 'pt-[83px]')  :
-                            (hideSearch ? 'pt-[53px] md:pt-0'        : 'pt-[53px]')
-      }`}>
-        {children}
-      </main>
+        {/* Sidebar — fixed overlay on mobile, static column on desktop */}
+        <div className={`
+          fixed md:static inset-y-0 left-0 z-50
+          transform transition-transform duration-300 ease-in-out md:transform-none
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}>
+          <Sidebar onNavigate={() => setSidebarOpen(false)} />
+        </div>
+
+        {/* Scrollable content area */}
+        <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] md:pb-0 ${
+          bannerCount === 2 ? (hideSearch ? 'pt-[113px] md:pt-[60px]' : 'pt-[113px]') :
+          bannerCount === 1 ? (hideSearch ? 'pt-[83px] md:pt-[30px]'  : 'pt-[83px]')  :
+                              (hideSearch ? 'pt-[53px] md:pt-0'        : 'pt-[53px]')
+        }`}>
+          {children}
+        </main>
+
+      </div>
 
       {/* Top bar */}
       <div className={`fixed top-0 left-0 right-0 md:left-64 z-30 flex items-center gap-3 px-4 py-3 bg-zinc-900 border-b border-zinc-800 ${
@@ -301,8 +306,8 @@ export default function Layout({ children }) {
         </div>
       )}
 
-      {/* Player */}
-      <div className="fixed bottom-0 left-0 right-0 z-30">
+      {/* Player — fixed on mobile, static flex child on desktop so sidebar stops above it */}
+      <div className="fixed md:static bottom-0 left-0 right-0 z-30 md:z-auto md:shrink-0">
         <Player />
       </div>
 
