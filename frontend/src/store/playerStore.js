@@ -303,17 +303,14 @@ if ('mediaSession' in navigator) {
     const { currentSong, currentTime: storeTime } = usePlayerStore.getState();
     if (!currentSong) return;
     usePlayerStore.setState({ isPlaying: true });
-    if (audio.readyState < 2) {
-      // Stream connection dropped while screen was locked — reload before playing
-      const t = audio.currentTime || storeTime;
-      audio.src = `/api/music/${currentSong.id}/stream`;
-      audio.addEventListener('canplay', () => {
-        if (t > 0) audio.currentTime = t;
-        audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
-      }, { once: true });
-    } else {
+    // Always reload stream — iOS can keep readyState >= 2 while the connection
+    // is dead, making play() resolve silently with no audio output.
+    const t = audio.currentTime || storeTime;
+    audio.src = `/api/music/${currentSong.id}/stream`;
+    audio.addEventListener('canplay', () => {
+      if (t > 0) audio.currentTime = t;
       audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
-    }
+    }, { once: true });
   });
   navigator.mediaSession.setActionHandler('pause', () => {
     audio.pause();
