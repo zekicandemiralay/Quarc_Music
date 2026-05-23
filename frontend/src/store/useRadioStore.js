@@ -159,6 +159,7 @@ usePlayerStore.subscribe((state, prev) => {
       useRadioStore.setState({ radioMode: on });
       localStorage.setItem('skynet_radio', JSON.stringify(on));
       songCountSinceLastFill = 0;
+      if (on) useRadioStore.getState().fillQueue(state.currentSong);
     }
     // Trigger every RADIO_INTERVAL songs so radio is interleaved, not dumped at the end
     songCountSinceLastFill++;
