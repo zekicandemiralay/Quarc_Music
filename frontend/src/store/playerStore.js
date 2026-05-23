@@ -62,6 +62,9 @@ let playTrack = { songId: null, accumulated: 0, resumeAt: null };
 // Play history for the back button — stores snapshots of previous songs
 const playHistory = [];
 let goingBack = false;
+// When true, the current song was restored from localStorage and was never
+// explicitly played — skip pushing it to history on the next playSong call.
+let restoredFromStorage = false;
 
 // Distinguish user-initiated pauses from iOS audio interruptions (phone calls, Siri).
 // Only user-initiated pauses set isPlaying=false; interruptions keep it true so
@@ -116,11 +119,13 @@ const usePlayerStore = create((set, get) => ({
       set({ currentTime: 0 });
       return;
     }
-    // Save current song to history so back button can return to it
-    if (!goingBack && state.currentSong) {
+    // Save current song to history so back button can return to it.
+    // Skip if it was only restored from localStorage (never played this session).
+    if (!goingBack && state.currentSong && !restoredFromStorage) {
       playHistory.push({ song: state.currentSong, queue: state.queue, queueIndex: state.queueIndex, playContext: state.playContext, playContextLabel: state.playContextLabel });
       if (playHistory.length > 50) playHistory.shift();
     }
+    restoredFromStorage = false;
 
     // Flush previous song's play time before switching
     if (playTrack.songId) flushPlay(playTrack.songId);
@@ -478,6 +483,7 @@ usePlayerStore.subscribe((state, prev) => {
 try {
   const saved = JSON.parse(localStorage.getItem('skynet_player_state') || 'null');
   if (saved?.song) {
+    restoredFromStorage = true;
     usePlayerStore.setState({
       currentSong: saved.song,
       queue: saved.queue?.length ? saved.queue : [saved.song],
