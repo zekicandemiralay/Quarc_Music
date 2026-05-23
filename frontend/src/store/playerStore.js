@@ -107,7 +107,7 @@ const usePlayerStore = create((set, get) => ({
   manualQueue: [],
   waitingForRadio: false,
 
-  playSong: async (song, queue = null, queueIndex = 0, context, contextLabel) => {
+  playSong: async (song, queue = null, queueIndex = 0, context, contextLabel, navigating = false) => {
     const state = get();
     if (state.currentSong?.id === song.id) {
       // Re-clicking the current song restarts it from the beginning
@@ -129,11 +129,11 @@ const usePlayerStore = create((set, get) => ({
     const newContext = context !== undefined ? context : get().playContext;
     const newContextLabel = contextLabel !== undefined ? contextLabel : get().playContextLabel;
 
-    // If shuffle is on and a multi-song queue is provided, shuffle it now
-    // (keeps clicked song first so it plays immediately)
+    // Shuffle the queue only when the user explicitly starts a new play context.
+    // When navigating prev/next the existing queue order must be preserved.
     let finalQueue = queue || [song];
     let finalIndex = queueIndex;
-    if (state.shuffle && finalQueue.length > 1) {
+    if (state.shuffle && finalQueue.length > 1 && !navigating) {
       const others = finalQueue.filter((s) => s.id !== song.id);
       finalQueue = [song, ...smartShuffle(others)];
       finalIndex = 0;
@@ -220,26 +220,49 @@ const usePlayerStore = create((set, get) => ({
       audio.play().catch(() => {});
       schedulePreload(queue, idx);
     } else {
-      get().playSong(queue[idx], queue, idx, playContext, playContextLabel);
+      get().playSong(queue[idx], queue, idx, playContext, playContextLabel, true);
     }
   },
 
   prev: () => {
     if (audio.currentTime > 5 || playHistory.length === 0) { audio.currentTime = 0; return; }
-    const { currentSong } = get();
+    const { currentSong, queue } = get();
     goingBack = true;
     const snap = playHistory.pop();
-    // Put the current song right after the restored position so next() returns to it.
-    // It lives in the auto-queue so starting a new song rebuilds everything cleanly.
-    let restoredQueue = snap.queue;
-    if (currentSong && restoredQueue[snap.queueIndex + 1]?.id !== currentSong.id) {
-      restoredQueue = [
-        ...snap.queue.slice(0, snap.queueIndex + 1),
-        currentSong,
-        ...snap.queue.slice(snap.queueIndex + 1).filter((s) => s.id !== currentSong.id),
-      ];
+
+    // Prefer navigating within the current queue so it stays intact.
+    // Only fall back to the historical snapshot if the song was removed from the queue.
+    const prevIdx = queue.findIndex((s) => s.id === snap.song.id);
+
+    let targetQueue = queue;
+    let targetIdx = prevIdx;
+
+    if (prevIdx !== -1) {
+      // Found in current queue — put currentSong right after prevIdx so Next returns to it
+      if (currentSong && targetQueue[prevIdx + 1]?.id !== currentSong.id) {
+        const withoutCurrent = queue.filter((s) => s.id !== currentSong.id);
+        const newPrevIdx = withoutCurrent.findIndex((s) => s.id === snap.song.id);
+        targetQueue = [
+          ...withoutCurrent.slice(0, newPrevIdx + 1),
+          currentSong,
+          ...withoutCurrent.slice(newPrevIdx + 1),
+        ];
+        targetIdx = newPrevIdx;
+      }
+    } else {
+      // Song was removed from queue (e.g. played from search) — restore from snapshot
+      targetIdx = snap.queueIndex;
+      targetQueue = snap.queue;
+      if (currentSong && targetQueue[targetIdx + 1]?.id !== currentSong.id) {
+        targetQueue = [
+          ...snap.queue.slice(0, targetIdx + 1),
+          currentSong,
+          ...snap.queue.slice(targetIdx + 1).filter((s) => s.id !== currentSong.id),
+        ];
+      }
     }
-    get().playSong(snap.song, restoredQueue, snap.queueIndex, snap.playContext, snap.playContextLabel);
+
+    get().playSong(snap.song, targetQueue, targetIdx, snap.playContext, snap.playContextLabel, true);
     goingBack = false;
   },
 
