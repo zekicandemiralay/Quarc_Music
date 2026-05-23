@@ -368,17 +368,40 @@ hdr "Last.fm / Radio"
 # ════════════════════════════════════════════════════════════════════════
 
 if [ -n "${LASTFM_API_KEY:-}" ]; then
+  # 1. Verify the key made it into the backend container
+  BACKEND_FM_KEY=$(dexec backend sh -c 'echo "$LASTFM_API_KEY"' 2>/dev/null | tr -d '\r\n')
+  if [ -z "$BACKEND_FM_KEY" ]; then
+    fail "LASTFM_API_KEY is set in .env but NOT present inside the backend container — re-run: bash deploy.sh"
+  elif [ "$BACKEND_FM_KEY" != "$LASTFM_API_KEY" ]; then
+    fail "LASTFM_API_KEY mismatch: .env has '${LASTFM_API_KEY}' but backend has '${BACKEND_FM_KEY}'"
+  else
+    ok "LASTFM_API_KEY present inside backend container"
+  fi
+
+  # 2. Test the key against Last.fm directly from the host
   FM_RESP=$(curl -s --max-time 10 \
     "http://ws.audioscrobbler.com/2.0/?method=track.getSimilar&artist=Radiohead&track=Creep&api_key=${LASTFM_API_KEY}&format=json&limit=1" \
     2>/dev/null || echo "")
   if echo "$FM_RESP" | grep -q '"similartracks"'; then
-    ok "Last.fm API key valid — radio suggestions working"
+    ok "Last.fm API key valid — similar tracks returned"
   else
     FM_ERR=$(echo "$FM_RESP" | grep -oP '"message":"\K[^"]+' || echo "unexpected response")
     fail "Last.fm API error: ${FM_ERR}"
   fi
+
+  # 3. Test the /api/radio/suggestions endpoint through the app
+  if $AUTHED; then
+    RADIO_RESP=$(curl -sk --max-time 15 -b "$COOKIE" \
+      "${BASE}/api/radio/suggestions?artist=Radiohead&title=Creep" 2>/dev/null || echo "")
+    if echo "$RADIO_RESP" | grep -q '\['; then
+      SUGG_COUNT=$(echo "$RADIO_RESP" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
+      ok "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s) returned"
+    else
+      fail "GET /api/radio/suggestions → unexpected: ${RADIO_RESP:-no response}"
+    fi
+  fi
 else
-  warn "LASTFM_API_KEY not set — Radio feature disabled"
+  warn "LASTFM_API_KEY not set in .env — Radio will use library-only fallback"
 fi
 
 # ════════════════════════════════════════════════════════════════════════
