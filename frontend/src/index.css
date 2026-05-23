@@ -100,12 +100,12 @@ input[type="range"]:focus::-moz-range-thumb { opacity: 1; }
 .track-bar-large::-moz-range-thumb { opacity: 1; width: 18px; height: 18px; }
 
 /* Compact volume slider */
-.track-bar-slim { height: 14px; }
-.track-bar-slim::-webkit-slider-runnable-track { height: 2px; border-radius: 1px; }
-.track-bar-slim::-webkit-slider-thumb { width: 10px; height: 10px; margin-top: -4px; opacity: 1; }
-.track-bar-slim::-moz-range-track { height: 2px; border-radius: 1px; }
-.track-bar-slim::-moz-range-progress { height: 2px; border-radius: 1px; background: white; }
-.track-bar-slim::-moz-range-thumb { width: 10px; height: 10px; opacity: 1; }
+.track-bar-slim { height: 14px !important; }
+.track-bar-slim::-webkit-slider-runnable-track { height: 2px !important; border-radius: 1px !important; }
+.track-bar-slim::-webkit-slider-thumb { width: 10px !important; height: 10px !important; margin-top: -4px !important; opacity: 1 !important; }
+.track-bar-slim::-moz-range-track { height: 2px !important; border-radius: 1px !important; }
+.track-bar-slim::-moz-range-progress { height: 2px !important; border-radius: 1px !important; background: white; }
+.track-bar-slim::-moz-range-thumb { width: 10px !important; height: 10px !important; opacity: 1 !important; }
 
 /* Expanded player slide animation */
 @keyframes slideUp   { from { transform: translateY(100%); } to { transform: translateY(0); } }
