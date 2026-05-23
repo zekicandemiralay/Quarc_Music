@@ -27,7 +27,9 @@ HTTPS_PORT=${HTTPS_PORT:-4000}
 ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
 BASE="https://localhost:${HTTPS_PORT}"
 COOKIE=$(mktemp); trap 'rm -f "$COOKIE"' EXIT
-C="curl -sk --max-time 10"
+
+# Use a function so quoting is always correct
+api() { curl -sk --max-time "${CURL_TIMEOUT:-10}" "$@"; }
 
 printf "\n${BOLD}Skynet Music — Feature Regression Tests${NC}  $(date '+%Y-%m-%d %H:%M:%S')\n"
 info "Target: ${BASE}"
@@ -37,22 +39,31 @@ if [ -z "${ADMIN_PASSWORD:-}" ]; then
   exit 1
 fi
 
+# Quick connectivity check before attempting auth
+CONN_ERR=$(curl -sk --max-time 5 -o /dev/null -w "%{http_code}" "${BASE}/api/health" 2>&1)
+if [ "$CONN_ERR" = "000" ]; then
+  printf "\n  ${RED}✗ Cannot reach ${BASE} — is the app running? (bash deploy.sh)${NC}\n\n"
+  exit 1
+fi
+info "Connectivity OK (health check → HTTP ${CONN_ERR})"
+
 # ════════════════════════════════════════════════════════════
 hdr "Auth"
 # ════════════════════════════════════════════════════════════
 
-LOGIN=$($C -X POST "${BASE}/api/auth/login" \
+LOGIN=$(api -X POST "${BASE}/api/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"username\":\"${ADMIN_USERNAME}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
-  -c "$COOKIE" 2>/dev/null)
+  -c "$COOKIE")
 if echo "$LOGIN" | grep -qE '"user"|"token"'; then
   pass "POST /api/auth/login → authenticated"
 else
-  fail "POST /api/auth/login → $(echo "$LOGIN" | grep -oP '"error":"\K[^"]+' || echo 'no response')"
+  ERR=$(echo "$LOGIN" | grep -oP '"error":"\K[^"]+' 2>/dev/null || echo "${LOGIN:-no response}")
+  fail "POST /api/auth/login → ${ERR}"
   printf "\n  ${RED}Cannot continue without auth.${NC}\n\n"; exit 1
 fi
 
-ME=$($C -b "$COOKIE" "${BASE}/api/auth/me")
+ME=$(api -b "$COOKIE" "${BASE}/api/auth/me")
 if echo "$ME" | grep -q '"username"'; then
   pass "GET /api/auth/me → user info returned"
 else
@@ -63,7 +74,7 @@ fi
 hdr "Health"
 # ════════════════════════════════════════════════════════════
 
-HEALTH=$($C "${BASE}/api/health")
+HEALTH=$(api "${BASE}/api/health")
 if echo "$HEALTH" | grep -q '"ok"'; then
   pass "GET /api/health → ok"
 else
@@ -74,7 +85,7 @@ fi
 hdr "Music Library"
 # ════════════════════════════════════════════════════════════
 
-SONGS=$($C -b "$COOKIE" "${BASE}/api/music")
+SONGS=$(api -b "$COOKIE" "${BASE}/api/music")
 if echo "$SONGS" | grep -q '^\['; then
   SONG_COUNT=$(echo "$SONGS" | python3 -c "import sys,json; a=json.load(sys.stdin); print(len(a))" 2>/dev/null || echo "?")
   if [ "$SONG_COUNT" = "0" ]; then
@@ -92,7 +103,7 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
   HAS_COVER=$(echo "$SONGS" | python3 -c "import sys,json; a=json.load(sys.stdin); print(a[0].get('has_cover','false'))" 2>/dev/null || echo "false")
 
   if [ -n "$FIRST_ID" ]; then
-    STREAM_CODE=$($C -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music/${FIRST_ID}/stream")
+    STREAM_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music/${FIRST_ID}/stream")
     if [ "$STREAM_CODE" = "200" ] || [ "$STREAM_CODE" = "206" ]; then
       pass "GET /api/music/:id/stream → HTTP ${STREAM_CODE}"
     else
@@ -100,7 +111,7 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
     fi
 
     if [ "$HAS_COVER" = "True" ] || [ "$HAS_COVER" = "true" ] || [ "$HAS_COVER" = "1" ]; then
-      COVER_CODE=$($C -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music/${FIRST_ID}/cover")
+      COVER_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music/${FIRST_ID}/cover")
       if [ "$COVER_CODE" = "200" ]; then
         pass "GET /api/music/:id/cover → HTTP 200"
       else
@@ -114,7 +125,7 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
   # Search
   FIRST_TITLE=$(echo "$SONGS" | python3 -c "import sys,json; a=json.load(sys.stdin); print((a[0].get('title','') or '')[:4])" 2>/dev/null || echo "")
   if [ -n "$FIRST_TITLE" ]; then
-    SEARCH_RESP=$($C -b "$COOKIE" "${BASE}/api/music?search=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${FIRST_TITLE}'))" 2>/dev/null || echo "$FIRST_TITLE")")
+    SEARCH_RESP=$(api -b "$COOKIE" "${BASE}/api/music?search=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${FIRST_TITLE}'))" 2>/dev/null || echo "$FIRST_TITLE")")
     if echo "$SEARCH_RESP" | grep -q '^\['; then
       pass "GET /api/music?search=… → returns results"
     else
@@ -124,7 +135,7 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
 fi
 
 # Scan endpoint (just check it responds, don't trigger a full scan)
-SCAN_CODE=$($C -b "$COOKIE" -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/music/scan")
+SCAN_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/music/scan")
 if [ "$SCAN_CODE" = "200" ] || [ "$SCAN_CODE" = "202" ]; then
   pass "POST /api/music/scan → HTTP ${SCAN_CODE}"
 else
@@ -135,14 +146,14 @@ fi
 hdr "Home Feed & Collections"
 # ════════════════════════════════════════════════════════════
 
-HOME=$($C -b "$COOKIE" "${BASE}/api/home")
+HOME=$(api -b "$COOKIE" "${BASE}/api/home")
 if [ -n "$HOME" ] && [ "$HOME" != "null" ]; then
   pass "GET /api/home → responding"
 else
   fail "GET /api/home → empty/null"
 fi
 
-FEATURED=$($C -b "$COOKIE" "${BASE}/api/featured")
+FEATURED=$(api -b "$COOKIE" "${BASE}/api/featured")
 if echo "$FEATURED" | grep -q '^\['; then
   FEAT_COUNT=$(echo "$FEATURED" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
   pass "GET /api/featured → ${FEAT_COUNT} collection(s)"
@@ -150,7 +161,7 @@ else
   warn "GET /api/featured → unexpected response (may be empty)"
 fi
 
-MIXES=$($C -b "$COOKIE" "${BASE}/api/mixes")
+MIXES=$(api -b "$COOKIE" "${BASE}/api/mixes")
 if echo "$MIXES" | grep -q '^\['; then
   MIX_COUNT=$(echo "$MIXES" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
   pass "GET /api/mixes → ${MIX_COUNT} mix(es)"
@@ -162,14 +173,14 @@ fi
 hdr "User Data (Likes & Playlists)"
 # ════════════════════════════════════════════════════════════
 
-LIKES=$($C -b "$COOKIE" "${BASE}/api/me/data/likes")
+LIKES=$(api -b "$COOKIE" "${BASE}/api/me/data/likes")
 if echo "$LIKES" | grep -qE '^\{|^\[|null'; then
   pass "GET /api/me/data/likes → accessible"
 else
   fail "GET /api/me/data/likes → unexpected: ${LIKES}"
 fi
 
-PLAYLISTS_RESP=$($C -b "$COOKIE" "${BASE}/api/me/data/playlists")
+PLAYLISTS_RESP=$(api -b "$COOKIE" "${BASE}/api/me/data/playlists")
 if echo "$PLAYLISTS_RESP" | grep -qE '^\{|^\[|null'; then
   pass "GET /api/me/data/playlists → accessible"
 else
@@ -182,12 +193,12 @@ if [ -n "${FIRST_ID:-}" ]; then
   CURRENT_LIKES=$(echo "$LIKES" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('data',[]) if isinstance(d,dict) else []))" 2>/dev/null || echo "[]")
   # Add the song
   NEW_LIKES=$(python3 -c "import json,sys; likes=json.loads('${CURRENT_LIKES}'); likes.append('${FIRST_ID}') if '${FIRST_ID}' not in likes else None; print(json.dumps(likes))" 2>/dev/null || echo "[]")
-  LIKE_CODE=$($C -b "$COOKIE" -o /dev/null -w "%{http_code}" -X PUT "${BASE}/api/me/data/likes" \
+  LIKE_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" -X PUT "${BASE}/api/me/data/likes" \
     -H "Content-Type: application/json" -d "{\"data\":${NEW_LIKES}}")
   if [ "$LIKE_CODE" = "200" ]; then
     pass "PUT /api/me/data/likes → like saved (HTTP 200)"
     # Restore original
-    $C -b "$COOKIE" -X PUT "${BASE}/api/me/data/likes" \
+    api -b "$COOKIE" -X PUT "${BASE}/api/me/data/likes" \
       -H "Content-Type: application/json" -d "{\"data\":${CURRENT_LIKES}}" >/dev/null
   else
     fail "PUT /api/me/data/likes → HTTP ${LIKE_CODE}"
@@ -198,7 +209,7 @@ fi
 hdr "Stats"
 # ════════════════════════════════════════════════════════════
 
-STATS=$($C -b "$COOKIE" "${BASE}/api/me/stats")
+STATS=$(api -b "$COOKIE" "${BASE}/api/me/stats")
 if echo "$STATS" | grep -q '"totals"'; then
   PLAYS=$(echo "$STATS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('totals',{}).get('total_plays',0))" 2>/dev/null || echo "?")
   pass "GET /api/me/stats → ${PLAYS} total plays"
@@ -206,7 +217,7 @@ else
   fail "GET /api/me/stats → unexpected: ${STATS}"
 fi
 
-LIB_STATS=$($C -b "$COOKIE" "${BASE}/api/me/stats/library")
+LIB_STATS=$(api -b "$COOKIE" "${BASE}/api/me/stats/library")
 if [ -n "$LIB_STATS" ] && [ "$LIB_STATS" != "null" ]; then
   pass "GET /api/me/stats/library → responding"
 else
@@ -214,7 +225,7 @@ else
 fi
 
 if [ -n "${FIRST_ID:-}" ]; then
-  PLAY_CODE=$($C -b "$COOKIE" -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/me/stats/play" \
+  PLAY_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/me/stats/play" \
     -H "Content-Type: application/json" -d "{\"songId\":\"${FIRST_ID}\",\"durationSeconds\":30}")
   if [ "$PLAY_CODE" = "200" ] || [ "$PLAY_CODE" = "204" ]; then
     pass "POST /api/me/stats/play → HTTP ${PLAY_CODE}"
@@ -228,7 +239,7 @@ hdr "YouTube Search & Download"
 # ════════════════════════════════════════════════════════════
 
 info "YouTube search may take ~20s (goes through VPN)…"
-YT=$($C --max-time 30 -b "$COOKIE" "${BASE}/api/youtube/search?q=test&limit=1")
+YT=$(api --max-time 30 -b "$COOKIE" "${BASE}/api/youtube/search?q=test&limit=1")
 if echo "$YT" | grep -qE '^\[|\{\}'; then
   YT_COUNT=$(echo "$YT" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
   pass "GET /api/youtube/search → ${YT_COUNT} result(s)"
@@ -236,7 +247,7 @@ else
   warn "GET /api/youtube/search → unexpected (VPN may be slow): ${YT:0:80}"
 fi
 
-YT_STATUS=$($C -b "$COOKIE" "${BASE}/api/youtube/download/status/nonexistent-id")
+YT_STATUS=$(api -b "$COOKIE" "${BASE}/api/youtube/download/status/nonexistent-id")
 if [ "$YT_STATUS" = "404" ] || echo "$YT_STATUS" | grep -q '"error"'; then
   pass "GET /api/youtube/download/status/:id → 404 for unknown job"
 else
@@ -257,7 +268,7 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
     fail "LASTFM_API_KEY mismatch or missing in container — re-run bash deploy.sh"
   fi
 
-  SUGG=$($C --max-time 15 -b "$COOKIE" "${BASE}/api/radio/suggestions?artist=Radiohead&title=Creep")
+  SUGG=$(api --max-time 15 -b "$COOKIE" "${BASE}/api/radio/suggestions?artist=Radiohead&title=Creep")
   if echo "$SUGG" | grep -q '^\['; then
     SUGG_COUNT=$(echo "$SUGG" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
     pass "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s)"
@@ -266,14 +277,14 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
   fi
 
   # Start a radio download and verify jobId returned
-  DL_RESP=$($C -b "$COOKIE" -X POST "${BASE}/api/radio/download" \
+  DL_RESP=$(api -b "$COOKIE" -X POST "${BASE}/api/radio/download" \
     -H "Content-Type: application/json" \
     -d '{"artist":"Radiohead","title":"Creep"}')
   JOB_ID=$(echo "$DL_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('jobId',''))" 2>/dev/null || echo "")
   if [ -n "$JOB_ID" ]; then
     pass "POST /api/radio/download → jobId: ${JOB_ID:0:16}…"
 
-    STATUS=$($C -b "$COOKIE" "${BASE}/api/radio/status/${JOB_ID}")
+    STATUS=$(api -b "$COOKIE" "${BASE}/api/radio/status/${JOB_ID}")
     if echo "$STATUS" | grep -q '"status"'; then
       JOB_STATUS=$(echo "$STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','?'))" 2>/dev/null || echo "?")
       pass "GET /api/radio/status/:id → status=${JOB_STATUS}"
@@ -291,7 +302,7 @@ fi
 hdr "Import"
 # ════════════════════════════════════════════════════════════
 
-IMP=$($C -b "$COOKIE" "${BASE}/api/import/status")
+IMP=$(api -b "$COOKIE" "${BASE}/api/import/status")
 if [ "$IMP" = "null" ]; then
   pass "GET /api/import/status → no active job (null)"
 elif echo "$IMP" | grep -q '"status"'; then
@@ -328,7 +339,7 @@ fi
 hdr "Auth Cleanup"
 # ════════════════════════════════════════════════════════════
 
-LOGOUT_CODE=$($C -b "$COOKIE" -c "$COOKIE" -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/auth/logout")
+LOGOUT_CODE=$(api -b "$COOKIE" -c "$COOKIE" -o /dev/null -w "%{http_code}" -X POST "${BASE}/api/auth/logout")
 if [ "$LOGOUT_CODE" = "200" ] || [ "$LOGOUT_CODE" = "204" ]; then
   pass "POST /api/auth/logout → HTTP ${LOGOUT_CODE}"
 else
@@ -336,7 +347,7 @@ else
 fi
 
 # Confirm session is gone
-AUTHED_AFTER=$($C -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music")
+AUTHED_AFTER=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music")
 if [ "$AUTHED_AFTER" = "401" ]; then
   pass "Session invalidated after logout (401)"
 else
