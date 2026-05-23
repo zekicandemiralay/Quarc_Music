@@ -211,7 +211,7 @@ const usePlayerStore = create((set, get) => ({
 
   prev: () => {
     const { queue, queueIndex, currentTime } = get();
-    if (currentTime > 3) { audio.currentTime = 0; return; }
+    if (currentTime > 5) { audio.currentTime = 0; return; }
     if (queueIndex > 0) {
       const idx = queueIndex - 1;
       get().playSong(queue[idx], queue, idx);
