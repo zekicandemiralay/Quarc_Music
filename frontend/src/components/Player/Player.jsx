@@ -282,7 +282,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
             style={{ '--pct': `${volume * 100}%` }}
-            className="w-full"
+            className="w-full track-bar-slim"
           />
         </div>
 
