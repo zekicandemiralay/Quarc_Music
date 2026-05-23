@@ -22,11 +22,11 @@ const useRadioStore = create((set, get) => ({
 
   async fillQueue(song) {
     if (!get().radioMode || filling) return;
-
-    const { queue, queueIndex } = usePlayerStore.getState();
-    const ahead = queue.length - queueIndex - 1;
-    if (ahead >= 3) return;
-    const needed = 3 - ahead;
+    // Throttle by concurrent downloads, not by how many songs are ahead —
+    // the queue may already have the full library but radio should still add new tracks
+    const pending = get().pendingDownloads.length;
+    if (pending >= 2) return;
+    const needed = 2 - pending;
 
     filling = true;
     try {
@@ -43,7 +43,6 @@ const useRadioStore = create((set, get) => ({
         .slice(0, needed);
 
       if (fresh.length === 0) {
-        // All suggestions already seen or Last.fm returned nothing — use library songs
         for (let i = 0; i < needed; i++) addLibrarySongToQueue();
       } else {
         for (const track of fresh) {
@@ -52,7 +51,7 @@ const useRadioStore = create((set, get) => ({
         }
       }
     } catch {
-      // network or parse error — fall back to library songs
+      // No Last.fm key or network error — fall back to library songs
       for (let i = 0; i < needed; i++) addLibrarySongToQueue();
     } finally {
       filling = false;
@@ -135,11 +134,13 @@ async function addLibrarySongToQueue() {
     const res = await fetch('/api/music');
     if (!res.ok) return;
     const allSongs = await res.json();
-    const { queue } = usePlayerStore.getState();
-    const queueIds = new Set(queue.map(s => s.id));
-    const eligible = allSongs.filter(s => !queueIds.has(s.id));
-    if (!eligible.length) return;
-    const song = eligible[Math.floor(Math.random() * eligible.length)];
+    if (!allSongs.length) return;
+    const { queue, queueIndex } = usePlayerStore.getState();
+    // Prefer songs not already in the upcoming queue; allow repeats if all are queued
+    const upcomingIds = new Set(queue.slice(queueIndex + 1).map(s => s.id));
+    const eligible = allSongs.filter(s => !upcomingIds.has(s.id));
+    const pool = eligible.length ? eligible : allSongs;
+    const song = pool[Math.floor(Math.random() * pool.length)];
     appendSongToQueue(song);
   } catch {}
 }
