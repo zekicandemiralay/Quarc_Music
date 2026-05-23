@@ -213,6 +213,10 @@ const usePlayerStore = create((set, get) => ({
 
   prev: () => {
     if (audio.currentTime > 5 || playHistory.length === 0) { audio.currentTime = 0; return; }
+    const state = get();
+    if (state.currentSong) {
+      set({ manualQueue: [state.currentSong, ...state.manualQueue] });
+    }
     goingBack = true;
     const snap = playHistory.pop();
     get().playSong(snap.song, snap.queue, snap.queueIndex, snap.playContext, snap.playContextLabel);
