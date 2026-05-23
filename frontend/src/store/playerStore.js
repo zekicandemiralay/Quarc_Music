@@ -63,6 +63,11 @@ let playTrack = { songId: null, accumulated: 0, resumeAt: null };
 const playHistory = [];
 let goingBack = false;
 
+// Distinguish user-initiated pauses from iOS audio interruptions (phone calls, Siri).
+// Only user-initiated pauses set isPlaying=false; interruptions keep it true so
+// visibilitychange can auto-resume when the app returns to foreground.
+let pausedByUser = false;
+
 function flushPlay(songId) {
   const extra = playTrack.resumeAt ? (Date.now() - playTrack.resumeAt) / 1000 : 0;
   const total = playTrack.accumulated + extra;
@@ -171,7 +176,7 @@ const usePlayerStore = create((set, get) => ({
     }
   },
 
-  pause: () => { audio.pause(); set({ isPlaying: false }); },
+  pause: () => { pausedByUser = true; audio.pause(); set({ isPlaying: false }); },
   resume: () => {
     set({ isPlaying: true }); // optimistic — reverted below if play() rejects
     audio.play().catch(() => set({ isPlaying: false }));
@@ -298,8 +303,13 @@ audio.addEventListener('pause', () => {
     playTrack.accumulated += (Date.now() - playTrack.resumeAt) / 1000;
     playTrack.resumeAt = null;
   }
-  usePlayerStore.setState({ isPlaying: false });
-  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  if (pausedByUser) {
+    // Intentional pause — reflect in state
+    pausedByUser = false;
+    usePlayerStore.setState({ isPlaying: false });
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  }
+  // iOS interruption (phone call, Siri): keep isPlaying=true so visibilitychange resumes
 });
 
 audio.addEventListener('ended', () => {
@@ -353,6 +363,7 @@ if ('mediaSession' in navigator) {
     audio.addEventListener('waiting', onWaiting);
   });
   navigator.mediaSession.setActionHandler('pause', () => {
+    pausedByUser = true;
     audio.pause();
     usePlayerStore.setState({ isPlaying: false });
   });
