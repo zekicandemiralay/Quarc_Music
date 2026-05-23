@@ -4,6 +4,10 @@ import usePlayerStore, { schedulePreload } from './playerStore';
 // Module-level: not reactive, just dedup guards
 const seenKeys = new Set();
 let filling = false;
+let songCountSinceLastFill = 0;
+
+// Insert a radio song every RADIO_INTERVAL library songs
+const RADIO_INTERVAL = 4;
 
 const useRadioStore = create((set, get) => ({
   radioMode: JSON.parse(localStorage.getItem('skynet_radio') || 'true'),
@@ -15,6 +19,7 @@ const useRadioStore = create((set, get) => ({
     localStorage.setItem('skynet_radio', JSON.stringify(next));
     if (next) {
       seenKeys.clear();
+      songCountSinceLastFill = 0;
       const { currentSong } = usePlayerStore.getState();
       if (currentSong) get().fillQueue(currentSong);
     }
@@ -22,11 +27,7 @@ const useRadioStore = create((set, get) => ({
 
   async fillQueue(song) {
     if (!get().radioMode || filling) return;
-    // Throttle by concurrent downloads, not by how many songs are ahead —
-    // the queue may already have the full library but radio should still add new tracks
-    const pending = get().pendingDownloads.length;
-    if (pending >= 2) return;
-    const needed = 2 - pending;
+    if (get().pendingDownloads.length >= 1) return; // one at a time
 
     filling = true;
     try {
@@ -38,21 +39,17 @@ const useRadioStore = create((set, get) => ({
       if (!res.ok) throw new Error('suggestions unavailable');
 
       const suggestions = await res.json();
-      const fresh = suggestions
-        .filter(s => !seenKeys.has(`${s.artist}::${s.title}`))
-        .slice(0, needed);
+      const fresh = suggestions.find(s => !seenKeys.has(`${s.artist}::${s.title}`));
 
-      if (fresh.length === 0) {
-        for (let i = 0; i < needed; i++) addLibrarySongToQueue();
+      if (!fresh) {
+        addLibrarySongToQueue();
       } else {
-        for (const track of fresh) {
-          seenKeys.add(`${track.artist}::${track.title}`);
-          startRadioDownload(track);
-        }
+        seenKeys.add(`${fresh.artist}::${fresh.title}`);
+        startRadioDownload(fresh);
       }
     } catch {
       // No Last.fm key or network error — fall back to library songs
-      for (let i = 0; i < needed; i++) addLibrarySongToQueue();
+      addLibrarySongToQueue();
     } finally {
       filling = false;
     }
@@ -74,7 +71,7 @@ async function startRadioDownload(track) {
     const { jobId } = await res.json();
     if (!jobId) {
       useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
-      await addLibrarySongToQueue();
+      addLibrarySongToQueue();
       return;
     }
 
@@ -92,13 +89,13 @@ async function startRadioDownload(track) {
     useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
 
     if (song) {
-      appendSongToQueue(song);
+      insertSongIntoQueue(song);
     } else {
-      await addLibrarySongToQueue();
+      addLibrarySongToQueue();
     }
   } catch {
     useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
-    await addLibrarySongToQueue();
+    addLibrarySongToQueue();
   }
 }
 
@@ -116,10 +113,16 @@ async function pollUntilDone(jobId, onProgress) {
   return null;
 }
 
-function appendSongToQueue(song) {
+// Insert a radio song RADIO_INTERVAL positions ahead so it appears soon, not at the end
+function insertSongIntoQueue(song) {
   const wasWaiting = usePlayerStore.getState().waitingForRadio;
   usePlayerStore.setState(s => {
-    const newQueue = [...s.queue, song];
+    const insertAt = Math.min(s.queueIndex + RADIO_INTERVAL, s.queue.length);
+    const newQueue = [
+      ...s.queue.slice(0, insertAt),
+      song,
+      ...s.queue.slice(insertAt),
+    ];
     schedulePreload(newQueue, s.queueIndex);
     return { queue: newQueue };
   });
@@ -141,7 +144,7 @@ async function addLibrarySongToQueue() {
     const eligible = allSongs.filter(s => !upcomingIds.has(s.id));
     const pool = eligible.length ? eligible : allSongs;
     const song = pool[Math.floor(Math.random() * pool.length)];
-    appendSongToQueue(song);
+    insertSongIntoQueue(song);
   } catch {}
 }
 
@@ -155,12 +158,19 @@ usePlayerStore.subscribe((state, prev) => {
       const on = state.playContext !== 'playlist';
       useRadioStore.setState({ radioMode: on });
       localStorage.setItem('skynet_radio', JSON.stringify(on));
+      songCountSinceLastFill = 0;
     }
-    useRadioStore.getState().fillQueue(state.currentSong);
+    // Trigger every RADIO_INTERVAL songs so radio is interleaved, not dumped at the end
+    songCountSinceLastFill++;
+    if (songCountSinceLastFill >= RADIO_INTERVAL) {
+      songCountSinceLastFill = 0;
+      useRadioStore.getState().fillQueue(state.currentSong);
+    }
   }
-  // Player hit end of queue — kick off a fresh fill so downloads start immediately
+  // Player hit end of queue — fill immediately
   if (state.waitingForRadio && !prev.waitingForRadio && state.currentSong) {
-    filling = false; // allow re-entry even if a prior fill just completed
+    filling = false;
+    songCountSinceLastFill = 0;
     useRadioStore.getState().fillQueue(state.currentSong);
   }
 });
