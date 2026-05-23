@@ -205,17 +205,23 @@ export default function QueuePanel({ onClose }) {
             {/* Pending radio downloads */}
             {pendingDownloads.length > 0 && (
               <section className="px-4 pb-3 border-t border-zinc-800 pt-4">
-                <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">Downloading</p>
+                <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">Downloading for radio</p>
                 {pendingDownloads.map((d) => (
                   <div key={d.id} className="flex items-center gap-3 py-2 px-2">
                     <div className="w-10 h-10 shrink-0 rounded bg-zinc-800 flex items-center justify-center">
                       <Download size={14} className="text-zinc-500 animate-pulse" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-zinc-400 truncate">{d.title}</p>
-                      <p className="text-xs text-zinc-600 truncate">{d.artist}</p>
+                      <p className="text-sm text-zinc-300 truncate">{d.title}</p>
+                      <p className="text-xs text-zinc-500 truncate">{d.artist}</p>
+                      <div className="mt-1.5 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full transition-all duration-500"
+                          style={{ width: `${d.progress > 0 ? d.progress : 5}%` }}
+                        />
+                      </div>
                     </div>
-                    <span className="text-xs text-zinc-500 shrink-0 tabular-nums">
+                    <span className="text-xs text-zinc-500 shrink-0 tabular-nums ml-2">
                       {d.progress > 0 ? `${Math.round(d.progress)}%` : '…'}
                     </span>
                   </div>
