@@ -134,6 +134,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
+  const [allSongs, setAllSongs] = useState([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -145,6 +146,19 @@ export default function Home() {
       .finally(() => clearTimeout(timer));
     return () => { controller.abort(); clearTimeout(timer); };
   }, []);
+
+  useEffect(() => {
+    fetch('/api/music')
+      .then((r) => r.ok ? r.json() : [])
+      .then(setAllSongs)
+      .catch(() => {});
+  }, []);
+
+  function handleJumpBackIn(song) {
+    const lib = allSongs.length ? allSongs : [song];
+    const queue = [song, ...lib.filter((s) => s.id !== song.id)];
+    playSong(song, queue, 0, 'single', 'Your Library');
+  }
 
   const recentlyPlayed = data?.recentlyPlayed || [];
   const streak = data?.streak || 0;
@@ -222,7 +236,7 @@ export default function Home() {
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-white font-bold text-lg">Jump back in</h2>
                 <button
-                  onClick={() => shufflePlay(recentlyPlayed)}
+                  onClick={() => shufflePlay(allSongs.length ? allSongs : recentlyPlayed, 'single', 'Your Library')}
                   className="flex items-center gap-1.5 text-zinc-400 hover:text-white text-sm transition-colors"
                 >
                   <Play size={13} className="fill-current" />
@@ -230,13 +244,13 @@ export default function Home() {
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {recentlyPlayed.map((song, i) => (
+                {recentlyPlayed.map((song) => (
                   <SongCard
                     key={song.id}
                     song={song}
-                    queue={recentlyPlayed}
-                    queueIndex={i}
-                    onPlay={playSong}
+                    queue={[]}
+                    queueIndex={0}
+                    onPlay={handleJumpBackIn}
                   />
                 ))}
               </div>
