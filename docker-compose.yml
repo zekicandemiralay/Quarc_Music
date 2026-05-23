@@ -39,6 +39,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - SECURE_COOKIE=${SECURE_COOKIE:-true}
       - YTDLP_PROXY=http://gluetun:8888
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
     depends_on:
       gluetun:
         condition: service_healthy
