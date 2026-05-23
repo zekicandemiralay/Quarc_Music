@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered } from 'lucide-react';
 import useRadioStore from '../../store/useRadioStore';
 import QueuePanel from './QueuePanel';
 
@@ -147,8 +147,8 @@ function SongActionsMenu({ songId, song, onClose, upward = false }) {
 
 function NowPlayingExpanded({ onClose, onOpenQueue }) {
   const {
-    currentSong, isPlaying, currentTime, duration, shuffle,
-    pause, resume, next, prev, seek, toggleShuffle,
+    currentSong, isPlaying, currentTime, duration, shuffle, volume,
+    pause, resume, next, prev, seek, toggleShuffle, setVolume,
   } = usePlayerStore();
   const { likedSongs, toggleLike } = useUserDataStore();
   const { radioMode, toggleRadioMode } = useRadioStore();
@@ -267,6 +267,23 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
             <span>{fmt(currentTime)}</span>
             <span>{fmt(duration)}</span>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={() => setVolume(volume > 0 ? 0 : 1)} className="text-zinc-500 hover:text-white transition-colors shrink-0">
+            {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            value={volume}
+            step={0.01}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            style={{ '--pct': `${volume * 100}%` }}
+            className="w-full"
+          />
         </div>
 
         <div className="flex items-center justify-between pt-1">
