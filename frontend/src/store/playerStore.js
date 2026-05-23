@@ -231,43 +231,22 @@ const usePlayerStore = create((set, get) => ({
 
   prev: () => {
     if (audio.currentTime > 5 || playHistory.length === 0) { audio.currentTime = 0; return; }
-    const { currentSong, queue } = get();
+    const { currentSong } = get();
     goingBack = true;
     const snap = playHistory.pop();
 
-    // Prefer navigating within the current queue so it stays intact.
-    // Only fall back to the historical snapshot if the song was removed from the queue.
-    const prevIdx = queue.findIndex((s) => s.id === snap.song.id);
-
-    let targetQueue = queue;
-    let targetIdx = prevIdx;
-
-    if (prevIdx !== -1) {
-      // Found in current queue — put currentSong right after prevIdx so Next returns to it
-      if (currentSong && targetQueue[prevIdx + 1]?.id !== currentSong.id) {
-        const withoutCurrent = queue.filter((s) => s.id !== currentSong.id);
-        const newPrevIdx = withoutCurrent.findIndex((s) => s.id === snap.song.id);
-        targetQueue = [
-          ...withoutCurrent.slice(0, newPrevIdx + 1),
-          currentSong,
-          ...withoutCurrent.slice(newPrevIdx + 1),
-        ];
-        targetIdx = newPrevIdx;
-      }
-    } else {
-      // Song was removed from queue (e.g. played from search) — restore from snapshot
-      targetIdx = snap.queueIndex;
-      targetQueue = snap.queue;
-      if (currentSong && targetQueue[targetIdx + 1]?.id !== currentSong.id) {
-        targetQueue = [
-          ...snap.queue.slice(0, targetIdx + 1),
-          currentSong,
-          ...snap.queue.slice(targetIdx + 1).filter((s) => s.id !== currentSong.id),
-        ];
-      }
+    // Restore the queue from the snapshot so the song order stays correct.
+    // Insert currentSong right after the previous position so Next returns to it.
+    let targetQueue = snap.queue;
+    if (currentSong && targetQueue[snap.queueIndex + 1]?.id !== currentSong.id) {
+      targetQueue = [
+        ...snap.queue.slice(0, snap.queueIndex + 1),
+        currentSong,
+        ...snap.queue.slice(snap.queueIndex + 1).filter((s) => s.id !== currentSong.id),
+      ];
     }
 
-    get().playSong(snap.song, targetQueue, targetIdx, snap.playContext, snap.playContextLabel, true);
+    get().playSong(snap.song, targetQueue, snap.queueIndex, snap.playContext, snap.playContextLabel, true);
     goingBack = false;
   },
 
