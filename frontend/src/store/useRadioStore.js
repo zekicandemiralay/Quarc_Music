@@ -7,7 +7,7 @@ let filling = false;
 let songCountSinceLastFill = 0;
 
 // Insert a radio song every RADIO_INTERVAL library songs
-const RADIO_INTERVAL = 4;
+const RADIO_INTERVAL = 3;
 
 const useRadioStore = create((set, get) => ({
   radioMode: JSON.parse(localStorage.getItem('skynet_radio') || 'true'),
