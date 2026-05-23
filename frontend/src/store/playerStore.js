@@ -303,14 +303,42 @@ if ('mediaSession' in navigator) {
     const { currentSong, currentTime: storeTime } = usePlayerStore.getState();
     if (!currentSong) return;
     usePlayerStore.setState({ isPlaying: true });
-    // Always reload stream — iOS can keep readyState >= 2 while the connection
-    // is dead, making play() resolve silently with no audio output.
     const t = audio.currentTime || storeTime;
-    audio.src = `/api/music/${currentSong.id}/stream`;
-    audio.addEventListener('canplay', () => {
-      if (t > 0) audio.currentTime = t;
-      audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
-    }, { once: true });
+
+    const reload = () => {
+      audio.src = `/api/music/${currentSong.id}/stream`;
+      const onCanPlay = () => {
+        clearTimeout(reloadTimeout);
+        if (t > 0) audio.currentTime = t;
+        audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+      };
+      // If canplay never fires (iOS blocking background network), show as paused
+      const reloadTimeout = setTimeout(() => {
+        audio.removeEventListener('canplay', onCanPlay);
+        usePlayerStore.setState({ isPlaying: false });
+      }, 5000);
+      audio.addEventListener('canplay', onCanPlay, { once: true });
+    };
+
+    if (audio.readyState < 2) {
+      // Stream definitely gone — reload immediately
+      reload();
+      return;
+    }
+
+    // readyState OK: try play() directly first — works when app was backgrounded
+    // and stream is still alive (user manually paused via lock screen).
+    audio.play().catch(reload);
+
+    // If play() resolved silently but stream is dead (visible-then-locked case),
+    // the audio element fires 'waiting' when it runs out of data to play.
+    const onWaiting = () => {
+      clearTimeout(waitCleanup);
+      audio.removeEventListener('waiting', onWaiting);
+      if (!audio.paused) reload();
+    };
+    const waitCleanup = setTimeout(() => audio.removeEventListener('waiting', onWaiting), 8000);
+    audio.addEventListener('waiting', onWaiting);
   });
   navigator.mediaSession.setActionHandler('pause', () => {
     audio.pause();
