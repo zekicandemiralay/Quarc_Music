@@ -269,7 +269,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 max-w-xs mx-auto w-full">
           <button onClick={() => setVolume(volume > 0 ? 0 : 1)} className="text-zinc-500 hover:text-white transition-colors shrink-0">
             {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
@@ -282,7 +282,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
             style={{ '--pct': `${volume * 100}%` }}
-            className="w-full track-bar-slim"
+            className="flex-1 track-bar-slim"
           />
         </div>
 
