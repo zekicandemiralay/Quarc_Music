@@ -98,7 +98,8 @@ function GlobalSearch() {
   }
 
   function handleSelect(song) {
-    playSong(song, results.length > 1 ? results : [song], results.indexOf(song), 'single', 'Search results');
+    const songQueue = [song, ...songs.filter((s) => s.id !== song.id)];
+    playSong(song, songQueue, 0, 'single', 'Your Library');
     setQuery('');
     setOpen(false);
   }
