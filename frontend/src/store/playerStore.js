@@ -213,13 +213,20 @@ const usePlayerStore = create((set, get) => ({
 
   prev: () => {
     if (audio.currentTime > 5 || playHistory.length === 0) { audio.currentTime = 0; return; }
-    const state = get();
-    if (state.currentSong) {
-      set({ manualQueue: [state.currentSong, ...state.manualQueue] });
-    }
+    const { currentSong } = get();
     goingBack = true;
     const snap = playHistory.pop();
-    get().playSong(snap.song, snap.queue, snap.queueIndex, snap.playContext, snap.playContextLabel);
+    // Put the current song right after the restored position so next() returns to it.
+    // It lives in the auto-queue so starting a new song rebuilds everything cleanly.
+    let restoredQueue = snap.queue;
+    if (currentSong && restoredQueue[snap.queueIndex + 1]?.id !== currentSong.id) {
+      restoredQueue = [
+        ...snap.queue.slice(0, snap.queueIndex + 1),
+        currentSong,
+        ...snap.queue.slice(snap.queueIndex + 1).filter((s) => s.id !== currentSong.id),
+      ];
+    }
+    get().playSong(snap.song, restoredQueue, snap.queueIndex, snap.playContext, snap.playContextLabel);
     goingBack = false;
   },
 
