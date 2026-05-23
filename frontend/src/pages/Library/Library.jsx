@@ -679,7 +679,7 @@ export default function Library({ view = 'all' }) {
                 className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group ${
                   active ? 'bg-zinc-700/40' : 'bg-[#121212] md:bg-transparent hover:bg-zinc-700/20'
                 }`}
-                onClick={() => playSong(song, isPlaylist || !radioMode ? visibleSongs : [song], isPlaylist || !radioMode ? fullIndex : 0, isPlaylist ? 'playlist' : 'single', heading)}
+                onClick={() => playSong(song, visibleSongs, fullIndex, isPlaylist ? 'playlist' : 'single', heading)}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}
                 onTouchStart={(e) => {
