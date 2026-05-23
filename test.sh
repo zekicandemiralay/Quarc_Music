@@ -55,7 +55,7 @@ LOGIN=$(api -X POST "${BASE}/api/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"username\":\"${ADMIN_USERNAME}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
   -c "$COOKIE")
-if echo "$LOGIN" | grep -qE '"user"|"token"'; then
+if echo "$LOGIN" | grep -qE '"username"|"token"'; then
   pass "POST /api/auth/login → authenticated"
 else
   ERR=$(echo "$LOGIN" | grep -oP '"error":"\K[^"]+' 2>/dev/null || echo "${LOGIN:-no response}")

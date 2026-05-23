@@ -204,6 +204,14 @@ const usePlayerStore = create((set, get) => ({
     // If preloader already buffered this song, swap it in directly for instant start
     const nextSrc = `/api/music/${queue[idx].id}/stream`;
     if (preloader.src === nextSrc && !preloader.error) {
+      // Save current song to history (playSong normally does this but is bypassed here)
+      if (!goingBack) {
+        const cur = get();
+        if (cur.currentSong) {
+          playHistory.push({ song: cur.currentSong, queue: cur.queue, queueIndex: cur.queueIndex, playContext: cur.playContext, playContextLabel: cur.playContextLabel });
+          if (playHistory.length > 50) playHistory.shift();
+        }
+      }
       if (playTrack.songId) flushPlay(playTrack.songId);
       playTrack = { songId: queue[idx].id, accumulated: 0, resumeAt: null };
       set({ currentSong: queue[idx], isPlaying: true, currentTime: 0, queueIndex: idx, waitingForRadio: false });
