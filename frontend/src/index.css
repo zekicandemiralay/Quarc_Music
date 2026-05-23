@@ -100,12 +100,12 @@ input[type="range"]:focus::-moz-range-thumb { opacity: 1; }
 .track-bar-large::-moz-range-thumb { opacity: 1; width: 18px; height: 18px; }
 
 /* Compact volume slider */
-.track-bar-slim { height: 14px !important; }
-.track-bar-slim::-webkit-slider-runnable-track { height: 2px !important; border-radius: 1px !important; }
-.track-bar-slim::-webkit-slider-thumb { width: 10px !important; height: 10px !important; margin-top: -4px !important; opacity: 1 !important; }
-.track-bar-slim::-moz-range-track { height: 2px !important; border-radius: 1px !important; }
-.track-bar-slim::-moz-range-progress { height: 2px !important; border-radius: 1px !important; background: white; }
-.track-bar-slim::-moz-range-thumb { width: 10px !important; height: 10px !important; opacity: 1 !important; }
+input[type="range"].track-bar-slim { height: 16px; }
+input[type="range"].track-bar-slim::-webkit-slider-runnable-track { height: 3px; border-radius: 1.5px; }
+input[type="range"].track-bar-slim::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4.5px; opacity: 1; }
+input[type="range"].track-bar-slim::-moz-range-track { height: 3px; border-radius: 1.5px; }
+input[type="range"].track-bar-slim::-moz-range-progress { height: 3px; border-radius: 1.5px; background: white; }
+input[type="range"].track-bar-slim::-moz-range-thumb { width: 12px; height: 12px; opacity: 1; }
 
 /* Expanded player slide animation */
 @keyframes slideUp   { from { transform: translateY(100%); } to { transform: translateY(0); } }
