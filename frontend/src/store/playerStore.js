@@ -211,11 +211,9 @@ const usePlayerStore = create((set, get) => ({
 
   prev: () => {
     const { queue, queueIndex } = get();
-    if (audio.currentTime > 5) { audio.currentTime = 0; return; }
-    if (queueIndex > 0) {
-      const idx = queueIndex - 1;
-      get().playSong(queue[idx], queue, idx);
-    }
+    if (audio.currentTime > 5 || queueIndex === 0) { audio.currentTime = 0; return; }
+    const idx = queueIndex - 1;
+    get().playSong(queue[idx], queue, idx);
   },
 
   shufflePlay: (songs, context = 'single', contextLabel = '') => {
