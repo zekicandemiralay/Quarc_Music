@@ -2,21 +2,13 @@ import { create } from 'zustand';
 import { getAudioBlob } from '../lib/offlineLib';
 import useOfflineStore from './useOfflineStore';
 
-// Weighted shuffle: songs played more tend to appear earlier in the queue
 function weightedShuffle(songs) {
-  const items = songs.map((s) => ({ song: s, w: Math.pow(1 + (s.play_count || 0), 0.3) }));
-  const result = [];
-  while (items.length) {
-    const total = items.reduce((sum, x) => sum + x.w, 0);
-    let r = Math.random() * total;
-    let idx = items.length - 1;
-    for (let i = 0; i < items.length; i++) {
-      r -= items[i].w;
-      if (r <= 0) { idx = i; break; }
-    }
-    result.push(items.splice(idx, 1)[0].song);
+  const arr = [...songs];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return result;
+  return arr;
 }
 
 // Artist interleaving: prevents the same artist from playing back-to-back
@@ -67,6 +59,10 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 // Tracks accumulated real-time seconds for the current song
 let playTrack = { songId: null, accumulated: 0, resumeAt: null };
 
+// Play history for the back button — stores snapshots of previous songs
+const playHistory = [];
+let goingBack = false;
+
 function flushPlay(songId) {
   const extra = playTrack.resumeAt ? (Date.now() - playTrack.resumeAt) / 1000 : 0;
   const total = playTrack.accumulated + extra;
@@ -115,6 +111,12 @@ const usePlayerStore = create((set, get) => ({
       set({ currentTime: 0 });
       return;
     }
+    // Save current song to history so back button can return to it
+    if (!goingBack && state.currentSong) {
+      playHistory.push({ song: state.currentSong, queue: state.queue, queueIndex: state.queueIndex, playContext: state.playContext, playContextLabel: state.playContextLabel });
+      if (playHistory.length > 50) playHistory.shift();
+    }
+
     // Flush previous song's play time before switching
     if (playTrack.songId) flushPlay(playTrack.songId);
     playTrack = { songId: song.id, accumulated: 0, resumeAt: null };
@@ -210,10 +212,11 @@ const usePlayerStore = create((set, get) => ({
   },
 
   prev: () => {
-    const { queue, queueIndex } = get();
-    if (audio.currentTime > 5 || queueIndex === 0) { audio.currentTime = 0; return; }
-    const idx = queueIndex - 1;
-    get().playSong(queue[idx], queue, idx);
+    if (audio.currentTime > 5 || playHistory.length === 0) { audio.currentTime = 0; return; }
+    goingBack = true;
+    const snap = playHistory.pop();
+    get().playSong(snap.song, snap.queue, snap.queueIndex, snap.playContext, snap.playContextLabel);
+    goingBack = false;
   },
 
   shufflePlay: (songs, context = 'single', contextLabel = '') => {
