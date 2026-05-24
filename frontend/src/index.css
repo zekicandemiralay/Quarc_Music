@@ -87,17 +87,17 @@ input[type="range"]:hover::-moz-range-thumb,
 input[type="range"]:focus::-moz-range-thumb { opacity: 1; }
 
 /* Expanded player — larger touch area + always-visible bigger thumb */
-.track-bar-large { height: 24px; }
+.track-bar-large { height: 44px; }
 .track-bar-large::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
 .track-bar-large::-webkit-slider-thumb {
   opacity: 1 !important;
-  width: 18px !important;
-  height: 18px !important;
-  margin-top: -6px !important;
+  width: 26px !important;
+  height: 26px !important;
+  margin-top: -10px !important;
 }
 .track-bar-large::-moz-range-track { height: 6px; border-radius: 3px; }
 .track-bar-large::-moz-range-progress { height: 6px; border-radius: 3px; background: white; }
-.track-bar-large::-moz-range-thumb { opacity: 1; width: 18px; height: 18px; }
+.track-bar-large::-moz-range-thumb { opacity: 1; width: 26px; height: 26px; }
 
 /* Compact volume slider */
 input[type="range"].track-bar-slim { height: 16px; }
