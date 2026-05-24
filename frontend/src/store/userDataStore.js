@@ -97,9 +97,19 @@ const useUserDataStore = create((set, get) => ({
   },
 
   deletePlaylist: async (playlistId) => {
+    const playlist = get().playlists.find((p) => p.id === playlistId);
     const next = get().playlists.filter((p) => p.id !== playlistId);
     set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
+
+    // Remove cached audio for songs that are no longer in any other offline playlist
+    if (playlist?.offline && playlist.songs.length > 0) {
+      const { cachedIds, removeSongs } = useOfflineStore.getState();
+      const toRemove = playlist.songs.filter(
+        (id) => cachedIds.has(id) && !next.some((p) => p.offline && p.songs.includes(id))
+      );
+      if (toRemove.length > 0) removeSongs(toRemove);
+    }
   },
 
   addToPlaylist: async (playlistId, songId) => {
@@ -131,11 +141,21 @@ const useUserDataStore = create((set, get) => ({
   },
 
   removeFromPlaylist: async (playlistId, songId) => {
+    const playlist = get().playlists.find((p) => p.id === playlistId);
     const next = get().playlists.map((p) =>
       p.id === playlistId ? { ...p, songs: p.songs.filter((id) => id !== songId) } : p
     );
     set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
+
+    // Remove cached audio if playlist was offline and no other offline playlist needs this song
+    if (playlist?.offline) {
+      const stillNeeded = next.some((p) => p.offline && p.songs.includes(songId));
+      if (!stillNeeded) {
+        const { cachedIds, removeSong } = useOfflineStore.getState();
+        if (cachedIds.has(songId)) removeSong(songId);
+      }
+    }
   },
 }));
 
