@@ -5,7 +5,7 @@ const AdmZip = require('adm-zip');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { requireAuth } = require('../middleware/auth');
-const { downloadBySearch, downloadAudio } = require('../services/ytdlp');
+const { searchAndDownload, downloadAudio } = require('../services/ytdlp');
 const { scanFile } = require('../services/scanner');
 const { getDb } = require('../db');
 
@@ -64,10 +64,14 @@ function firstArtist(raw) {
 function csvToPlaylist(filename, buffer) {
   const rows = parseCsv(buffer.toString('utf8'));
   const tracks = rows
-    .map(r => ({
-      name: r['track name'] || r['name'] || '',
-      artist: firstArtist(r['artist name(s)'] || r['artist'] || ''),
-    }))
+    .map(r => {
+      const durationMs = parseInt(r['duration (ms)'] || r['duration_ms'] || '0', 10);
+      return {
+        name: r['track name'] || r['name'] || '',
+        artist: firstArtist(r['artist name(s)'] || r['artist'] || ''),
+        durationSecs: durationMs > 0 ? Math.round(durationMs / 1000) : null,
+      };
+    })
     .filter(t => t.name);
   const playlistName = playlistNameFromFilename(filename);
   return { playlistName, isLiked: isLikedSongsName(playlistName), tracks };
@@ -134,7 +138,7 @@ async function downloadWithRetry(track, maxAttempts = 3) {
         return await withTimeout(downloadAudio(track.videoId, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
       } else {
         const query = track.artist ? `${track.artist} - ${track.name}` : track.name;
-        return await withTimeout(downloadBySearch(query, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
+        return await withTimeout(searchAndDownload(query, track.durationSecs || null, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
       }
     } catch (err) {
       lastErr = err;

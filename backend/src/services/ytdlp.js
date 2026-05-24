@@ -161,4 +161,43 @@ function downloadBySearch(query, outputDir, onProgress) {
   });
 }
 
-module.exports = { searchYoutube, downloadAudio, downloadBySearch };
+function normalizeWords(s) {
+  return (s || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+}
+
+function scoreCandidate(candidate, queryWords, expectedSecs) {
+  // Title similarity: Jaccard word overlap between query and result title
+  const titleWords = normalizeWords(candidate.title);
+  const titleSet = new Set(titleWords);
+  const matches = queryWords.filter(w => titleSet.has(w)).length;
+  const union = new Set([...queryWords, ...titleWords]).size;
+  const titleScore = union > 0 ? matches / union : 0;
+
+  // Duration proximity: penalises results that are way off the expected length.
+  // >40% difference from expected → score approaches 0.
+  let durationScore = 0.5; // neutral when no duration info available
+  if (expectedSecs && candidate.duration) {
+    const pct = Math.abs(candidate.duration - expectedSecs) / expectedSecs;
+    durationScore = Math.max(0, 1 - pct * 2.5);
+  }
+
+  // When we have a duration hint, weight it at 40%; otherwise pure title match.
+  const dWeight = expectedSecs ? 0.4 : 0;
+  return titleScore * (1 - dWeight) + durationScore * dWeight;
+}
+
+// Search for up to 5 candidates, score them, download the best match.
+// expectedSecs is the track duration from the source (Spotify CSV etc.) — null if unknown.
+async function searchAndDownload(query, expectedSecs, outputDir, onProgress) {
+  const candidates = await searchYoutube(query, 5);
+  if (candidates.length === 0) throw new Error('No search results');
+
+  const queryWords = normalizeWords(query);
+  const best = candidates
+    .map(c => ({ ...c, score: scoreCandidate(c, queryWords, expectedSecs) }))
+    .sort((a, b) => b.score - a.score)[0];
+
+  return downloadAudio(best.id, outputDir, onProgress);
+}
+
+module.exports = { searchYoutube, downloadAudio, downloadBySearch, searchAndDownload };
