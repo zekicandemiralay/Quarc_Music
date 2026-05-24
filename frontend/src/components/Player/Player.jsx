@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered, Share2 } from 'lucide-react';
 import useRadioStore from '../../store/useRadioStore';
 import QueuePanel from './QueuePanel';
 
@@ -154,6 +154,30 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
   const { radioMode, toggleRadioMode } = useRadioStore();
   const liked = currentSong ? likedSongs.includes(currentSong.id) : false;
 
+  // 0 = off, 1 = shuffle, 2 = smart shuffle (shuffle + radio)
+  const shuffleMode = !shuffle ? 0 : !radioMode ? 1 : 2;
+  function cycleShuffleMode() {
+    if (shuffleMode === 0) {
+      if (!shuffle) toggleShuffle();
+      if (radioMode) toggleRadioMode();
+    } else if (shuffleMode === 1) {
+      if (!radioMode) toggleRadioMode();
+    } else {
+      if (shuffle) toggleShuffle();
+      if (radioMode) toggleRadioMode();
+    }
+  }
+
+  function handleShare() {
+    if (!currentSong) return;
+    const text = `${currentSong.title}${currentSong.artist ? ` — ${currentSong.artist}` : ''}`;
+    if (navigator.share) {
+      navigator.share({ title: currentSong.title, text }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(text).catch(() => {});
+    }
+  }
+
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const [showMenu, setShowMenu] = useState(false);
@@ -242,16 +266,26 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
       </div>
 
       {/* Song info + controls */}
-      <div className="px-8 pb-12 pt-2 space-y-5 shrink-0">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            {currentSong && <EqBars isPlaying={isPlaying} size="lg" />}
-            <h2 className="text-2xl font-bold text-green-400 truncate">{currentSong?.title ?? 'Nothing playing'}</h2>
+      <div className="px-8 pb-10 pt-2 space-y-5 shrink-0">
+        {/* Song title row — like button on the right */}
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              {currentSong && <EqBars isPlaying={isPlaying} size="lg" />}
+              <h2 className="text-2xl font-bold text-green-400 truncate">{currentSong?.title ?? 'Nothing playing'}</h2>
+            </div>
+            <p className="text-zinc-400 text-base truncate">{currentSong?.artist}</p>
+            {currentSong?.album && <p className="text-zinc-600 text-sm truncate mt-0.5">{currentSong.album}</p>}
           </div>
-          <p className="text-zinc-400 text-base truncate">{currentSong?.artist}</p>
-          {currentSong?.album && <p className="text-zinc-600 text-sm truncate mt-0.5">{currentSong.album}</p>}
+          <button
+            onClick={() => currentSong && toggleLike(currentSong.id)}
+            className={`p-2 mt-0.5 shrink-0 transition-colors ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+          >
+            <Heart size={24} className={liked ? 'fill-current' : ''} />
+          </button>
         </div>
 
+        {/* Seek bar */}
         <div className="space-y-1">
           <input
             type="range"
@@ -271,6 +305,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
           </div>
         </div>
 
+        {/* Volume — desktop only */}
         <div className="hidden md:flex items-center gap-3 max-w-xs mx-auto w-full">
           <button onClick={() => setVolume(volume > 0 ? 0 : 1)} className="text-zinc-500 hover:text-white transition-colors shrink-0">
             {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
@@ -288,18 +323,18 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
           />
         </div>
 
-        <div className="flex items-center justify-between pt-1">
-          <div className="flex items-center gap-3">
-            <button onClick={toggleShuffle} className={`p-2 transition-colors ${shuffle ? 'text-green-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
-              <Shuffle size={22} />
-            </button>
-            <button onClick={toggleRadioMode} title={radioMode ? 'Radio on' : 'Radio off'} className={`p-2 transition-colors ${radioMode ? 'text-green-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
-              <Radio size={22} />
-            </button>
-            <button onClick={() => currentSong && toggleLike(currentSong.id)} className={`p-2 transition-colors ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
-              <Heart size={22} className={liked ? 'fill-current' : ''} />
-            </button>
-          </div>
+        {/* Main controls: SmartShuffle | Prev Play Next | spacer */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={cycleShuffleMode}
+            title={['Shuffle off', 'Shuffle on', 'Smart Shuffle'][shuffleMode]}
+            className={`p-2 transition-colors relative ${shuffleMode === 0 ? 'text-zinc-600 hover:text-zinc-400' : 'text-green-400'}`}
+          >
+            <Shuffle size={22} />
+            {shuffleMode === 2 && (
+              <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-green-400 text-black text-[8px] font-bold rounded-full flex items-center justify-center leading-none">+</span>
+            )}
+          </button>
           <button onClick={prev} disabled={!currentSong} className="p-2 text-zinc-300 hover:text-white disabled:opacity-30">
             <SkipBack size={32} className="fill-current" />
           </button>
@@ -313,17 +348,35 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
           <button onClick={next} disabled={!currentSong} className="p-2 text-zinc-300 hover:text-white disabled:opacity-30">
             <SkipForward size={32} className="fill-current" />
           </button>
+          {/* spacer matches shuffle button width */}
+          <div className="w-10" />
+        </div>
+
+        {/* Second row: Share | Queue + AddToPlaylist */}
+        <div className="flex items-center justify-between pt-1">
+          <button
+            onClick={handleShare}
+            disabled={!currentSong}
+            className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors disabled:opacity-30"
+            title="Share"
+          >
+            <Share2 size={20} />
+          </button>
           <div className="flex items-center gap-1">
             <button
               onClick={() => { onClose(); onOpenQueue(); }}
               className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors"
-              title="View queue"
+              title="Queue"
             >
-              <ListOrdered size={22} />
+              <ListOrdered size={20} />
             </button>
             <div className="relative">
-              <button onClick={() => currentSong && setShowMenu((v) => !v)} className={`p-2 transition-colors ${showMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                <ListPlus size={22} />
+              <button
+                onClick={() => currentSong && setShowMenu((v) => !v)}
+                className={`p-2 transition-colors ${showMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
+                title="Add to playlist"
+              >
+                <ListPlus size={20} />
               </button>
               {showMenu && currentSong && <SongActionsMenu songId={currentSong.id} song={currentSong} onClose={() => setShowMenu(false)} upward />}
             </div>
