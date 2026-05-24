@@ -102,6 +102,16 @@ function VideoCard({ video, onSelect }) {
   );
 }
 
+async function openExternal(url) {
+  if (window.__TAURI_INTERNALS__) {
+    try {
+      await window.__TAURI_INTERNALS__.invoke('plugin:shell|open', { path: url });
+      return;
+    } catch {}
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 function Modal({ video, onClose }) {
   if (!video) return null;
   return (
@@ -147,14 +157,12 @@ function Modal({ video, onClose }) {
           </div>
           <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-zinc-800">
             <DownloadBtn videoId={video.id} title={video.title} />
-            <a
-              href={`https://www.youtube.com/watch?v=${video.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => openExternal(`https://www.youtube.com/watch?v=${video.id}`)}
               className="text-zinc-500 hover:text-white text-sm transition-colors"
             >
               Open in YouTube ↗
-            </a>
+            </button>
           </div>
         </div>
       </div>

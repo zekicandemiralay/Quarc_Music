@@ -3,5 +3,10 @@
   "identifier": "default",
   "description": "Skynet Music default capabilities",
   "windows": ["main"],
-  "permissions": []
+  "remote": {
+    "urls": ["https://*:4000"]
+  },
+  "permissions": [
+    "shell:allow-open"
+  ]
 }
