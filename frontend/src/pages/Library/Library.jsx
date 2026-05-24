@@ -470,7 +470,9 @@ export default function Library({ view = 'all' }) {
   }, [view, playlistId]);
 
   async function load() {
-    setLoading(true);
+    // Only block the UI with a spinner when there are no cached songs to show yet.
+    // If we already have something rendered, refresh silently in the background.
+    if (!localStorage.getItem('skynet_songs')) setLoading(true);
     try {
       const controller = new AbortController();
       // 30s — enough for large libraries on a slow mobile connection
