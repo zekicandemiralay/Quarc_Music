@@ -61,6 +61,9 @@ let playTrack = { songId: null, accumulated: 0, resumeAt: null };
 
 // Play history for the back button — stores snapshots of previous songs
 const playHistory = [];
+// Forward stack: when the user presses Back, the current snapshot is pushed here
+// so that pressing Next replays it with its original queue intact (browser-style redo).
+const forwardStack = [];
 let goingBack = false;
 // When true, the current song was restored from localStorage and was never
 // explicitly played — skip pushing it to history on the next playSong call.
@@ -119,6 +122,9 @@ const usePlayerStore = create((set, get) => ({
       set({ currentTime: 0 });
       return;
     }
+    // Manual play clears the forward stack — user started a new context.
+    if (!navigating && !goingBack) forwardStack.length = 0;
+
     // Save current song to history so back button can return to it.
     // Skip if it was only restored from localStorage (never played this session).
     if (!goingBack && state.currentSong && !restoredFromStorage) {
@@ -199,6 +205,14 @@ const usePlayerStore = create((set, get) => ({
       return;
     }
 
+    // If the user went back, replay forward in the exact original order via the forward stack.
+    if (forwardStack.length > 0) {
+      const snap = forwardStack.pop();
+      // playSong saves current song to history (goingBack=false) and preserves queue order (navigating=true)
+      get().playSong(snap.song, snap.queue, snap.queueIndex, snap.playContext, snap.playContextLabel, true);
+      return;
+    }
+
     if (!queue.length) return;
     const idx = queueIndex + 1;
     if (idx >= queue.length) {
@@ -231,22 +245,12 @@ const usePlayerStore = create((set, get) => ({
 
   prev: () => {
     if (audio.currentTime > 5 || playHistory.length === 0) { audio.currentTime = 0; return; }
-    const { currentSong } = get();
+    const { currentSong, queue, queueIndex, playContext, playContextLabel } = get();
+    // Push current position onto the forward stack so Next can redo it exactly.
+    forwardStack.push({ song: currentSong, queue, queueIndex, playContext, playContextLabel });
     goingBack = true;
     const snap = playHistory.pop();
-
-    // Restore the queue from the snapshot so the song order stays correct.
-    // Insert currentSong right after the previous position so Next returns to it.
-    let targetQueue = snap.queue;
-    if (currentSong && targetQueue[snap.queueIndex + 1]?.id !== currentSong.id) {
-      targetQueue = [
-        ...snap.queue.slice(0, snap.queueIndex + 1),
-        currentSong,
-        ...snap.queue.slice(snap.queueIndex + 1).filter((s) => s.id !== currentSong.id),
-      ];
-    }
-
-    get().playSong(snap.song, targetQueue, snap.queueIndex, snap.playContext, snap.playContextLabel, true);
+    get().playSong(snap.song, snap.queue, snap.queueIndex, snap.playContext, snap.playContextLabel, true);
     goingBack = false;
   },
 

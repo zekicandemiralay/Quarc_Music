@@ -260,6 +260,8 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
             value={currentTime}
             step={0.1}
             onChange={(e) => seek(parseFloat(e.target.value))}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
             style={{ '--pct': `${pct}%` }}
             className="w-full track-bar-large"
           />
@@ -269,7 +271,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 max-w-xs mx-auto w-full">
+        <div className="hidden md:flex items-center gap-3 max-w-xs mx-auto w-full">
           <button onClick={() => setVolume(volume > 0 ? 0 : 1)} className="text-zinc-500 hover:text-white transition-colors shrink-0">
             {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
