@@ -52,12 +52,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
-    environment:
-      - SERVER_IP=${SERVER_IP:-127.0.0.1}
+      - "80:80"
+      - "443:443"
     volumes:
-      - ssl_certs:/etc/nginx/ssl
+      - /var/lib/tailscale/certs:/etc/nginx/ssl:ro
     depends_on:
       - backend
     restart: unless-stopped
@@ -70,4 +68,3 @@ networks:
 
 volumes:
   db_data:
-  ssl_certs:

@@ -4,7 +4,7 @@
   "description": "Skynet Music default capabilities",
   "windows": ["main"],
   "remote": {
-    "urls": ["https://*:4000"]
+    "urls": ["https://skynet.tail5fe1a9.ts.net"]
   },
   "permissions": [
     "shell:allow-open"
