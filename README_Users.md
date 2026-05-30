@@ -4,7 +4,7 @@
 For people who have been given an account on the server.
 
 You need two things from the server admin:
-- The **server address:** `https://skynet.tail5fe1a9.ts.net`
+- The **server address:** `https://skynet.tail5fe1a9.ts.net:4000`
 - Your **username and password**
 
 The app uses a trusted Tailscale HTTPS certificate — no certificate installation needed. Just open the URL and log in.
@@ -37,7 +37,7 @@ The easiest way on a computer is the **Skynet Music desktop app**. Download the 
 ### iPhone / iPad
 
 1. Make sure Tailscale is connected on your phone
-2. Open **Safari** and go to: `https://skynet.tail5fe1a9.ts.net`
+2. Open **Safari** and go to: `https://skynet.tail5fe1a9.ts.net:4000`
 3. Log in with your username and password
 4. Browse around for a moment — the app caches itself in the background
 
@@ -57,7 +57,7 @@ After this, the app works fully offline from the home screen icon for any playli
 ### Android
 
 1. Make sure Tailscale is connected on your phone
-2. Open **Chrome** and go to: `https://skynet.tail5fe1a9.ts.net`
+2. Open **Chrome** and go to: `https://skynet.tail5fe1a9.ts.net:4000`
 3. Log in with your username and password
 
 #### Add to Home Screen (recommended)
@@ -72,7 +72,7 @@ After this, the app works fully offline from the home screen icon for any playli
 ### Mac (browser)
 
 1. Make sure Tailscale is connected
-2. Go to `https://skynet.tail5fe1a9.ts.net` in any browser
+2. Go to `https://skynet.tail5fe1a9.ts.net:4000` in any browser
 3. Log in with your username and password
 
 ---
@@ -80,7 +80,7 @@ After this, the app works fully offline from the home screen icon for any playli
 ### Windows (browser)
 
 1. Make sure Tailscale is connected
-2. Go to `https://skynet.tail5fe1a9.ts.net` in Chrome or Edge
+2. Go to `https://skynet.tail5fe1a9.ts.net:4000` in Chrome or Edge
 3. Log in with your username and password
 
 ---

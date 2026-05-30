@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
-    "devUrl": "https://skynet.tail5fe1a9.ts.net",
+    "devUrl": "https://skynet.tail5fe1a9.ts.net:4000",
     "frontendDist": "../dist"
   },
   "bundle": {
@@ -25,7 +25,7 @@
     "windows": [
       {
         "title": "Skynet Music",
-        "url": "https://skynet.tail5fe1a9.ts.net",
+        "url": "https://skynet.tail5fe1a9.ts.net:4000",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

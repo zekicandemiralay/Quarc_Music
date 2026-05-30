@@ -2,7 +2,7 @@
 
 The app runs over Tailscale. Users access it at:
 
-**`https://skynet.tail5fe1a9.ts.net`**
+**`https://skynet.tail5fe1a9.ts.net:4000`**
 
 No certificate installation required — Tailscale provides a trusted HTTPS certificate automatically.
 
@@ -83,7 +83,7 @@ Look for a box like this:
 ## Step 5 — Access the app
 
 ```
-https://skynet.tail5fe1a9.ts.net
+https://skynet.tail5fe1a9.ts.net:4000
 ```
 
 ---
@@ -112,7 +112,7 @@ Safe to re-run — existing songs are skipped. Expect 30–60 minutes for the fu
 
 1. Go to **Admin** in the sidebar
 2. Click **New User**, enter a username and password
-3. Share `https://skynet.tail5fe1a9.ts.net` and their credentials
+3. Share `https://skynet.tail5fe1a9.ts.net:4000` and their credentials
 4. They need Tailscale installed and connected — direct them to **README_Users.md**
 
 ---
