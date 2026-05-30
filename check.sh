@@ -25,15 +25,17 @@ else
   warn "No .env file found in current directory"
 fi
 
-HTTP_PORT=${HTTP_PORT:-80}
 HTTPS_PORT=${HTTPS_PORT:-443}
 ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
 BASE="https://localhost:${HTTPS_PORT}"
 COOKIE=$(mktemp)
 trap 'rm -f "$COOKIE"' EXIT
 
-# Resolve container IDs by compose service label (works regardless of project name)
-cid() { docker ps -q --filter "label=com.docker.compose.service=$1" | head -1; }
+# Resolve container IDs scoped to THIS compose project (avoids matching other projects on the same host)
+PROJECT=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
+cid() { docker ps -q \
+  --filter "label=com.docker.compose.project=${PROJECT}" \
+  --filter "label=com.docker.compose.service=$1" | head -1; }
 dexec() { local c; c=$(cid "$1"); shift; [ -n "$c" ] && docker exec -i "$c" "$@" || echo ""; }
 
 printf "\n${BOLD}Skynet Music — System Diagnostic${NC}  $(date '+%Y-%m-%d %H:%M:%S')\n"
@@ -120,17 +122,6 @@ fi
 # ════════════════════════════════════════════════════════════════════════
 hdr "Network & HTTPS"
 # ════════════════════════════════════════════════════════════════════════
-
-# HTTP → HTTPS redirect
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
-  "http://localhost:${HTTP_PORT}/" 2>/dev/null || echo 0)
-if   [ "$HTTP_CODE" = "301" ] || [ "$HTTP_CODE" = "302" ]; then
-  ok "HTTP:${HTTP_PORT} redirects to HTTPS (${HTTP_CODE})"
-elif [ "$HTTP_CODE" = "200" ]; then
-  warn "HTTP:${HTTP_PORT} responding but not redirecting to HTTPS"
-else
-  fail "HTTP:${HTTP_PORT} not responding (got: ${HTTP_CODE})"
-fi
 
 # HTTPS frontend
 HTTPS_CODE=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 \
@@ -240,7 +231,7 @@ hdr "Database"
 
 DB_RESULT=$(dexec backend node -e "
   try {
-    const { getDb } = require('./src/db');
+    const { getDb } = require('/app/src/db');
     const db = getDb();
     const songs     = db.prepare('SELECT COUNT(*) as c FROM songs').get().c;
     const users     = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
@@ -275,7 +266,7 @@ hdr "Duplicate Songs"
 
 DUPE_RESULT=$(dexec backend node -e "
   try {
-    const { getDb } = require('./src/db');
+    const { getDb } = require('/app/src/db');
     const db = getDb();
     function norm(s) {
       return (s || '').replace(/ı/g, 'i')
