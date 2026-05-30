@@ -3,13 +3,14 @@ const { spawn } = require('child_process');
 const PROXY_ARGS = process.env.YTDLP_PROXY ? ['--proxy', process.env.YTDLP_PROXY] : [];
 const RATE_ARGS = process.env.YTDLP_RATE_LIMIT ? ['--limit-rate', process.env.YTDLP_RATE_LIMIT] : [];
 
-function searchYoutube(query, limit = 20) {
+function searchYoutube(query, limit = 10) {
   return new Promise((resolve, reject) => {
     const proc = spawn('yt-dlp', [
       `ytsearch${limit}:${query}`,
       '--dump-json',
       '--flat-playlist',
       '--no-warnings',
+      '--socket-timeout', '10',
     ]);
 
     const results = [];

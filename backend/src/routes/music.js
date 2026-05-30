@@ -9,6 +9,10 @@ const { requireAuth } = require('../middleware/auth');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
 
+// In-process cover art cache — avoids re-parsing the full audio file on every request.
+// Covers are small (~100-300 KB each) and rarely change, so caching all of them is fine.
+const coverCache = new Map();
+
 router.use(requireAuth);
 
 const MIME = {
@@ -83,13 +87,22 @@ router.get('/:id/cover', async (req, res) => {
   const song = getDb().prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id);
   if (!song || !song.has_cover) return res.status(404).end();
 
+  if (coverCache.has(song.id)) {
+    const { data, format } = coverCache.get(song.id);
+    res.set('Content-Type', format);
+    res.set('Cache-Control', 'public, max-age=86400');
+    return res.send(data);
+  }
+
   try {
     const meta = await mm.parseFile(song.filepath, { skipCovers: false });
     const pic = meta.common.picture?.[0];
     if (!pic) return res.status(404).end();
-    res.set('Content-Type', pic.format || 'image/jpeg');
+    const entry = { data: pic.data, format: pic.format || 'image/jpeg' };
+    coverCache.set(song.id, entry);
+    res.set('Content-Type', entry.format);
     res.set('Cache-Control', 'public, max-age=86400');
-    res.send(pic.data);
+    res.send(entry.data);
   } catch {
     res.status(500).end();
   }

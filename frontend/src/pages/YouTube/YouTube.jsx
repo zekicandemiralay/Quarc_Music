@@ -29,6 +29,10 @@ function DownloadBtn({ videoId, title }) {
         const d = await r.json();
         setProgress(d.progress);
         setStatus(d.status);
+        if (d.status === 'done') {
+          // Invalidate library cache so the new song appears on next Library visit
+          try { localStorage.removeItem('skynet_songs'); } catch {}
+        }
         if (d.status === 'done' || d.status === 'error') clearInterval(t);
       } catch {}
     }, 1000);
@@ -43,7 +47,9 @@ function DownloadBtn({ videoId, title }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ videoId, title }),
       });
+      if (!r.ok) { setStatus('error'); return; }
       const d = await r.json();
+      if (!d.jobId) { setStatus('error'); return; }
       setJobId(d.jobId);
       setStatus('downloading');
     } catch { setStatus('error'); }

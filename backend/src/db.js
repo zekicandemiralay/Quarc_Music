@@ -118,6 +118,7 @@ function initDb() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_lh_user_date ON listening_history(user_id, played_at);
+    CREATE INDEX IF NOT EXISTS idx_lh_user_song  ON listening_history(user_id, song_id);
   `);
 
   ensureAdmin(database);
