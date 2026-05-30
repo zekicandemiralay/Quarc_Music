@@ -42,7 +42,7 @@ function SongCard({ song, queue, queueIndex, onPlay }) {
     >
       <div className="relative w-11 h-11 bg-zinc-700 rounded shrink-0 overflow-hidden">
         {song.has_cover
-          ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
+          ? <img src={`/api/music/${song.id}/cover`} alt="" loading="lazy" className="w-full h-full object-cover" />
           : <div className="w-full h-full flex items-center justify-center text-zinc-500"><Music size={14} /></div>}
         <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
           active && isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'

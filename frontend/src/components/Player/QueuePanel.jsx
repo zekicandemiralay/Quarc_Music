@@ -14,7 +14,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
     >
       <div className="w-10 h-10 shrink-0 rounded overflow-hidden bg-zinc-800 flex items-center justify-center">
         {song.has_cover
-          ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
+          ? <img src={`/api/music/${song.id}/cover`} alt="" loading="lazy" className="w-full h-full object-cover" />
           : <Music size={14} className="text-zinc-600" />}
       </div>
       <div className="min-w-0 flex-1">

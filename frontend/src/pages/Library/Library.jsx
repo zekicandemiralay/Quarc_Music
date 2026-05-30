@@ -278,7 +278,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
         <div className="flex items-center gap-3 px-4 pt-3 pb-4 border-b border-zinc-800 shrink-0">
           <div className="w-11 h-11 rounded bg-zinc-800 overflow-hidden shrink-0">
             {song.has_cover
-              ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
+              ? <img src={`/api/music/${song.id}/cover`} alt="" loading="lazy" className="w-full h-full object-cover" />
               : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={14} /></div>}
           </div>
           <div className="min-w-0">
@@ -719,7 +719,7 @@ export default function Library({ view = 'all' }) {
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative w-10 h-10 bg-zinc-800 rounded shrink-0 overflow-hidden">
                     {song.has_cover
-                      ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
+                      ? <img src={`/api/music/${song.id}/cover`} alt="" loading="lazy" className="w-full h-full object-cover" />
                       : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={14} /></div>}
                     {/* Offline cached indicator */}
                     {cachedIds.has(song.id) && (

@@ -181,7 +181,7 @@ function GlobalSearch() {
               >
                 <div className="w-9 h-9 bg-zinc-800 rounded shrink-0 overflow-hidden">
                   {song.has_cover
-                    ? <img src={`/api/music/${song.id}/cover`} alt="" className="w-full h-full object-cover" />
+                    ? <img src={`/api/music/${song.id}/cover`} alt="" loading="lazy" className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center"><Music size={12} className="text-zinc-600" /></div>}
                 </div>
                 <div className="min-w-0 flex-1">

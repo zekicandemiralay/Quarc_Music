@@ -10,8 +10,32 @@ const { requireAuth } = require('../middleware/auth');
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
 
 // In-process cover art cache — avoids re-parsing the full audio file on every request.
-// Covers are small (~100-300 KB each) and rarely change, so caching all of them is fine.
 const coverCache = new Map();
+
+// Warm the cache at startup so the first user request is never slow.
+// Runs in the background with a small concurrency limit to avoid hammering the disk.
+async function warmCoverCache() {
+  try {
+    const db = require('../db').getDb();
+    const songs = db.prepare('SELECT id, filepath FROM songs WHERE has_cover = 1').all();
+    const BATCH = 8;
+    for (let i = 0; i < songs.length; i += BATCH) {
+      await Promise.all(songs.slice(i, i + BATCH).map(async (s) => {
+        if (coverCache.has(s.id)) return;
+        try {
+          const meta = await mm.parseFile(s.filepath, { skipCovers: false });
+          const pic = meta.common.picture?.[0];
+          if (pic) coverCache.set(s.id, { data: pic.data, format: pic.format || 'image/jpeg' });
+        } catch {}
+      }));
+    }
+    console.log(`Cover cache warmed — ${coverCache.size} covers loaded`);
+  } catch (err) {
+    console.error('Cover cache warm-up failed:', err.message);
+  }
+}
+// Delay slightly so the server is fully ready before hitting disk
+setTimeout(warmCoverCache, 5000);
 
 router.use(requireAuth);
 
