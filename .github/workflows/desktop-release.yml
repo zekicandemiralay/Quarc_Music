@@ -79,7 +79,7 @@ jobs:
             | Linux | `*_amd64.deb` or `*_amd64.AppImage` |
 
             **macOS note:** Right-click the app → Open the first time to bypass the unsigned app warning.
-            **All platforms:** You must trust the server's TLS certificate before launching — see README_Users.md.
+            **All platforms:** Tailscale must be installed and connected — see README_Users.md.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args || '' }}
