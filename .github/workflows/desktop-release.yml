@@ -37,7 +37,7 @@ jobs:
               '**macOS note:** Right-click the app → Open the first time to bypass the unsigned app warning.',
               '**All platforms:** Tailscale must be installed and connected — see README_Users.md.',
             ].join('\n');
-            const { data } = await github.rest.releases.create({
+            const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: tag,
@@ -123,7 +123,7 @@ jobs:
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         with:
           script: |
-            await github.rest.releases.updateRelease({
+            await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: process.env.RELEASE_ID,
