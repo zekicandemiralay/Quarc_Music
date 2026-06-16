@@ -63,7 +63,7 @@ The rest of the values have working defaults. In production, change `JWT_SECRET`
 ### Step 3 — Start the server
 
 ```bash
-docker compose up -d
+bash deploy.sh
 ```
 
 On first start:
@@ -94,7 +94,7 @@ Look for a box like this:
 ### Step 4 — Access the app
 
 ```
-https://quarc.tail5fe1a9.ts.net:4000
+https://quarcnet.tail5fe1a9.ts.net:4000
 ```
 
 The app uses a trusted Tailscale certificate — no browser warnings, no certificate installation required on any device.
@@ -131,7 +131,7 @@ After seeding, all users will see the collections in the sidebar and on the Home
 
 1. Go to **Admin** in the sidebar
 2. Click **New User**, enter a username and password
-3. Share `https://quarc.tail5fe1a9.ts.net:4000` and their credentials with them
+3. Share `https://quarcnet.tail5fe1a9.ts.net:4000` and their credentials with them
 4. Direct them to **README_Users.md** — they just need Tailscale and a browser
 
 ---
@@ -181,4 +181,4 @@ The database is stored in a Docker volume and survives rebuilds.
 
 See **[README_Users.md](README_Users.md)** for the full user guide.
 
-**Short version:** Users need Tailscale installed and connected, then just open `https://quarc.tail5fe1a9.ts.net:4000` in any browser. No certificate installation required.
+**Short version:** Users need Tailscale installed and connected, then just open `https://quarcnet.tail5fe1a9.ts.net:4000` in any browser. No certificate installation required.

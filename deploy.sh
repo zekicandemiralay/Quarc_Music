@@ -16,7 +16,7 @@ pull_latest() {
 build() {
   local svc=$1
   echo "Building $svc..."
-  docker-compose up -d --build --no-deps "$svc"
+  docker compose up -d --build --no-deps "$svc"
   echo "$svc updated."
 }
 

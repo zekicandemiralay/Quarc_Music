@@ -25,7 +25,7 @@ else
   warn "No .env file found in current directory"
 fi
 
-HTTPS_PORT=${HTTPS_PORT:-443}
+HTTPS_PORT=${HTTPS_PORT:-4000}
 ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
 BASE="https://localhost:${HTTPS_PORT}"
 COOKIE=$(mktemp)

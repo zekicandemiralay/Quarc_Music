@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
-    "devUrl": "https://quarc.tail5fe1a9.ts.net:4000",
+    "devUrl": "https://quarcnet.tail5fe1a9.ts.net:4000",
     "frontendDist": "../dist"
   },
   "bundle": {
@@ -25,7 +25,7 @@
     "windows": [
       {
         "title": "Quarc Music",
-        "url": "https://quarc.tail5fe1a9.ts.net:4000",
+        "url": "https://quarcnet.tail5fe1a9.ts.net:4000",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
