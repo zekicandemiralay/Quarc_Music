@@ -1,0 +1,12 @@
+﻿{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Quarc Music default capabilities",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://quarc.tail5fe1a9.ts.net:4000"]
+  },
+  "permissions": [
+    "shell:allow-open"
+  ]
+}

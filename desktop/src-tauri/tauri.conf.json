@@ -1,0 +1,41 @@
+﻿{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Quarc Music",
+  "version": "1.0.5",
+  "identifier": "com.quarc.music",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "https://quarc.tail5fe1a9.ts.net:4000",
+    "frontendDist": "../dist"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "Quarc",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Quarc Music",
+        "url": "https://quarc.tail5fe1a9.ts.net:4000",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}

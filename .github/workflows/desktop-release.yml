@@ -1,0 +1,131 @@
+﻿name: Desktop Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create draft release
+        id: create
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.startsWith('refs/tags/')
+              ? context.ref.replace('refs/tags/', '')
+              : context.ref;
+            const body = [
+              '## Installation',
+              '',
+              '| Platform | File |',
+              '|----------|------|',
+              '| Windows  | `*_x64-setup.exe` |',
+              '| macOS (Apple Silicon M1/M2/M3) | `*_aarch64.dmg` |',
+              '| macOS (Intel) | `*_x64.dmg` |',
+              '| Linux | `*_amd64.deb` or `*_amd64.AppImage` |',
+              '',
+              '**macOS note:** Right-click the app → Open the first time to bypass the unsigned app warning.',
+              '**All platforms:** Tailscale must be installed and connected — see README_Users.md.',
+            ].join('\n');
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `Quarc Music ${tag}`,
+              body,
+              draft: true,
+              prerelease: false,
+            });
+            return data.id;
+
+  build:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            label: Windows
+          - platform: macos-latest
+            label: macOS (Apple Silicon)
+            rust-target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            label: macOS (Intel)
+            rust-target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            label: Linux
+
+    name: Build — ${{ matrix.label }}
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm install
+
+      - name: Build and upload
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args || '' }}
+
+  publish-release:
+    needs: [create-release, build]
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Publish release
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: process.env.RELEASE_ID,
+              draft: false,
+            });

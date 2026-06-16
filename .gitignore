@@ -1,0 +1,6 @@
+.env
+music/*
+!music/.gitkeep
+node_modules/
+backend/data/
+frontend/dist/

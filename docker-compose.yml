@@ -1,0 +1,69 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=surfshark
+      - VPN_TYPE=openvpn
+      - OPENVPN_USER=${SURFSHARK_USER}
+      - OPENVPN_PASSWORD=${SURFSHARK_PASSWORD}
+      - SERVER_COUNTRIES=${VPN_COUNTRY:-Netherlands}
+      - OPENVPN_PROTOCOL=tcp
+      - HTTPPROXY=on
+    healthcheck:
+      test: ["CMD-SHELL", "ping -c 1 -W 10 1.1.1.1"]
+      interval: 15s
+      timeout: 15s
+      retries: 10
+      start_period: 45s
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ${MUSIC_DIR:-./music}:/music
+      - db_data:/app/data
+    environment:
+      - PORT=3001
+      - MUSIC_DIR=/music
+      - DB_PATH=/app/data/music.db
+      - JWT_SECRET=${JWT_SECRET:-insecure-default-change-in-production}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - SECURE_COOKIE=${SECURE_COOKIE:-true}
+      - YTDLP_PROXY=http://gluetun:8888
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:443"
+    volumes:
+      - /var/lib/tailscale/certs:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
