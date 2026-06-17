@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { UserPlus, Trash2, ShieldCheck, User, KeyRound, X, Plus, Check, Search, Download, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, FolderSync } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import useFeaturedStore from '../../store/useFeaturedStore';
 
 // ── Shared dialogs ────────────────────────────────────────────────────────────
 
 function ConfirmDialog({ message, onConfirm, onCancel }) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
         <p className="text-white">{message}</p>
         <div className="flex gap-3 justify-end">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">Cancel</button>
-          <button onClick={onConfirm} className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors">Confirm</button>
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">{t('common.cancel')}</button>
+          <button onClick={onConfirm} className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors">{t('common.confirm')}</button>
         </div>
       </div>
     </div>
@@ -19,13 +21,14 @@ function ConfirmDialog({ message, onConfirm, onCancel }) {
 }
 
 function ResetPasswordDialog({ user, onClose }) {
+  const { t } = useTranslation();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
   async function handleReset() {
     setError('');
-    if (password.length < 8) { setError('At least 8 characters'); return; }
+    if (password.length < 8) { setError(t('admin.users.atLeast8')); return; }
     const res = await fetch(`/api/admin/users/${user.id}/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -39,20 +42,20 @@ function ResetPasswordDialog({ user, onClose }) {
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-white font-semibold">Reset password — {user.username}</h3>
+          <h3 className="text-white font-semibold">{t('admin.users.resetPasswordTitle', { username: user.username })}</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={18} /></button>
         </div>
         {done ? (
-          <p className="text-green-400 text-sm">Password reset successfully.</p>
+          <p className="text-green-400 text-sm">{t('admin.users.resetSuccess')}</p>
         ) : (
           <>
-            <p className="text-zinc-400 text-xs">Playlists and liked songs are kept.</p>
-            <input type="password" placeholder="New password (min 8 chars)" value={password}
+            <p className="text-zinc-400 text-xs">{t('admin.users.playlistsKept')}</p>
+            <input type="password" placeholder={t('admin.users.newPasswordHint')} value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-zinc-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20" />
             {error && <p className="text-red-400 text-xs">{error}</p>}
             <button onClick={handleReset} className="w-full bg-amber-600 hover:bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium transition-colors">
-              Reset Password
+              {t('admin.users.resetPasswordBtn')}
             </button>
           </>
         )}
@@ -64,6 +67,7 @@ function ResetPasswordDialog({ user, onClose }) {
 // ── Users tab ─────────────────────────────────────────────────────────────────
 
 function UsersTab() {
+  const { t } = useTranslation();
   const [users, setUsers] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -99,22 +103,22 @@ function UsersTab() {
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <p className="text-zinc-500 text-sm">{users.length} account{users.length !== 1 ? 's' : ''}</p>
+        <p className="text-zinc-500 text-sm">{t('admin.users.accounts', { n: users.length, count: users.length })}</p>
         <button onClick={() => setShowCreate(!showCreate)}
           className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors">
-          <UserPlus size={15} />New User
+          <UserPlus size={15} />{t('admin.users.newUser')}
         </button>
       </div>
 
       {showCreate && (
         <div className="bg-zinc-800 rounded-xl p-4 mb-5 space-y-3">
-          <h3 className="text-white font-medium text-sm">Create account</h3>
+          <h3 className="text-white font-medium text-sm">{t('admin.users.createAccount')}</h3>
           <div className="flex gap-3 flex-wrap">
-            <input type="text" placeholder="Username" value={newUsername} onChange={(e) => setNewUsername(e.target.value)}
+            <input type="text" placeholder={t('admin.users.username')} value={newUsername} onChange={(e) => setNewUsername(e.target.value)}
               className="flex-1 bg-zinc-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder-zinc-500 min-w-0" />
-            <input type="password" placeholder="Password (min 8)" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+            <input type="password" placeholder={t('admin.users.password')} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
               className="flex-1 bg-zinc-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder-zinc-500 min-w-0" />
-            <button onClick={createUser} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors">Create</button>
+            <button onClick={createUser} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors">{t('admin.users.create')}</button>
           </div>
           {createError && <p className="text-red-400 text-xs">{createError}</p>}
         </div>
@@ -132,10 +136,10 @@ function UsersTab() {
             </div>
             {u.role !== 'admin' && (
               <div className="flex items-center gap-1">
-                <button onClick={() => setResetTarget(u)} className="p-2 text-zinc-500 hover:text-amber-400 transition-colors" title="Reset password">
+                <button onClick={() => setResetTarget(u)} className="p-2 text-zinc-500 hover:text-amber-400 transition-colors" title={t('admin.users.resetPassword')}>
                   <KeyRound size={15} />
                 </button>
-                <button onClick={() => setDeleteTarget(u)} className="p-2 text-zinc-500 hover:text-red-400 transition-colors" title="Delete">
+                <button onClick={() => setDeleteTarget(u)} className="p-2 text-zinc-500 hover:text-red-400 transition-colors" title={t('admin.users.delete')}>
                   <Trash2 size={15} />
                 </button>
               </div>
@@ -146,7 +150,7 @@ function UsersTab() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`Delete "${deleteTarget.username}"? All their data will be permanently removed.`}
+          message={t('admin.users.deleteConfirm', { username: deleteTarget.username })}
           onConfirm={() => deleteUser(deleteTarget.id)}
           onCancel={() => setDeleteTarget(null)}
         />
@@ -171,6 +175,7 @@ function fmtDur(s) {
 }
 
 function CollectionDownloadBtn({ videoId, title, featuredPlaylistId, onDone }) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState(null);
   const [progress, setProgress] = useState(0);
   const [jobId, setJobId] = useState(null);
@@ -204,8 +209,8 @@ function CollectionDownloadBtn({ videoId, title, featuredPlaylistId, onDone }) {
     } catch { setStatus('error'); }
   }
 
-  if (status === 'done') return <span className="flex items-center gap-1 text-green-400 text-xs"><CheckCircle size={12} />Added</span>;
-  if (status === 'error') return <span className="text-red-400 text-xs">Failed</span>;
+  if (status === 'done') return <span className="flex items-center gap-1 text-green-400 text-xs"><CheckCircle size={12} />{t('admin.collections.added')}</span>;
+  if (status === 'error') return <span className="text-red-400 text-xs">{t('admin.collections.downloadFailed')}</span>;
   if (status === 'downloading' || status === 'pending')
     return (
       <div className="flex items-center gap-1.5 text-zinc-400 text-xs">
@@ -218,12 +223,13 @@ function CollectionDownloadBtn({ videoId, title, featuredPlaylistId, onDone }) {
 
   return (
     <button onClick={start} className="flex items-center gap-1 px-2.5 py-1 bg-violet-700 hover:bg-violet-600 text-white rounded-full text-xs font-medium transition-colors">
-      <Download size={11} />Add
+      <Download size={11} />{t('admin.collections.add')}
     </button>
   );
 }
 
 function YoutubeSearchPanel({ playlistId, onSongAdded }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -243,14 +249,14 @@ function YoutubeSearchPanel({ playlistId, onSongAdded }) {
       <form onSubmit={doSearch} className="flex gap-2">
         <input
           type="text"
-          placeholder="Search YouTube to download…"
+          placeholder={t('admin.collections.searchYoutube')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 bg-zinc-700 text-white text-xs rounded-lg px-3 py-2 focus:outline-none placeholder-zinc-500"
         />
         <button type="submit" disabled={searching}
           className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50">
-          {searching ? '…' : 'Search'}
+          {searching ? '…' : t('common.search')}
         </button>
       </form>
       {results.length > 0 && (
@@ -277,6 +283,7 @@ function YoutubeSearchPanel({ playlistId, onSongAdded }) {
 }
 
 function LibrarySearchPanel({ playlistId, currentSongIds, onSongAdded }) {
+  const { t } = useTranslation();
   const [allSongs, setAllSongs] = useState([]);
   const [search, setSearch] = useState('');
 
@@ -304,7 +311,7 @@ function LibrarySearchPanel({ playlistId, currentSongIds, onSongAdded }) {
         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
         <input
           type="text"
-          placeholder="Search library to add…"
+          placeholder={t('admin.collections.searchLibrary')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full bg-zinc-700 text-white text-xs rounded-lg pl-8 pr-3 py-2 focus:outline-none placeholder-zinc-500"
@@ -322,19 +329,20 @@ function LibrarySearchPanel({ playlistId, currentSongIds, onSongAdded }) {
                 onClick={() => addSong(s.id)}
                 className="flex items-center gap-1 px-2.5 py-1 bg-zinc-600 hover:bg-zinc-500 text-white rounded-full text-xs transition-colors shrink-0"
               >
-                <Plus size={11} />Add
+                <Plus size={11} />{t('admin.collections.add')}
               </button>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-zinc-600 text-xs px-1">{search ? 'No matches' : 'Type to search'}</p>
+        <p className="text-zinc-600 text-xs px-1">{search ? t('admin.collections.noMatches') : t('admin.collections.typeToSearch')}</p>
       )}
     </div>
   );
 }
 
 function CollectionItem({ playlist, onUpdate }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [songs, setSongs] = useState([]);
   const [addMode, setAddMode] = useState(null); // 'library' | 'youtube' | null
@@ -384,13 +392,13 @@ function CollectionItem({ playlist, onUpdate }) {
           <p className="text-white text-sm font-medium truncate">{playlist.name}</p>
           {playlist.description && <p className="text-zinc-500 text-xs truncate">{playlist.description}</p>}
         </div>
-        <span className="text-zinc-500 text-xs shrink-0">{playlist.song_count} songs</span>
+        <span className="text-zinc-500 text-xs shrink-0">{t('admin.collections.songs', { n: playlist.song_count })}</span>
         <button onClick={(e) => { e.stopPropagation(); setEditing(true); setExpanded(true); if (!expanded) loadSongs(); }}
-          className="p-1.5 text-zinc-500 hover:text-white transition-colors" title="Edit">
+          className="p-1.5 text-zinc-500 hover:text-white transition-colors" title={t('common.edit')}>
           <Edit2 size={13} />
         </button>
         <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(true); }}
-          className="p-1.5 text-zinc-500 hover:text-red-400 transition-colors" title="Delete">
+          className="p-1.5 text-zinc-500 hover:text-red-400 transition-colors" title={t('common.delete')}>
           <Trash2 size={13} />
         </button>
         {expanded ? <ChevronUp size={15} className="text-zinc-500 shrink-0" /> : <ChevronDown size={15} className="text-zinc-500 shrink-0" />}
@@ -402,9 +410,9 @@ function CollectionItem({ playlist, onUpdate }) {
           {/* Edit form */}
           {editing && (
             <div className="bg-zinc-700/50 rounded-lg p-3 space-y-2">
-              <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name"
+              <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder={t('admin.collections.namePlaceholder')}
                 className="w-full bg-zinc-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none placeholder-zinc-500" />
-              <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="Description (optional)"
+              <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder={t('admin.collections.descPlaceholder')}
                 className="w-full bg-zinc-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none placeholder-zinc-500" />
               <div className="flex gap-2 flex-wrap">
                 {COLOR_OPTIONS.map((c) => (
@@ -414,8 +422,8 @@ function CollectionItem({ playlist, onUpdate }) {
                 ))}
               </div>
               <div className="flex gap-2">
-                <button onClick={saveEdit} className="px-3 py-1.5 bg-white text-black rounded-lg text-xs font-medium hover:bg-zinc-200 transition-colors">Save</button>
-                <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-zinc-400 hover:text-white text-xs transition-colors">Cancel</button>
+                <button onClick={saveEdit} className="px-3 py-1.5 bg-white text-black rounded-lg text-xs font-medium hover:bg-zinc-200 transition-colors">{t('admin.collections.save')}</button>
+                <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-zinc-400 hover:text-white text-xs transition-colors">{t('admin.collections.cancel')}</button>
               </div>
             </div>
           )}
@@ -437,7 +445,7 @@ function CollectionItem({ playlist, onUpdate }) {
               ))}
             </div>
           ) : (
-            <p className="text-zinc-600 text-xs">No songs yet — add from library or YouTube below</p>
+            <p className="text-zinc-600 text-xs">{t('admin.collections.noSongs')}</p>
           )}
 
           {/* Add buttons */}
@@ -446,13 +454,13 @@ function CollectionItem({ playlist, onUpdate }) {
               onClick={() => setAddMode(addMode === 'library' ? null : 'library')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${addMode === 'library' ? 'bg-zinc-600 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'}`}
             >
-              <Plus size={12} />Library
+              <Plus size={12} />{t('admin.collections.addFromLibrary')}
             </button>
             <button
               onClick={() => setAddMode(addMode === 'youtube' ? null : 'youtube')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${addMode === 'youtube' ? 'bg-red-700 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'}`}
             >
-              <Download size={12} />YouTube
+              <Download size={12} />{t('admin.collections.addFromYoutube')}
             </button>
           </div>
 
@@ -474,7 +482,7 @@ function CollectionItem({ playlist, onUpdate }) {
 
       {deleteConfirm && (
         <ConfirmDialog
-          message={`Delete "${playlist.name}"? This will remove the collection and all its song associations.`}
+          message={t('admin.collections.deleteConfirm', { name: playlist.name })}
           onConfirm={deletePlaylist}
           onCancel={() => setDeleteConfirm(false)}
         />
@@ -484,6 +492,7 @@ function CollectionItem({ playlist, onUpdate }) {
 }
 
 function CollectionsTab() {
+  const { t } = useTranslation();
   const [playlists, setPlaylists] = useState([]);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -515,23 +524,23 @@ function CollectionsTab() {
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <p className="text-zinc-500 text-sm">{playlists.length} collection{playlists.length !== 1 ? 's' : ''}</p>
+        <p className="text-zinc-500 text-sm">{t('admin.collections.count', { n: playlists.length, count: playlists.length })}</p>
         <button onClick={() => setCreating(!creating)}
           className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors">
-          <Plus size={15} />New Collection
+          <Plus size={15} />{t('admin.collections.newCollection')}
         </button>
       </div>
 
       {/* Create form */}
       {creating && (
         <div className="bg-zinc-800 rounded-xl p-4 mb-5 space-y-3">
-          <h3 className="text-white font-medium text-sm">New collection</h3>
-          <input type="text" placeholder="Name (e.g. Dinner Jazz)" value={newName} onChange={(e) => setNewName(e.target.value)}
+          <h3 className="text-white font-medium text-sm">{t('admin.collections.newCollectionTitle')}</h3>
+          <input type="text" placeholder={t('admin.collections.namePlaceholder')} value={newName} onChange={(e) => setNewName(e.target.value)}
             className="w-full bg-zinc-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none placeholder-zinc-500" />
-          <input type="text" placeholder="Description (optional)" value={newDesc} onChange={(e) => setNewDesc(e.target.value)}
+          <input type="text" placeholder={t('admin.collections.descPlaceholder')} value={newDesc} onChange={(e) => setNewDesc(e.target.value)}
             className="w-full bg-zinc-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none placeholder-zinc-500" />
           <div>
-            <p className="text-zinc-500 text-xs mb-2">Colour</p>
+            <p className="text-zinc-500 text-xs mb-2">{t('admin.collections.colour')}</p>
             <div className="flex gap-2 flex-wrap">
               {COLOR_OPTIONS.map((c) => (
                 <button key={c} onClick={() => setNewColor(c)}
@@ -541,14 +550,14 @@ function CollectionsTab() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={createCollection} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors">Create</button>
-            <button onClick={() => setCreating(false)} className="px-4 py-2 text-zinc-400 hover:text-white text-sm transition-colors">Cancel</button>
+            <button onClick={createCollection} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors">{t('admin.collections.create')}</button>
+            <button onClick={() => setCreating(false)} className="px-4 py-2 text-zinc-400 hover:text-white text-sm transition-colors">{t('admin.collections.cancel')}</button>
           </div>
         </div>
       )}
 
       {playlists.length === 0 && !creating ? (
-        <p className="text-zinc-500 text-sm text-center py-10">No collections yet — create one above</p>
+        <p className="text-zinc-500 text-sm text-center py-10">{t('admin.collections.noCollections')}</p>
       ) : (
         <div className="space-y-2">
           {playlists.map((pl) => (
@@ -563,6 +572,7 @@ function CollectionsTab() {
 // ── Main Admin page ───────────────────────────────────────────────────────────
 
 function LibraryTab() {
+  const { t } = useTranslation();
   const [status, setStatus] = useState(null);
   const [running, setRunning] = useState(false);
 
@@ -584,24 +594,21 @@ function LibraryTab() {
       <div className="bg-zinc-800/50 rounded-xl p-5 space-y-3">
         <div className="flex items-center gap-2">
           <FolderSync size={18} className="text-zinc-400" />
-          <h3 className="text-white font-semibold">Reorganize Library</h3>
+          <h3 className="text-white font-semibold">{t('admin.library.reorganizeTitle')}</h3>
         </div>
-        <p className="text-zinc-400 text-sm">
-          Moves all flat files in your music folder into <span className="text-zinc-200 font-mono text-xs">Artist/Song.mp3</span> subfolders.
-          Files already in subfolders are skipped. Safe to run multiple times.
-        </p>
+        <p className="text-zinc-400 text-sm">{t('admin.library.reorganizeDesc')}</p>
         <button
           onClick={reorganize}
           disabled={running}
           className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors disabled:opacity-50"
         >
           <FolderSync size={15} className={running ? 'animate-spin' : ''} />
-          {running ? 'Reorganizing…' : 'Reorganize Now'}
+          {running ? t('admin.library.reorganizing') : t('admin.library.reorganizeBtn')}
         </button>
         {status && !status.error && (
           <p className="text-sm text-zinc-300">
-            Done — <span className="text-green-400">{status.moved} moved</span>, {status.skipped} already organized
-            {status.errors > 0 && <span className="text-red-400">, {status.errors} errors</span>}
+            {t('admin.library.reorganizeDone', { moved: status.moved, skipped: status.skipped })}
+            {status.errors > 0 && <span className="text-red-400">{t('admin.library.errors', { n: status.errors })}</span>}
           </p>
         )}
         {status?.error && <p className="text-sm text-red-400">{status.error}</p>}
@@ -611,15 +618,16 @@ function LibraryTab() {
 }
 
 export default function Admin() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState('users');
 
   return (
     <div className="p-6 max-w-2xl">
-      <h1 className="text-2xl font-bold text-white mb-5">Admin</h1>
+      <h1 className="text-2xl font-bold text-white mb-5">{t('admin.title')}</h1>
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-zinc-800/60 rounded-xl p-1 mb-6 w-fit">
-        {[['users', 'Users'], ['collections', 'Collections'], ['library', 'Library']].map(([key, label]) => (
+        {[['users', t('admin.tabs.users')], ['collections', t('admin.tabs.collections')], ['library', t('admin.tabs.library')]].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}

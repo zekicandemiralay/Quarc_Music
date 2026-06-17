@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Music, Flame, Sparkles, Clock, Mic2, Library, ChevronRight, ListMusic } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
@@ -14,18 +15,12 @@ const MIX_STYLES = {
   genre:        { icon: Music,    bg: 'from-green-900/60  to-green-800/30',  border: 'border-green-700/30',  iconColor: 'text-green-400'  },
 };
 
-function greeting(username) {
-  const h = new Date().getHours();
-  const part = h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening';
-  return `Good ${part}, ${username}`;
-}
-
 function fmtTime(s) {
   if (!s) return null;
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h}h ${m > 0 ? `${m}m` : ''} this week`;
-  if (m > 0) return `${m} min this week`;
+  if (h > 0) return h > 0 && m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return `${m}m`;
   return null;
 }
 
@@ -59,6 +54,7 @@ function SongCard({ song, queue, queueIndex, onPlay }) {
 }
 
 function CollectionCard({ playlist }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   return (
     <button
@@ -73,7 +69,7 @@ function CollectionCard({ playlist }) {
         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: playlist.color + '33', color: playlist.color }}>
           <Music size={16} />
         </div>
-        <span className="text-zinc-500 text-xs">{playlist.songs?.length || 0} songs</span>
+        <span className="text-zinc-500 text-xs">{t('home.songs', { n: playlist.songs?.length || 0 })}</span>
       </div>
       <div>
         <p className="text-white font-semibold text-sm">{playlist.name}</p>
@@ -126,6 +122,7 @@ function getRecentPlaylists(playlists) {
 }
 
 export default function Home() {
+  const { t, i18n } = useTranslation();
   const { user } = useAuthStore();
   const { playSong, shufflePlay } = usePlayerStore();
   const { playlists: userPlaylists } = useUserDataStore();
@@ -171,14 +168,18 @@ export default function Home() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">{greeting(user?.username || '')}</h1>
-          {weekTime && <p className="text-zinc-400 text-sm mt-1">{weekTime}</p>}
+          <h1 className="text-2xl md:text-3xl font-bold text-white">{(() => {
+            const h = new Date().getHours();
+            const key = h < 12 ? 'home.morningGreeting' : h < 18 ? 'home.afternoonGreeting' : 'home.eveningGreeting';
+            return t(key, { username: user?.username || '' });
+          })()}</h1>
+          {weekTime && <p className="text-zinc-400 text-sm mt-1">{t('home.weekTime', { time: weekTime })}</p>}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {streak > 0 && (
             <div className="flex items-center gap-1.5 bg-orange-500/15 border border-orange-500/25 rounded-full px-3 py-1.5">
               <Flame size={14} className="text-orange-400" />
-              <span className="text-orange-300 text-sm font-medium">{streak} day streak</span>
+              <span className="text-orange-300 text-sm font-medium">{t('home.dayStreak', { n: streak })}</span>
             </div>
           )}
         </div>
@@ -188,16 +189,16 @@ export default function Home() {
         /* ── Empty state ─────────────────────────────────────────────────── */
         <div className="text-center py-20">
           <Music size={52} className="mx-auto text-zinc-700 mb-4" />
-          <h2 className="text-white text-xl font-semibold mb-2">Welcome to Quarc Music</h2>
+          <h2 className="text-white text-xl font-semibold mb-2">{t('home.welcomeTitle')}</h2>
           <p className="text-zinc-400 text-sm mb-6 max-w-xs mx-auto">
-            Start listening to your library and your personal mixes, stats, and history will appear here.
+            {t('home.welcomeText')}
           </p>
           <button
             onClick={() => navigate('/library')}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors"
           >
             <Library size={16} />
-            Go to Library
+            {t('home.goToLibrary')}
           </button>
         </div>
       ) : (
@@ -206,10 +207,10 @@ export default function Home() {
           {recentPlaylists.length > 0 && (
             <section className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-white font-bold text-lg">Your Playlists</h2>
+                <h2 className="text-white font-bold text-lg">{t('home.yourPlaylists')}</h2>
                 {userPlaylists.length > 6 && (
                   <button onClick={() => navigate('/liked')} className="flex items-center gap-1 text-zinc-400 hover:text-white text-sm transition-colors">
-                    See all <ChevronRight size={14} />
+                    {t('home.seeAll')} <ChevronRight size={14} />
                   </button>
                 )}
               </div>
@@ -234,13 +235,13 @@ export default function Home() {
           {recentlyPlayed.length > 0 && (
             <section className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-white font-bold text-lg">Jump back in</h2>
+                <h2 className="text-white font-bold text-lg">{t('home.jumpBackIn')}</h2>
                 <button
                   onClick={() => shufflePlay(allSongs.length ? allSongs : recentlyPlayed, 'single', 'Your Library')}
                   className="flex items-center gap-1.5 text-zinc-400 hover:text-white text-sm transition-colors"
                 >
                   <Play size={13} className="fill-current" />
-                  Play all
+                  {t('home.playAll')}
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -261,13 +262,13 @@ export default function Home() {
           {mixes.length > 0 && (
             <section className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-white font-bold text-lg">Your Mixes</h2>
+                <h2 className="text-white font-bold text-lg">{t('home.yourMixes')}</h2>
                 {mixes.length > 6 && (
                   <button
                     onClick={() => navigate('/library')}
                     className="flex items-center gap-1 text-zinc-400 hover:text-white text-sm transition-colors"
                   >
-                    See all <ChevronRight size={14} />
+                    {t('home.seeAll')} <ChevronRight size={14} />
                   </button>
                 )}
               </div>
@@ -282,7 +283,7 @@ export default function Home() {
           {/* ── Collections (admin-curated) ──────────────────────────────── */}
           {featuredPlaylists.length > 0 && (
             <section className="mb-8">
-              <h2 className="text-white font-bold text-lg mb-3">Collections</h2>
+              <h2 className="text-white font-bold text-lg mb-3">{t('home.collectionsTitle')}</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {featuredPlaylists.map((pl) => (
                   <CollectionCard key={pl.id} playlist={pl} />
@@ -294,9 +295,9 @@ export default function Home() {
           {/* ── Prompt for new users with only Rediscovery ───────────────── */}
           {recentlyPlayed.length === 0 && mixes.length > 0 && (
             <div className="bg-zinc-800/40 rounded-xl p-4 mb-6 border border-zinc-700/30">
-              <p className="text-white text-sm font-medium mb-1">Your personalised mixes are building up</p>
+              <p className="text-white text-sm font-medium mb-1">{t('home.mixesBuilding')}</p>
               <p className="text-zinc-400 text-xs">
-                Listen to more songs and your "Your Mix" and artist mixes will appear here.
+                {t('home.mixesBuildingText')}
               </p>
             </div>
           )}

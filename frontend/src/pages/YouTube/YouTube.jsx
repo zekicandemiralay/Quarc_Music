@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, X, Download, CheckCircle, AlertCircle, Play } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 function fmtDur(s) {
   if (!s) return '';
@@ -17,6 +18,7 @@ function fmtViews(n) {
 }
 
 function DownloadBtn({ videoId, title }) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState(null);
   const [progress, setProgress] = useState(0);
   const [jobId, setJobId] = useState(null);
@@ -56,9 +58,9 @@ function DownloadBtn({ videoId, title }) {
   }
 
   if (status === 'done')
-    return <span className="flex items-center gap-1.5 text-green-400 text-sm"><CheckCircle size={15} />Saved to library</span>;
+    return <span className="flex items-center gap-1.5 text-green-400 text-sm"><CheckCircle size={15} />{t('youtube.savedToLibrary')}</span>;
   if (status === 'error')
-    return <span className="flex items-center gap-1.5 text-red-400 text-sm"><AlertCircle size={15} />Failed</span>;
+    return <span className="flex items-center gap-1.5 text-red-400 text-sm"><AlertCircle size={15} />{t('youtube.failed')}</span>;
   if (status === 'downloading' || status === 'pending')
     return (
       <div className="flex items-center gap-2 text-zinc-400 text-sm">
@@ -75,7 +77,7 @@ function DownloadBtn({ videoId, title }) {
       className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
     >
       <Download size={14} />
-      Download MP3
+      {t('youtube.downloadMp3')}
     </button>
   );
 }
@@ -167,7 +169,7 @@ function Modal({ video, onClose }) {
               onClick={() => openExternal(`https://www.youtube.com/watch?v=${video.id}`)}
               className="text-zinc-500 hover:text-white text-sm transition-colors"
             >
-              Open in YouTube ↗
+              {t('youtube.openInYoutube')}
             </button>
           </div>
         </div>
@@ -177,6 +179,7 @@ function Modal({ video, onClose }) {
 }
 
 export default function YouTube() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState([]);
@@ -220,7 +223,7 @@ export default function YouTube() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search YouTube…"
+              placeholder={t('youtube.searchPlaceholder')}
               className="w-full bg-zinc-800 text-white placeholder-zinc-500 rounded-full px-5 py-2.5 pr-10 text-sm border border-zinc-700 focus:outline-none focus:border-red-500"
             />
             {query && (
@@ -231,7 +234,7 @@ export default function YouTube() {
           </div>
           <button type="submit" className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-full text-sm font-medium transition-colors flex items-center gap-2">
             <Search size={15} />
-            Search
+            {t('youtube.search')}
           </button>
         </form>
       </div>
@@ -240,7 +243,7 @@ export default function YouTube() {
         {loading && (
           <div className="text-center py-24">
             <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-zinc-500 text-sm">Searching YouTube…</p>
+            <p className="text-zinc-500 text-sm">{t('youtube.searching')}</p>
           </div>
         )}
 
@@ -248,15 +251,15 @@ export default function YouTube() {
           <div className="text-center py-24">
             <AlertCircle size={44} className="mx-auto text-red-500 mb-4" />
             <p className="text-red-400 mb-1">{error}</p>
-            <p className="text-zinc-600 text-sm">Make sure the backend and yt-dlp are running</p>
+            <p className="text-zinc-600 text-sm">{t('youtube.backendError')}</p>
           </div>
         )}
 
         {!loading && !error && results.length === 0 && !searchParams.get('q') && (
           <div className="text-center py-24">
             <Search size={44} className="mx-auto text-zinc-700 mb-4" />
-            <p className="text-zinc-400 text-lg">Search for music on YouTube</p>
-            <p className="text-zinc-600 text-sm mt-2">Click a result to watch or download as MP3</p>
+            <p className="text-zinc-400 text-lg">{t('youtube.emptyTitle')}</p>
+            <p className="text-zinc-600 text-sm mt-2">{t('youtube.emptyHint')}</p>
           </div>
         )}
 

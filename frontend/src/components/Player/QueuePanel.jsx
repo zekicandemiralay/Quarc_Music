@@ -1,10 +1,12 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Music, ChevronUp, ChevronDown, Download, Play } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import usePlayerStore from '../../store/playerStore';
 import useRadioStore from '../../store/useRadioStore';
 
 function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, onPlay }) {
+  const { t } = useTranslation();
   return (
     <div
       className={`flex items-center gap-3 py-2 px-2 rounded-lg group transition-colors ${
@@ -19,7 +21,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
       </div>
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-medium truncate ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-        <p className="text-xs text-zinc-400 truncate">{song.artist || 'Unknown'}</p>
+        <p className="text-xs text-zinc-400 truncate">{song.artist || t('common.unknown')}</p>
       </div>
       {isManual && (
         <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -27,7 +29,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
             <button
               onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
               className="p-1.5 text-zinc-500 hover:text-white rounded transition-colors"
-              title="Move up"
+              title={t('queue.moveUp')}
             >
               <ChevronUp size={14} />
             </button>
@@ -36,7 +38,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
             <button
               onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
               className="p-1.5 text-zinc-500 hover:text-white rounded transition-colors"
-              title="Move down"
+              title={t('queue.moveDown')}
             >
               <ChevronDown size={14} />
             </button>
@@ -45,7 +47,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
             <button
               onClick={(e) => { e.stopPropagation(); onRemove(); }}
               className="p-1.5 text-zinc-500 hover:text-red-400 rounded transition-colors"
-              title="Remove from queue"
+              title={t('queue.removeFromQueue')}
             >
               <X size={14} />
             </button>
@@ -57,6 +59,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
 }
 
 export default function QueuePanel({ onClose }) {
+  const { t } = useTranslation();
   const {
     currentSong, isPlaying, queue, queueIndex,
     manualQueue, playContextLabel,
@@ -141,14 +144,14 @@ export default function QueuePanel({ onClose }) {
 
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-3 pb-4 border-b border-zinc-800 shrink-0">
-        <h2 className="text-white font-bold text-lg">Queue</h2>
+        <h2 className="text-white font-bold text-lg">{t('queue.title')}</h2>
         <div className="flex items-center gap-4">
           {manualQueue.length > 0 && (
             <button
               onClick={clearManualQueue}
               className="text-zinc-400 hover:text-white text-sm transition-colors"
             >
-              Clear queue
+              {t('queue.clearQueue')}
             </button>
           )}
           <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white transition-colors">
@@ -162,15 +165,15 @@ export default function QueuePanel({ onClose }) {
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-8">
             <Music size={48} className="text-zinc-700 mb-4" />
-            <p className="text-zinc-400 text-sm">Nothing in queue yet</p>
-            <p className="text-zinc-600 text-xs mt-1">Start playing a song or swipe right on tracks to add them</p>
+            <p className="text-zinc-400 text-sm">{t('queue.emptyTitle')}</p>
+            <p className="text-zinc-600 text-xs mt-1">{t('queue.emptyHint')}</p>
           </div>
         ) : (
           <>
             {/* Now Playing */}
             {currentSong && (
               <section className="px-4 pt-5 pb-3">
-                <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">Now Playing</p>
+                <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">{t('queue.nowPlaying')}</p>
                 <QueueSongRow song={currentSong} active />
               </section>
             )}
@@ -180,7 +183,7 @@ export default function QueuePanel({ onClose }) {
               <section className="px-4 pb-3 border-t border-zinc-800 pt-4">
                 <div className="flex items-center justify-between mb-2 px-2">
                   <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">
-                    Next in queue
+                    {t('queue.nextInQueue')}
                     <span className="ml-1.5 text-zinc-600 normal-case font-normal">({manualQueue.length})</span>
                   </p>
                 </div>
@@ -205,7 +208,7 @@ export default function QueuePanel({ onClose }) {
             {/* Pending radio downloads */}
             {pendingDownloads.length > 0 && (
               <section className="px-4 pb-3 border-t border-zinc-800 pt-4">
-                <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">Downloading for radio</p>
+                <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">{t('queue.downloadingForRadio')}</p>
                 {pendingDownloads.map((d) => (
                   <div key={d.id} className="flex items-center gap-3 py-2 px-2">
                     <div className="w-10 h-10 shrink-0 rounded bg-zinc-800 flex items-center justify-center">
@@ -233,7 +236,7 @@ export default function QueuePanel({ onClose }) {
             {upNext.length > 0 && (
               <section className="px-4 pb-3 border-t border-zinc-800 pt-4">
                 <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">
-                  Next from <span className="text-zinc-400 normal-case font-medium">{contextLabel}</span>
+                  {t('queue.nextFrom')} <span className="text-zinc-400 normal-case font-medium">{contextLabel}</span>
                   <span className="ml-1.5 text-zinc-600 normal-case font-normal">({upNext.length})</span>
                 </p>
                 {upNext.slice(0, 100).map((song, i) => (
@@ -244,7 +247,7 @@ export default function QueuePanel({ onClose }) {
                   />
                 ))}
                 {upNext.length > 100 && (
-                  <p className="text-zinc-600 text-xs px-2 pt-2">+{upNext.length - 100} more songs</p>
+                  <p className="text-zinc-600 text-xs px-2 pt-2">{t('queue.moreSongs', { n: upNext.length - 100 })}</p>
                 )}
               </section>
             )}

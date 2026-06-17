@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Music2, Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
 import useMixStore from '../../store/useMixStore';
@@ -14,6 +15,7 @@ const MIX_ICONS = {
 };
 
 function ChangePasswordModal({ onClose }) {
+  const { t } = useTranslation();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -23,8 +25,8 @@ function ChangePasswordModal({ onClose }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (next.length < 8) { setError('New password must be at least 8 characters'); return; }
-    if (next !== confirm) { setError('Passwords do not match'); return; }
+    if (next.length < 8) { setError(t('sidebar.passwordMinLength')); return; }
+    if (next !== confirm) { setError(t('sidebar.passwordsNoMatch')); return; }
     const res = await fetch('/api/auth/change-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -38,30 +40,30 @@ function ChangePasswordModal({ onClose }) {
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-white font-semibold">Change Password</h3>
+          <h3 className="text-white font-semibold">{t('sidebar.changePassword')}</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={18} /></button>
         </div>
         {done ? (
-          <p className="text-green-400 text-sm">Password changed successfully.</p>
+          <p className="text-green-400 text-sm">{t('sidebar.passwordSuccess')}</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3">
             <input
               type="password"
-              placeholder="Current password"
+              placeholder={t('sidebar.currentPassword')}
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
               className="w-full bg-zinc-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder-zinc-500"
             />
             <input
               type="password"
-              placeholder="New password (min 8 chars)"
+              placeholder={t('sidebar.newPassword')}
               value={next}
               onChange={(e) => setNext(e.target.value)}
               className="w-full bg-zinc-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder-zinc-500"
             />
             <input
               type="password"
-              placeholder="Confirm new password"
+              placeholder={t('sidebar.confirmPassword')}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className="w-full bg-zinc-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder-zinc-500"
@@ -71,7 +73,7 @@ function ChangePasswordModal({ onClose }) {
               type="submit"
               className="w-full bg-white text-black rounded-lg py-2.5 text-sm font-medium hover:bg-zinc-200 transition-colors"
             >
-              Change Password
+              {t('sidebar.changePasswordBtn')}
             </button>
           </form>
         )}
@@ -81,6 +83,7 @@ function ChangePasswordModal({ onClose }) {
 }
 
 function PlaylistItem({ playlist, onNavigate }) {
+  const { t } = useTranslation();
   const [renaming, setRenaming] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState(playlist.name);
@@ -120,18 +123,18 @@ function PlaylistItem({ playlist, onNavigate }) {
       )}
       {confirming ? (
         <div className="flex items-center gap-1 shrink-0">
-          <span className="text-xs text-red-400">Delete?</span>
+          <span className="text-xs text-red-400">{t('sidebar.deletePlaylist')}</span>
           <button
             onClick={() => deletePlaylist(playlist.id)}
             className="text-red-400 hover:text-red-300 transition-colors"
-            title="Confirm delete"
+            title={t('sidebar.confirmDelete')}
           >
             <Check size={13} />
           </button>
           <button
             onClick={() => setConfirming(false)}
             className="text-zinc-500 hover:text-white transition-colors"
-            title="Cancel"
+            title={t('sidebar.cancelDelete')}
           >
             <X size={13} />
           </button>
@@ -149,6 +152,7 @@ function PlaylistItem({ playlist, onNavigate }) {
 }
 
 export default function Sidebar({ onNavigate }) {
+  const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
   const { playlists, likedSongs, createPlaylist } = useUserDataStore();
   const mixes = useMixStore((s) => s.mixes);
@@ -179,6 +183,12 @@ export default function Sidebar({ onNavigate }) {
     navigate('/login');
   }
 
+  function toggleLanguage() {
+    const next = i18n.language === 'tr' ? 'en' : 'tr';
+    i18n.changeLanguage(next);
+    localStorage.setItem('language', next);
+  }
+
   return (
     <div className="w-64 h-full bg-black flex flex-col gap-2 p-2 shrink-0 overflow-y-auto">
       {/* App header + nav */}
@@ -190,35 +200,35 @@ export default function Sidebar({ onNavigate }) {
         <nav className="space-y-0.5">
           <NavLink to="/" end className={linkClass} onClick={onNavigate}>
             <Home size={18} />
-            Home
+            {t('nav.home')}
           </NavLink>
           <NavLink to="/library" className={linkClass} onClick={onNavigate}>
             <Library size={18} />
-            Library
+            {t('nav.library')}
           </NavLink>
           <NavLink to="/liked" className={linkClass} onClick={onNavigate}>
             <Heart size={18} className="text-red-400" />
-            Liked Songs
+            {t('nav.likedSongs')}
             {likedSongs.length > 0 && (
               <span className="ml-auto text-xs text-zinc-500">{likedSongs.length}</span>
             )}
           </NavLink>
           <NavLink to="/youtube" className={linkClass} onClick={onNavigate}>
             <Youtube size={18} className="text-red-500" />
-            YouTube
+            {t('nav.youtube')}
           </NavLink>
           <NavLink to="/stats" className={linkClass} onClick={onNavigate}>
             <BarChart2 size={18} className="text-blue-400" />
-            Stats
+            {t('nav.stats')}
           </NavLink>
           <NavLink to="/import" className={linkClass} onClick={onNavigate}>
             <Download size={18} className="text-green-400" />
-            Import
+            {t('nav.import')}
           </NavLink>
           {user?.role === 'admin' && (
             <NavLink to="/admin" className={linkClass} onClick={onNavigate}>
               <ShieldCheck size={18} className="text-amber-400" />
-              Admin
+              {t('nav.admin')}
             </NavLink>
           )}
         </nav>
@@ -227,11 +237,11 @@ export default function Sidebar({ onNavigate }) {
       {/* Playlists */}
       <div className="bg-zinc-900 rounded-lg p-3">
         <div className="flex items-center justify-between mb-2 px-1">
-          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Playlists</span>
+          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">{t('nav.playlists')}</span>
           <button
             onClick={() => setCreating(!creating)}
             className="text-zinc-500 hover:text-white transition-colors"
-            title="New playlist"
+            title={t('nav.newPlaylist')}
           >
             <Plus size={16} />
           </button>
@@ -242,7 +252,7 @@ export default function Sidebar({ onNavigate }) {
             <input
               autoFocus
               type="text"
-              placeholder="Playlist name"
+              placeholder={t('nav.playlistName')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCreatePlaylist(); if (e.key === 'Escape') setCreating(false); }}
@@ -256,7 +266,7 @@ export default function Sidebar({ onNavigate }) {
 
         <div className="space-y-0.5">
           {playlists.length === 0 && !creating && (
-            <p className="text-zinc-600 text-xs px-3 py-1">No playlists yet</p>
+            <p className="text-zinc-600 text-xs px-3 py-1">{t('nav.noPlaylists')}</p>
           )}
           {playlists.map((p) => <PlaylistItem key={p.id} playlist={p} onNavigate={onNavigate} />)}
         </div>
@@ -265,7 +275,7 @@ export default function Sidebar({ onNavigate }) {
       {/* Mixes */}
       {mixes.length > 0 && (
         <div className="bg-zinc-900 rounded-lg p-3">
-          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1">Mixes</span>
+          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1">{t('nav.mixes')}</span>
           <div className="space-y-0.5 mt-2">
             {mixes.map((mix) => (
               <NavLink
@@ -289,7 +299,7 @@ export default function Sidebar({ onNavigate }) {
       {/* Featured Collections */}
       {featured.length > 0 && (
         <div className="bg-zinc-900 rounded-lg p-3">
-          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1">Collections</span>
+          <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1">{t('nav.collections')}</span>
           <div className="space-y-0.5 mt-2">
             {featured.map((pl) => (
               <NavLink
@@ -316,10 +326,17 @@ export default function Sidebar({ onNavigate }) {
           <span className="text-xs text-white font-medium">{user?.username?.[0]?.toUpperCase()}</span>
         </div>
         <span className="text-white text-sm font-medium flex-1 truncate">{user?.username}</span>
-        <button onClick={() => setChangingPassword(true)} className="text-zinc-500 hover:text-white transition-colors" title="Change password">
+        <button
+          onClick={toggleLanguage}
+          className="text-zinc-500 hover:text-white transition-colors text-xs font-semibold w-6 text-center"
+          title={t('common.language')}
+        >
+          {i18n.language === 'tr' ? 'TR' : 'EN'}
+        </button>
+        <button onClick={() => setChangingPassword(true)} className="text-zinc-500 hover:text-white transition-colors" title={t('sidebar.changePassword')}>
           <KeyRound size={15} />
         </button>
-        <button onClick={handleLogout} className="text-zinc-500 hover:text-white transition-colors" title="Sign out">
+        <button onClick={handleLogout} className="text-zinc-500 hover:text-white transition-colors" title={t('sidebar.signOut')}>
           <LogOut size={15} />
         </button>
       </div>

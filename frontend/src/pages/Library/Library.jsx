@@ -2,6 +2,7 @@
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered, MoreHorizontal, ListMusic, Share2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
 import useOfflineStore from '../../store/useOfflineStore';
@@ -16,6 +17,7 @@ function norm(s) {
 }
 
 function OfflineButton({ songs, playlistId }) {
+  const { t } = useTranslation();
   const { cachedIds, downloading, cacheSongs, removeSongs } = useOfflineStore();
   const setPlaylistOffline = useUserDataStore((s) => s.setPlaylistOffline);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -56,16 +58,16 @@ function OfflineButton({ songs, playlistId }) {
         {confirmRemove && (
           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
             <div className="bg-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
-              <p className="text-white">Remove offline copies? You'll need to re-download to listen without internet.</p>
+              <p className="text-white">{t('library.removeOfflineTitle')}</p>
               <div className="flex gap-3 justify-end">
                 <button onClick={() => setConfirmRemove(false)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={handleRemoveOffline}
                   className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
                 >
-                  Remove
+                  {t('library.remove')}
                 </button>
               </div>
             </div>
@@ -74,10 +76,10 @@ function OfflineButton({ songs, playlistId }) {
         <button
           onClick={() => setConfirmRemove(true)}
           className="flex items-center gap-2 px-3 py-2 bg-green-900/30 hover:bg-red-900/30 text-green-400 hover:text-red-400 border border-green-800/40 hover:border-red-800/40 rounded-full text-sm font-medium transition-colors shrink-0"
-          title="Available offline — click to remove"
+          title={t('library.offline')}
         >
           <WifiOff size={15} />
-          <span className="hidden sm:inline">Offline</span>
+          <span className="hidden sm:inline">{t('library.offline')}</span>
         </button>
       </>
     );
@@ -87,11 +89,11 @@ function OfflineButton({ songs, playlistId }) {
     <button
       onClick={handleSaveOffline}
       className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors shrink-0"
-      title="Save for offline listening"
+      title={t('library.saveOffline')}
     >
       <Download size={15} />
       <span className="hidden sm:inline">
-        {cachedCount > 0 ? `Save offline (${songs.length - cachedCount} left)` : 'Save offline'}
+        {cachedCount > 0 ? t('library.saveOfflineLeft', { n: songs.length - cachedCount }) : t('library.saveOffline')}
       </span>
     </button>
   );
@@ -103,6 +105,7 @@ function fmt(s) {
 }
 
 function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded, position }) {
+  const { t } = useTranslation();
   const { playlists, addToPlaylist, createPlaylist } = useUserDataStore();
   const { addToQueue } = usePlayerStore();
   const [newName, setNewName] = useState('');
@@ -140,14 +143,14 @@ function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded, position }) {
               className="w-full text-left flex items-center gap-2 text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors"
             >
               <ListOrdered size={13} className="text-zinc-400 shrink-0" />
-              Add to queue
+              {t('library.addToQueue')}
             </button>
             <div className="border-t border-zinc-700/60 my-1" />
           </>
         )}
-        <p className="text-zinc-500 text-xs px-3 py-1.5 font-semibold uppercase tracking-wider">Add to playlist</p>
+        <p className="text-zinc-500 text-xs px-3 py-1.5 font-semibold uppercase tracking-wider">{t('library.addToPlaylist')}</p>
         {playlists.length === 0 && (
-          <p className="text-zinc-600 text-xs px-3 py-1.5">No playlists yet</p>
+          <p className="text-zinc-600 text-xs px-3 py-1.5">{t('library.noPlaylistsYet')}</p>
         )}
         {playlists.map((p) => (
           <button
@@ -163,7 +166,7 @@ function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded, position }) {
             <input
               autoFocus={playlists.length === 0}
               type="text"
-              placeholder="New playlist…"
+              placeholder={t('library.newPlaylistPlaceholder')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
@@ -188,6 +191,7 @@ async function shareSong(song) {
 }
 
 function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPlaylistId, onRemoveFromPlaylist }) {
+  const { t } = useTranslation();
   const { likedSongs, toggleLike, playlists, addToPlaylist, createPlaylist } = useUserDataStore();
   const { addToQueue } = usePlayerStore();
   const navigate = useNavigate();
@@ -295,7 +299,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
             className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
           >
             <Heart size={20} className={liked ? 'text-red-400 fill-current' : 'text-zinc-400'} />
-            <span className="text-white text-sm">{liked ? 'Unlike' : 'Like'}</span>
+            <span className="text-white text-sm">{liked ? t('library.unlike') : t('library.like')}</span>
           </button>
 
           {/* Add to queue */}
@@ -304,7 +308,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
             className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
           >
             <ListOrdered size={20} className="text-zinc-400" />
-            <span className="text-white text-sm">Add to queue</span>
+            <span className="text-white text-sm">{t('library.addToQueue')}</span>
           </button>
 
           {/* Remove from playlist (if in a playlist view) */}
@@ -314,7 +318,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
               className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
             >
               <X size={20} className="text-red-400" />
-              <span className="text-red-400 text-sm">Remove from playlist</span>
+              <span className="text-red-400 text-sm">{t('library.removeFromPlaylist')}</span>
             </button>
           )}
 
@@ -324,7 +328,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
             className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
           >
             <Youtube size={20} className="text-zinc-400" />
-            <span className="text-white text-sm">Find on YouTube</span>
+            <span className="text-white text-sm">{t('library.findOnYoutubeAction')}</span>
           </button>
 
           {/* Share */}
@@ -333,12 +337,12 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
             className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
           >
             <Share2 size={20} className="text-zinc-400" />
-            <span className="text-white text-sm">Share song</span>
+            <span className="text-white text-sm">{t('library.shareSong')}</span>
           </button>
 
           {/* Add to playlist */}
           <div className="border-t border-zinc-800 mt-1 pt-1">
-            <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-5 py-2">Add to playlist</p>
+            <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-5 py-2">{t('library.addToPlaylist')}</p>
             {playlists.map((p) => (
               <button
                 key={p.id}
@@ -353,7 +357,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
             <div className="flex items-center gap-2 px-5 py-3">
               <input
                 type="text"
-                placeholder="New playlist…"
+                placeholder={t('library.newPlaylistPlaceholder')}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
@@ -374,7 +378,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
           onClick={onClose}
           className="w-full py-4 text-zinc-400 text-sm font-medium border-t border-zinc-800 shrink-0 active:bg-zinc-800"
         >
-          Cancel
+          {t('library.cancel')}
         </button>
       </div>
     </div>,
@@ -390,6 +394,7 @@ const MIX_ICONS = {
 };
 
 export default function Library({ view = 'all' }) {
+  const { t } = useTranslation();
   const { playlistId, mixId, featuredId } = useParams();
   const mixData = useMixStore((s) => view === 'mix' ? s.getMix(mixId) : null);
   const featuredData = useFeaturedStore((s) => view === 'featured' ? s.getPlaylist(featuredId) : null);
@@ -423,8 +428,8 @@ export default function Library({ view = 'all' }) {
     setQueueToast(msg);
     queueToastTimer.current = setTimeout(() => setQueueToast(null), 2000);
   }
-  function showQueueToast() { showToast('Added to queue'); }
-  function showShareToast() { showToast('Link copied'); }
+  function showQueueToast() { showToast(t('common.addedToQueue')); }
+  function showShareToast() { showToast(t('common.linkCopied')); }
 
   useEffect(() => {
     const el = songListRef.current;
@@ -533,18 +538,18 @@ export default function Library({ view = 'all' }) {
   const paginated = view === 'all' && !search ? filtered.slice(0, visibleCount) : filtered;
 
   const heading =
-    view === 'liked' ? 'Liked Songs' :
-    view === 'playlist' ? (currentPlaylist?.name || 'Playlist') :
-    view === 'mix' ? (mixData?.name || 'Mix') :
-    view === 'featured' ? (featuredData?.name || 'Collection') :
-    'Your Library';
+    view === 'liked' ? t('library.likedSongs') :
+    view === 'playlist' ? (currentPlaylist?.name || t('library.playlist')) :
+    view === 'mix' ? (mixData?.name || t('library.mix')) :
+    view === 'featured' ? (featuredData?.name || t('library.collection')) :
+    t('library.title');
 
   const subheading =
-    view === 'liked' ? `${filtered.length} liked songs` :
-    view === 'playlist' ? `${filtered.length} songs` :
-    view === 'mix' ? (mixData?.description || `${filtered.length} songs`) :
-    view === 'featured' ? (featuredData?.description || `${filtered.length} songs`) :
-    `${songs.length} songs`;
+    view === 'liked' ? t('home.songs', { n: filtered.length }) :
+    view === 'playlist' ? t('home.songs', { n: filtered.length }) :
+    view === 'mix' ? (mixData?.description || t('home.songs', { n: filtered.length })) :
+    view === 'featured' ? (featuredData?.description || t('home.songs', { n: filtered.length })) :
+    t('home.songs', { n: songs.length });
 
   return (
     <div className="p-4 md:p-6" ref={songListRef}>
@@ -572,7 +577,7 @@ export default function Library({ view = 'all' }) {
                 className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors"
               >
                 <Shuffle size={15} />
-                <span className="hidden sm:inline">Shuffle</span>
+                <span className="hidden sm:inline">{t('library.shuffle')}</span>
               </button>
               <OfflineButton songs={filtered} playlistId={view === 'playlist' ? playlistId : undefined} />
             </>
@@ -587,7 +592,7 @@ export default function Library({ view = 'all' }) {
             >
               <RefreshCw size={15} className={scanning ? 'animate-spin' : ''} />
               <span className="hidden sm:inline">
-                {scanning ? 'Scanning…' : scanMsg ?? 'Scan Library'}
+                {scanning ? t('library.scanning') : scanMsg ?? t('library.scanLibrary')}
               </span>
               {/* Mobile: show result message as tooltip-style badge */}
               {scanMsg && <span className="sm:hidden text-xs">{scanMsg}</span>}
@@ -599,7 +604,7 @@ export default function Library({ view = 'all' }) {
               className="flex items-center gap-2 px-3 md:px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
             >
               <RefreshCw size={15} />
-              <span className="hidden sm:inline">Refresh Mix</span>
+              <span className="hidden sm:inline">{t('library.refreshMix')}</span>
             </button>
           )}
         </div>
@@ -610,7 +615,7 @@ export default function Library({ view = 'all' }) {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
-            placeholder="Search…"
+            placeholder={t('library.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full max-w-sm bg-zinc-800 text-white placeholder-zinc-500 rounded-full pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
@@ -622,22 +627,22 @@ export default function Library({ view = 'all' }) {
             className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-red-400 transition-colors shrink-0"
           >
             <Youtube size={15} />
-            Search in YouTube
+            {t('library.searchInYoutube')}
           </button>
         )}
       </div>
 
       {loading ? (
-        <p className="text-zinc-500 text-sm">Loading…</p>
+        <p className="text-zinc-500 text-sm">{t('library.loading')}</p>
       ) : filtered.length === 0 ? (
         <div className="text-center py-24">
           <Music size={48} className="mx-auto text-zinc-700 mb-4" />
           <p className="text-zinc-400 text-lg mb-2">
-            {view === 'liked' ? 'No liked songs yet' :
-             view === 'playlist' ? 'This playlist is empty' :
-             view === 'mix' ? 'Mix is empty — keep listening to build it up' :
-             view === 'featured' ? 'This collection is empty' :
-             songs.length === 0 ? 'No music in library yet' : 'No results'}
+            {view === 'liked' ? t('library.noLikedSongs') :
+             view === 'playlist' ? t('library.emptyPlaylist') :
+             view === 'mix' ? t('library.emptyMix') :
+             view === 'featured' ? t('library.emptyCollection') :
+             songs.length === 0 ? t('library.noMusic') : t('library.noResults')}
           </p>
           {view === 'all' && songs.length === 0 && view !== 'mix' && (
             <button
@@ -645,7 +650,7 @@ export default function Library({ view = 'all' }) {
               className="mt-3 inline-flex items-center gap-2 px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full text-sm font-medium transition-colors"
             >
               <Youtube size={16} />
-              Find on YouTube
+              {t('library.findOnYoutube')}
             </button>
           )}
         </div>
@@ -654,10 +659,10 @@ export default function Library({ view = 'all' }) {
           {/* Desktop-only header row */}
           <div className="hidden md:grid md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-3 px-4 py-2 text-zinc-500 text-xs uppercase tracking-wider border-b border-zinc-800 mb-1">
             <span>#</span>
-            <span>Title</span>
-            <span>Artist</span>
-            <span>Album</span>
-            <span className="text-right">Time</span>
+            <span>{t('library.title_col')}</span>
+            <span>{t('library.artist_col')}</span>
+            <span>{t('library.album_col')}</span>
+            <span className="text-right">{t('library.time_col')}</span>
             <span />
           </div>
 
@@ -771,7 +776,7 @@ export default function Library({ view = 'all' }) {
                   <button
                     onClick={() => toggleLike(song.id)}
                     className={`p-1.5 transition-colors ${liked ? 'text-red-400' : 'text-zinc-500 hover:text-white'}`}
-                    title={liked ? 'Unlike' : 'Like'}
+                    title={liked ? t('library.unlike') : t('library.like')}
                   >
                     <Heart size={14} className={liked ? 'fill-current' : ''} />
                   </button>
@@ -787,7 +792,7 @@ export default function Library({ view = 'all' }) {
                   <button
                     onClick={() => { addToQueue(song); showQueueToast(); }}
                     className="p-1.5 text-zinc-500 hover:text-white transition-colors"
-                    title="Add to queue"
+                    title={t('library.addToQueue')}
                   >
                     <ListOrdered size={14} />
                   </button>
@@ -836,13 +841,13 @@ export default function Library({ view = 'all' }) {
                 onClick={() => setVisibleCount((c) => c + PAGE)}
                 className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-medium rounded-full transition-colors"
               >
-                Show more ({Math.min(PAGE, filtered.length - visibleCount)} more)
+                {t('library.showMore', { n: Math.min(PAGE, filtered.length - visibleCount) })}
               </button>
               <button
                 onClick={() => setVisibleCount(filtered.length)}
                 className="px-5 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm font-medium rounded-full transition-colors"
               >
-                Show all ({filtered.length})
+                {t('library.showAll', { n: filtered.length })}
               </button>
             </div>
           )}

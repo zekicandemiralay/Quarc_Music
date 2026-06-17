@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Upload, CheckCircle, AlertCircle, Loader2, X, Music, Pause, Play, Square } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import useUserDataStore from '../../store/userDataStore';
 
 function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
+  const { t } = useTranslation();
   const [files, setFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -14,7 +16,7 @@ function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
     const valid = Array.from(incoming).filter(f =>
       exts.some(ext => f.name.toLowerCase().endsWith(ext))
     );
-    if (valid.length !== incoming.length) setError(`Only ${accept} files are accepted`);
+    if (valid.length !== incoming.length) setError(t('import.onlyAccepted', { accept }));
     else setError('');
     setFiles(prev => {
       const names = new Set(prev.map(f => f.name));
@@ -70,7 +72,7 @@ function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
         onClick={() => fileRef.current?.click()}
       >
         <Upload size={28} className="mx-auto mb-3 text-zinc-500" />
-        <p className="text-zinc-300 font-medium">Drop files here</p>
+        <p className="text-zinc-300 font-medium">{t('import.dropFiles')}</p>
         <p className="text-zinc-500 text-sm mt-1">{hint}</p>
         <input
           ref={fileRef}
@@ -107,13 +109,18 @@ function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
         className="w-full bg-white text-black rounded-xl py-3 font-medium text-sm hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {uploading && <Loader2 size={16} className="animate-spin" />}
-        {uploading ? 'Starting import…' : `Start Import${files.length > 1 ? ` (${files.length} files)` : ''}`}
+        {uploading
+          ? t('import.starting')
+          : files.length > 1
+          ? t('import.startImportCount', { n: files.length })
+          : t('import.startImport')}
       </button>
     </div>
   );
 }
 
 export default function Import() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState('spotify');
   const [job, setJob] = useState(null);
   const pollRef = useRef(null);
@@ -171,10 +178,8 @@ export default function Import() {
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white mb-1">Import</h1>
-        <p className="text-zinc-400 text-sm">
-          Import your playlists from Spotify or YouTube Music. Songs are downloaded to the library automatically.
-        </p>
+        <h1 className="text-2xl font-bold text-white mb-1">{t('import.title')}</h1>
+        <p className="text-zinc-400 text-sm">{t('import.subtitle')}</p>
       </div>
 
       {/* Tabs */}
@@ -185,7 +190,7 @@ export default function Import() {
             tab === 'spotify' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'
           }`}
         >
-          Spotify
+          {t('import.spotify')}
         </button>
         <button
           onClick={() => setTab('youtube')}
@@ -193,7 +198,7 @@ export default function Import() {
             tab === 'youtube' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'
           }`}
         >
-          YouTube Music
+          {t('import.youtubeMusic')}
         </button>
       </div>
 
@@ -202,15 +207,15 @@ export default function Import() {
         <UploadSection
           accept=".zip,.csv"
           endpoint="/api/import/spotify"
-          hint="ZIP (all playlists) or individual CSV files — click to browse"
+          hint={t('import.spotifyHint')}
           onJobStart={setJob}
           instructions={
             <>
-              <p className="text-zinc-300 text-sm font-medium">How to export from Spotify:</p>
+              <p className="text-zinc-300 text-sm font-medium">{t('import.spotifyInstructions')}</p>
               <ol className="text-zinc-400 text-sm space-y-1 list-decimal list-inside">
-                <li>Go to <span className="text-zinc-200">exportify.net</span> and log in with Spotify</li>
-                <li>Click <span className="text-zinc-200">"Export All"</span> for all playlists as a ZIP, or export individual playlists as CSVs</li>
-                <li>Upload the file(s) below</li>
+                <li>{t('import.spotifyStep1')}</li>
+                <li>{t('import.spotifyStep2')}</li>
+                <li>{t('import.spotifyStep3')}</li>
               </ol>
             </>
           }
@@ -221,21 +226,19 @@ export default function Import() {
         <UploadSection
           accept=".zip,.json"
           endpoint="/api/import/youtube"
-          hint="Google Takeout ZIP or individual playlist JSON files — click to browse"
+          hint={t('import.youtubeHint')}
           onJobStart={setJob}
           instructions={
             <>
-              <p className="text-zinc-300 text-sm font-medium">How to export from YouTube Music:</p>
+              <p className="text-zinc-300 text-sm font-medium">{t('import.youtubeInstructions')}</p>
               <ol className="text-zinc-400 text-sm space-y-1 list-decimal list-inside">
-                <li>Go to <span className="text-zinc-200">takeout.google.com</span> and sign in</li>
-                <li>Click <span className="text-zinc-200">"Deselect all"</span>, then check <span className="text-zinc-200">"YouTube and YouTube Music"</span></li>
-                <li>Click the <span className="text-zinc-200">"All YouTube data included"</span> button and select <span className="text-zinc-200">playlists only</span></li>
-                <li>Click <span className="text-zinc-200">"Next step"</span> → <span className="text-zinc-200">"Create export"</span> and wait for the email</li>
-                <li>Download the ZIP and upload it below</li>
+                <li>{t('import.youtubeStep1')}</li>
+                <li>{t('import.youtubeStep2')}</li>
+                <li>{t('import.youtubeStep3')}</li>
+                <li>{t('import.youtubeStep4')}</li>
+                <li>{t('import.youtubeStep5')}</li>
               </ol>
-              <p className="text-zinc-500 text-xs mt-1">
-                YouTube Music exports use exact video IDs — every download is a perfect match, no searching needed.
-              </p>
+              <p className="text-zinc-500 text-xs mt-1">{t('import.youtubeNote')}</p>
             </>
           }
         />
@@ -252,26 +255,30 @@ export default function Import() {
               {job.status === 'cancelled' && <Square size={18} className="text-zinc-400" />}
               {job.status === 'error' && <AlertCircle size={18} className="text-red-400" />}
               <span className="text-white font-medium">
-                {job.status === 'running' && 'Importing…'}
-                {job.status === 'paused' && (job.currentTrack === null && job.done > 0 ? `Interrupted — ${job.done} of ${job.total} done` : 'Paused')}
-                {job.status === 'done' && 'Import complete'}
-                {job.status === 'cancelled' && `Cancelled — ${job.done} of ${job.total} tracks done`}
-                {job.status === 'error' && 'Import failed'}
+                {job.status === 'running' && t('import.importing')}
+                {job.status === 'paused' && (
+                  job.currentTrack === null && job.done > 0
+                    ? t('import.interrupted', { done: job.done, total: job.total })
+                    : t('import.paused')
+                )}
+                {job.status === 'done' && t('import.importComplete')}
+                {job.status === 'cancelled' && t('import.cancelled', { done: job.done, total: job.total })}
+                {job.status === 'error' && t('import.importFailed')}
               </span>
             </div>
             <div className="flex items-center gap-1">
               {job.status === 'running' && (
-                <button onClick={pauseImport} className="text-zinc-400 hover:text-white transition-colors p-1" title="Pause">
+                <button onClick={pauseImport} className="text-zinc-400 hover:text-white transition-colors p-1" title={t('import.pause')}>
                   <Pause size={15} />
                 </button>
               )}
               {job.status === 'paused' && (
-                <button onClick={resumeImport} className="text-zinc-400 hover:text-white transition-colors p-1" title="Resume">
+                <button onClick={resumeImport} className="text-zinc-400 hover:text-white transition-colors p-1" title={t('import.resume')}>
                   <Play size={15} />
                 </button>
               )}
               {(job.status === 'running' || job.status === 'paused') && (
-                <button onClick={cancelImport} className="text-zinc-400 hover:text-red-400 transition-colors p-1" title="Cancel">
+                <button onClick={cancelImport} className="text-zinc-400 hover:text-red-400 transition-colors p-1" title={t('import.cancel')}>
                   <Square size={15} />
                 </button>
               )}
@@ -285,7 +292,7 @@ export default function Import() {
 
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-zinc-500">
-              <span>{job.done} / {job.total} tracks</span>
+              <span>{t('import.tracks', { done: job.done, total: job.total })}</span>
               <span>{pct}%</span>
             </div>
             <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden">
@@ -298,13 +305,13 @@ export default function Import() {
 
           {job.currentTrack && (
             <p className="text-zinc-400 text-sm truncate">
-              Downloading: <span className="text-zinc-200">{job.currentTrack}</span>
+              {t('import.downloading')} <span className="text-zinc-200">{job.currentTrack}</span>
             </p>
           )}
 
           {job.playlists?.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-zinc-500 text-xs uppercase tracking-wider font-semibold">Playlists</p>
+              <p className="text-zinc-500 text-xs uppercase tracking-wider font-semibold">{t('import.playlists')}</p>
               {job.playlists.map(name => (
                 <div key={name} className="flex items-center gap-2 text-sm">
                   <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
@@ -321,7 +328,7 @@ export default function Import() {
           {job.errors?.length > 0 && (
             <div className="space-y-1">
               <p className="text-zinc-500 text-xs uppercase tracking-wider font-semibold">
-                {job.errors.length} track{job.errors.length !== 1 ? 's' : ''} failed
+                {t('import.failedTracks', { n: job.errors.length, count: job.errors.length })}
               </p>
               <div className="max-h-28 overflow-y-auto space-y-0.5">
                 {job.errors.map((e, i) => (
@@ -336,7 +343,7 @@ export default function Import() {
               onClick={clearJob}
               className="w-full bg-zinc-800 text-white rounded-lg py-2.5 text-sm hover:bg-zinc-700 transition-colors"
             >
-              Import another file
+              {t('import.importAnother')}
             </button>
           )}
         </div>

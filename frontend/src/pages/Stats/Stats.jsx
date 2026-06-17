@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Clock, Music, Download, Flame, TrendingUp, BarChart2, Library } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 // Benford's Law expected percentages for first digits 1–9
 const BENFORD = [30.1, 17.6, 12.5, 9.7, 7.9, 6.7, 5.8, 5.1, 4.6];
@@ -35,6 +36,7 @@ function fmt(s) {
 }
 
 function LibraryOverview({ data }) {
+  const { t } = useTranslation();
   const { total_songs, total_duration, avg_duration, median_duration, distribution, shortest_song, longest_song } = data;
   if (!total_songs) return null;
 
@@ -45,25 +47,25 @@ function LibraryOverview({ data }) {
     <div className="bg-zinc-800/60 rounded-xl p-4 md:p-5 mt-5">
       <div className="flex items-center gap-2 mb-1">
         <Library size={16} className="text-violet-400" />
-        <h2 className="text-white font-semibold">Library Duration Distribution</h2>
+        <h2 className="text-white font-semibold">{t('stats.libraryDistribution')}</h2>
       </div>
       <p className="text-zinc-500 text-xs mb-5">
-        First digit of each song's duration in seconds — {total_songs.toLocaleString()} songs total
+        {t('stats.libraryDistributionSub', { n: total_songs.toLocaleString() })}
       </p>
 
       {/* Key stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
         <div className="bg-zinc-700/40 rounded-lg p-3">
           <p className="text-white font-semibold text-lg">{fmtTime(total_duration)}</p>
-          <p className="text-zinc-500 text-xs">Total library</p>
+          <p className="text-zinc-500 text-xs">{t('stats.totalLibrary')}</p>
         </div>
         <div className="bg-zinc-700/40 rounded-lg p-3">
           <p className="text-white font-semibold text-lg">{fmt(avg_duration)}</p>
-          <p className="text-zinc-500 text-xs">Avg song length</p>
+          <p className="text-zinc-500 text-xs">{t('stats.avgSongLength')}</p>
         </div>
         <div className="bg-zinc-700/40 rounded-lg p-3">
           <p className="text-white font-semibold text-lg">{fmt(median_duration)}</p>
-          <p className="text-zinc-500 text-xs">Median length</p>
+          <p className="text-zinc-500 text-xs">{t('stats.medianLength')}</p>
         </div>
       </div>
 
@@ -72,14 +74,14 @@ function LibraryOverview({ data }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
           {shortest_song && (
             <div className="bg-zinc-700/40 rounded-lg p-3">
-              <p className="text-zinc-500 text-xs mb-1">Shortest song</p>
+              <p className="text-zinc-500 text-xs mb-1">{t('stats.shortestSong')}</p>
               <p className="text-white text-sm font-medium truncate">{shortest_song.title}</p>
               <p className="text-zinc-400 text-xs truncate">{shortest_song.artist} · {fmt(Math.floor(shortest_song.duration))}</p>
             </div>
           )}
           {longest_song && (
             <div className="bg-zinc-700/40 rounded-lg p-3">
-              <p className="text-zinc-500 text-xs mb-1">Longest song</p>
+              <p className="text-zinc-500 text-xs mb-1">{t('stats.longestSong')}</p>
               <p className="text-white text-sm font-medium truncate">{longest_song.title}</p>
               <p className="text-zinc-400 text-xs truncate">{longest_song.artist} · {fmt(Math.floor(longest_song.duration))}</p>
             </div>
@@ -124,13 +126,14 @@ function LibraryOverview({ data }) {
       </div>
 
       <p className="text-zinc-700 text-[10px] text-center mt-3">
-        Purple bars = your library · light bars = Benford's Law expected distribution
+        {t('stats.benfordNote')}
       </p>
     </div>
   );
 }
 
 export default function Stats() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState(null);
   const [libraryStats, setLibraryStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -178,13 +181,13 @@ export default function Stats() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white">Your Stats</h1>
-          <p className="text-zinc-500 text-sm mt-1">Personal listening history — only visible to you</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">{t('stats.title')}</h1>
+          <p className="text-zinc-500 text-sm mt-1">{t('stats.subtitle')}</p>
         </div>
         {streak > 0 && (
           <div className="flex items-center gap-2 bg-orange-500/15 border border-orange-500/25 rounded-full px-4 py-2">
             <Flame size={16} className="text-orange-400" />
-            <span className="text-orange-300 text-sm font-medium">{streak} day streak</span>
+            <span className="text-orange-300 text-sm font-medium">{t('stats.dayStreak', { n: streak })}</span>
           </div>
         )}
       </div>
@@ -192,22 +195,22 @@ export default function Stats() {
       {isEmpty ? (
         <div className="text-center py-24">
           <BarChart2 size={48} className="mx-auto text-zinc-700 mb-4" />
-          <p className="text-zinc-400 text-lg">No listening data yet</p>
-          <p className="text-zinc-600 text-sm mt-2">Start playing songs and your stats will appear here</p>
+          <p className="text-zinc-400 text-lg">{t('stats.noData')}</p>
+          <p className="text-zinc-600 text-sm mt-2">{t('stats.noDataHint')}</p>
         </div>
       ) : (
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <StatCard icon={Clock} label="Listening time" value={fmtTime(totals.total_seconds)} color="text-blue-400" />
-            <StatCard icon={Music} label="Total plays" value={totals.total_plays.toLocaleString()} color="text-green-400" />
-            <StatCard icon={TrendingUp} label="Unique songs" value={totals.unique_songs.toLocaleString()} color="text-purple-400" />
-            <StatCard icon={Download} label="Downloads" value={totals.downloads_count.toLocaleString()} color="text-red-400" />
+            <StatCard icon={Clock} label={t('stats.listeningTime')} value={fmtTime(totals.total_seconds)} color="text-blue-400" />
+            <StatCard icon={Music} label={t('stats.totalPlays')} value={totals.total_plays.toLocaleString()} color="text-green-400" />
+            <StatCard icon={TrendingUp} label={t('stats.uniqueSongs')} value={totals.unique_songs.toLocaleString()} color="text-purple-400" />
+            <StatCard icon={Download} label={t('stats.downloads')} value={totals.downloads_count.toLocaleString()} color="text-red-400" />
           </div>
 
           {/* Activity chart */}
           <div className="bg-zinc-800/60 rounded-xl p-4 md:p-5 mb-6">
-            <h2 className="text-white font-semibold mb-4">Activity — last 30 days</h2>
+            <h2 className="text-white font-semibold mb-4">{t('stats.activity')}</h2>
             <div className="flex items-end gap-px h-16">
               {days30.map((d) => (
                 <div
@@ -219,17 +222,17 @@ export default function Stats() {
               ))}
             </div>
             <div className="flex justify-between mt-1.5">
-              <span className="text-zinc-600 text-xs">30 days ago</span>
-              <span className="text-zinc-600 text-xs">Today</span>
+              <span className="text-zinc-600 text-xs">{t('stats.daysAgo')}</span>
+              <span className="text-zinc-600 text-xs">{t('stats.today')}</span>
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-5 mb-5">
             {/* Top songs */}
             <div className="bg-zinc-800/60 rounded-xl p-4 md:p-5">
-              <h2 className="text-white font-semibold mb-4">Top Songs</h2>
+              <h2 className="text-white font-semibold mb-4">{t('stats.topSongs')}</h2>
               {topSongs.length === 0 ? (
-                <p className="text-zinc-500 text-sm">No plays yet</p>
+                <p className="text-zinc-500 text-sm">{t('stats.noPlays')}</p>
               ) : (
                 <div className="space-y-3">
                   {topSongs.map((s, i) => (
@@ -241,8 +244,8 @@ export default function Stats() {
                           : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={12} /></div>}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm truncate">{s.title || 'Unknown'}</p>
-                        <p className="text-zinc-500 text-xs truncate">{s.artist || 'Unknown'}</p>
+                        <p className="text-white text-sm truncate">{s.title || t('common.unknown')}</p>
+                        <p className="text-zinc-500 text-xs truncate">{s.artist || t('common.unknown')}</p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-white text-sm font-medium">{s.play_count}×</p>
@@ -256,9 +259,9 @@ export default function Stats() {
 
             {/* Top artists */}
             <div className="bg-zinc-800/60 rounded-xl p-4 md:p-5">
-              <h2 className="text-white font-semibold mb-4">Top Artists</h2>
+              <h2 className="text-white font-semibold mb-4">{t('stats.topArtists')}</h2>
               {topArtists.length === 0 ? (
-                <p className="text-zinc-500 text-sm">No plays yet</p>
+                <p className="text-zinc-500 text-sm">{t('stats.noPlays')}</p>
               ) : (
                 <div className="space-y-4">
                   {topArtists.map((a) => (
@@ -285,7 +288,7 @@ export default function Stats() {
           {/* Recently played */}
           {recentlyPlayed.length > 0 && (
             <div className="bg-zinc-800/60 rounded-xl p-4 md:p-5">
-              <h2 className="text-white font-semibold mb-4">Recently Played</h2>
+              <h2 className="text-white font-semibold mb-4">{t('stats.recentlyPlayed')}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                 {recentlyPlayed.map((s) => (
                   <div key={s.song_id} className="flex items-center gap-3 py-1.5">
@@ -295,8 +298,8 @@ export default function Stats() {
                         : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={12} /></div>}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-white text-sm truncate">{s.title || 'Unknown'}</p>
-                      <p className="text-zinc-500 text-xs truncate">{s.artist || 'Unknown'}</p>
+                      <p className="text-white text-sm truncate">{s.title || t('common.unknown')}</p>
+                      <p className="text-zinc-500 text-xs truncate">{s.artist || t('common.unknown')}</p>
                     </div>
                   </div>
                 ))}

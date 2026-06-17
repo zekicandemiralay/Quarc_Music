@@ -1,9 +1,11 @@
 ﻿import { useState } from 'react';
 import { Music2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
 
 export default function Login() {
+  const { t } = useTranslation();
   const [mode, setMode] = useState('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -26,8 +28,8 @@ export default function Login() {
     setError('');
 
     if (mode === 'signup') {
-      if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
-      if (password !== confirm) { setError('Passwords do not match'); return; }
+      if (password.length < 8) { setError(t('auth.passwordMinLength')); return; }
+      if (password !== confirm) { setError(t('auth.passwordsNoMatch')); return; }
     }
 
     setLoading(true);
@@ -66,7 +68,7 @@ export default function Login() {
           </div>
           <h1 className="text-white text-2xl font-bold">Quarc Music</h1>
           <p className="text-zinc-500 text-sm mt-1">
-            {isLogin ? 'Sign in to your account' : 'Create your account'}
+            {isLogin ? t('auth.signInToAccount') : t('auth.createYourAccount')}
           </p>
         </div>
 
@@ -79,7 +81,7 @@ export default function Login() {
               isLogin ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            Sign in
+            {t('auth.signIn')}
           </button>
           <button
             type="button"
@@ -88,14 +90,14 @@ export default function Login() {
               !isLogin ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            Create account
+            {t('auth.createAccount')}
           </button>
         </div>
 
         {/* Card */}
         <form onSubmit={handleSubmit} className="bg-zinc-900 rounded-2xl p-6 space-y-4">
           <div>
-            <label className="block text-zinc-400 text-sm mb-1.5">Username</label>
+            <label className="block text-zinc-400 text-sm mb-1.5">{t('auth.username')}</label>
             <input
               type="text"
               value={username}
@@ -103,12 +105,12 @@ export default function Login() {
               autoComplete="username"
               required
               className="w-full bg-zinc-800 text-white rounded-lg px-4 py-2.5 text-sm border border-zinc-700 focus:outline-none focus:border-white/40 placeholder-zinc-600"
-              placeholder="Enter your username"
+              placeholder={t('auth.enterUsername')}
             />
           </div>
 
           <div>
-            <label className="block text-zinc-400 text-sm mb-1.5">Password</label>
+            <label className="block text-zinc-400 text-sm mb-1.5">{t('auth.password')}</label>
             <input
               type="password"
               value={password}
@@ -116,13 +118,13 @@ export default function Login() {
               autoComplete={isLogin ? 'current-password' : 'new-password'}
               required
               className="w-full bg-zinc-800 text-white rounded-lg px-4 py-2.5 text-sm border border-zinc-700 focus:outline-none focus:border-white/40 placeholder-zinc-600"
-              placeholder={isLogin ? 'Enter your password' : 'At least 8 characters'}
+              placeholder={isLogin ? t('auth.enterPassword') : t('auth.passwordHint')}
             />
           </div>
 
           {!isLogin && (
             <div>
-              <label className="block text-zinc-400 text-sm mb-1.5">Confirm password</label>
+              <label className="block text-zinc-400 text-sm mb-1.5">{t('auth.confirmPassword')}</label>
               <input
                 type="password"
                 value={confirm}
@@ -130,7 +132,7 @@ export default function Login() {
                 autoComplete="new-password"
                 required
                 className="w-full bg-zinc-800 text-white rounded-lg px-4 py-2.5 text-sm border border-zinc-700 focus:outline-none focus:border-white/40 placeholder-zinc-600"
-                placeholder="Repeat your password"
+                placeholder={t('auth.repeatPassword')}
               />
             </div>
           )}
@@ -144,12 +146,12 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-white text-black font-semibold rounded-lg py-2.5 text-sm hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? (isLogin ? 'Signing in…' : 'Creating account…') : (isLogin ? 'Sign in' : 'Create account')}
+            {loading ? (isLogin ? t('auth.signingIn') : t('auth.creatingAccount')) : (isLogin ? t('auth.signIn') : t('auth.createAccount'))}
           </button>
         </form>
 
         <p className="text-center text-zinc-600 text-xs mt-6">
-          Your playlists and liked songs are private to your account.
+          {t('auth.privacyNote')}
         </p>
       </div>
     </div>

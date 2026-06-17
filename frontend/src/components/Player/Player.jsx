@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered, Share2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import useRadioStore from '../../store/useRadioStore';
 import QueuePanel from './QueuePanel';
 
@@ -80,6 +81,7 @@ function Cover({ song, className = '' }) {
 }
 
 function SongActionsMenu({ songId, song, onClose, upward = false }) {
+  const { t } = useTranslation();
   const { playlists, addToPlaylist, createPlaylist } = useUserDataStore();
   const { addToQueue } = usePlayerStore();
   const [newName, setNewName] = useState('');
@@ -117,13 +119,13 @@ function SongActionsMenu({ songId, song, onClose, upward = false }) {
             className="w-full text-left flex items-center gap-2 text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors"
           >
             <ListOrdered size={13} className="text-zinc-400 shrink-0" />
-            Add to queue
+            {t('library.addToQueue')}
           </button>
           <div className="border-t border-zinc-700/60 my-1" />
         </>
       )}
-      <p className="text-zinc-500 text-xs px-3 py-1.5 font-semibold uppercase tracking-wider">Add to playlist</p>
-      {playlists.length === 0 && <p className="text-zinc-600 text-xs px-3 py-1.5">No playlists yet</p>}
+      <p className="text-zinc-500 text-xs px-3 py-1.5 font-semibold uppercase tracking-wider">{t('player.addToPlaylist')}</p>
+      {playlists.length === 0 && <p className="text-zinc-600 text-xs px-3 py-1.5">{t('library.noPlaylistsYet')}</p>}
       {playlists.map((p) => (
         <button key={p.id} onClick={() => handleAdd(p.id)}
           className="w-full text-left text-zinc-300 hover:text-white hover:bg-zinc-700 text-sm px-3 py-2 transition-colors truncate block">
@@ -133,7 +135,7 @@ function SongActionsMenu({ songId, song, onClose, upward = false }) {
       <div className="border-t border-zinc-700 mt-1 pt-1">
         <div className="flex items-center gap-1 px-2 py-1">
           <input
-            type="text" placeholder="New playlist…" value={newName}
+            type="text" placeholder={t('library.newPlaylistPlaceholder')} value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
             className="flex-1 bg-zinc-700 text-white text-xs rounded px-2 py-1.5 focus:outline-none placeholder-zinc-500 min-w-0"
@@ -146,6 +148,7 @@ function SongActionsMenu({ songId, song, onClose, upward = false }) {
 }
 
 function NowPlayingExpanded({ onClose, onOpenQueue }) {
+  const { t } = useTranslation();
   const {
     currentSong, isPlaying, currentTime, duration, shuffle, volume,
     pause, resume, next, prev, seek, toggleShuffle, setVolume,
@@ -254,7 +257,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
         >
           <ChevronDown size={22} />
         </button>
-        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Now Playing</p>
+        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">{t('player.nowPlaying')}</p>
         <div className="w-24" />
       </div>
 
@@ -272,7 +275,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               {currentSong && <EqBars isPlaying={isPlaying} size="lg" />}
-              <h2 className="text-2xl font-bold text-green-400 truncate">{currentSong?.title ?? 'Nothing playing'}</h2>
+              <h2 className="text-2xl font-bold text-green-400 truncate">{currentSong?.title ?? t('player.nothingPlaying')}</h2>
             </div>
             <p className="text-zinc-400 text-base truncate">{currentSong?.artist}</p>
             {currentSong?.album && <p className="text-zinc-600 text-sm truncate mt-0.5">{currentSong.album}</p>}
@@ -327,7 +330,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
         <div className="flex items-center justify-between">
           <button
             onClick={cycleShuffleMode}
-            title={['Shuffle off', 'Shuffle on', 'Smart Shuffle'][shuffleMode]}
+            title={[t('player.shuffleOff'), t('player.shuffleOn'), t('player.smartShuffle')][shuffleMode]}
             className={`p-2 transition-colors relative ${shuffleMode === 0 ? 'text-zinc-600 hover:text-zinc-400' : 'text-green-400'}`}
           >
             <Shuffle size={22} />
@@ -366,7 +369,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
             <button
               onClick={() => { onClose(); onOpenQueue(); }}
               className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors"
-              title="Queue"
+              title={t('player.queue')}
             >
               <ListOrdered size={20} />
             </button>
@@ -374,7 +377,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
               <button
                 onClick={() => currentSong && setShowMenu((v) => !v)}
                 className={`p-2 transition-colors ${showMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
-                title="Add to playlist"
+                title={t('player.addToPlaylist')}
               >
                 <ListPlus size={20} />
               </button>
@@ -388,6 +391,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
 }
 
 export default function Player() {
+  const { t } = useTranslation();
   const {
     currentSong, isPlaying, currentTime, duration, volume, shuffle,
     pause, resume, next, prev, seek, setVolume, toggleShuffle,
@@ -454,7 +458,7 @@ export default function Player() {
             <div className="flex items-center gap-2 min-w-0">
               {currentSong && <EqBars isPlaying={isPlaying} />}
               <ScrollingText
-                text={currentSong?.title ?? 'Nothing playing'}
+                text={currentSong?.title ?? t('player.nothingPlaying')}
                 className={`text-base font-semibold ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}
               />
             </div>
@@ -525,14 +529,14 @@ export default function Player() {
                 </div>
               </>
             ) : (
-              <p className="text-zinc-600 text-sm">Nothing playing</p>
+              <p className="text-zinc-600 text-sm">{t('player.nothingPlaying')}</p>
             )}
           </div>
 
           {/* Center controls + seek */}
           <div className="flex flex-col items-center flex-1 gap-2">
             <div className="flex items-center gap-4">
-              <button onClick={sp(toggleShuffle)} className={`p-2 transition-colors ${shuffle ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`} title={shuffle ? 'Shuffle on' : 'Shuffle off'}>
+              <button onClick={sp(toggleShuffle)} className={`p-2 transition-colors ${shuffle ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`} title={shuffle ? t('player.shuffleOn') : t('player.shuffleOff')}>
                 <Shuffle size={16} />
               </button>
               <button onClick={sp(toggleRadioMode)} title={radioMode ? 'Radio on' : 'Radio off'} className={`p-2 transition-colors ${radioMode ? 'text-green-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
