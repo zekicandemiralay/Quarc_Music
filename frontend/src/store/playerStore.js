@@ -379,11 +379,16 @@ audio.addEventListener('pause', () => {
     playTrack.resumeAt = null;
   }
   if (pausedByUser) {
-    // Intentional pause — reflect in state and stop foreground service
+    // Intentional pause — update notification to paused state but keep service alive
     pausedByUser = false;
     usePlayerStore.setState({ isPlaying: false });
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
-    nativeService('stop');
+    const { currentSong } = usePlayerStore.getState();
+    nativeService('update', {
+      title: currentSong?.title ?? 'Quarc Music',
+      artist: currentSong?.artist ?? '',
+      isPlaying: false,
+    });
   }
   // iOS interruption (phone call, Siri): keep isPlaying=true so visibilitychange resumes
 });
@@ -394,6 +399,65 @@ audio.addEventListener('ended', () => {
   playTrack = { songId: null, accumulated: 0, resumeAt: null };
   usePlayerStore.getState().next();
 });
+
+// When the stream stalls while the screen is locked, immediately switch to the
+// pre-buffered blob so music keeps playing without waiting for screen unlock.
+audio.addEventListener('waiting', () => {
+  if (document.visibilityState !== 'hidden') return;
+  const { currentSong, currentTime: storeTime } = usePlayerStore.getState();
+  if (!currentSong || !blobCache.has(currentSong.id)) return;
+  const blobUrl = blobCache.get(currentSong.id);
+  if (audio.src === blobUrl) return;
+  const t = audio.currentTime || storeTime;
+  audio.src = blobUrl;
+  audio.addEventListener('canplay', () => {
+    if (t > 0) audio.currentTime = t;
+    audio.play().catch(() => {});
+  }, { once: true });
+});
+
+// Native lock-screen buttons (Android notification prev/play-pause/next via MusicServicePlugin)
+try {
+  window?.Capacitor?.Plugins?.MusicService?.addListener?.('mediaControl', (event) => {
+    const action = event?.action;
+    const state = usePlayerStore.getState();
+    if (action === 'play') {
+      const { currentSong, currentTime: storeTime } = state;
+      usePlayerStore.setState({ isPlaying: true });
+      if (currentSong && blobCache.has(currentSong.id)) {
+        const blobUrl = blobCache.get(currentSong.id);
+        const t = audio.currentTime || storeTime;
+        if (audio.src !== blobUrl) {
+          audio.src = blobUrl;
+          audio.addEventListener('canplay', () => {
+            if (t > 0) audio.currentTime = t;
+            audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+          }, { once: true });
+        } else {
+          audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+        }
+      } else {
+        audio.play().catch(() => {
+          if (currentSong) {
+            audio.src = `/api/music/${currentSong.id}/stream`;
+            audio.addEventListener('canplay', () => {
+              audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+            }, { once: true });
+          } else {
+            usePlayerStore.setState({ isPlaying: false });
+          }
+        });
+      }
+    } else if (action === 'pause') {
+      pausedByUser = true;
+      audio.pause();
+    } else if (action === 'next') {
+      state.next();
+    } else if (action === 'previous') {
+      state.prev();
+    }
+  });
+} catch {}
 
 // Lock screen / headphone controls
 if ('mediaSession' in navigator) {

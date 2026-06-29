@@ -11,6 +11,7 @@ import android.os.Environment;
 
 import androidx.core.content.FileProvider;
 
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -21,39 +22,58 @@ import java.io.File;
 @CapacitorPlugin(name = "MusicService")
 public class MusicServicePlugin extends Plugin {
 
-    private void sendIntent(String action, String title, String artist) {
-        Intent intent = new Intent(getContext(), MusicForegroundService.class);
-        intent.setAction(action);
-        if (title  != null) intent.putExtra(MusicForegroundService.EXTRA_TITLE,  title);
-        if (artist != null) intent.putExtra(MusicForegroundService.EXTRA_ARTIST, artist);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getContext().startForegroundService(intent);
-        } else {
-            getContext().startService(intent);
-        }
+    /** Set in load(); used by MusicForegroundService to fire JS events from native callbacks. */
+    public static MusicServicePlugin instance;
+
+    @Override
+    protected void load() {
+        instance = this;
     }
+
+    /** Called from MusicForegroundService (main thread) to forward a media-button action to JS. */
+    public void notifyMediaControl(String action) {
+        JSObject data = new JSObject();
+        data.put("action", action);
+        notifyListeners("mediaControl", data, true);
+    }
+
+    // ── Service control ──────────────────────────────────────────────────────
 
     @PluginMethod
     public void start(PluginCall call) {
         String title  = call.getString("title",  "Quarc Music");
         String artist = call.getString("artist", "");
-        sendIntent(MusicForegroundService.ACTION_START, title, artist);
+        Intent intent = new Intent(getContext(), MusicForegroundService.class);
+        intent.setAction(MusicForegroundService.ACTION_START);
+        intent.putExtra(MusicForegroundService.EXTRA_TITLE,  title);
+        intent.putExtra(MusicForegroundService.EXTRA_ARTIST, artist);
+        startService(intent);
         call.resolve();
     }
 
     @PluginMethod
     public void update(PluginCall call) {
-        String title  = call.getString("title",  "Quarc Music");
-        String artist = call.getString("artist", "");
-        sendIntent(MusicForegroundService.ACTION_START, title, artist);
+        String title    = call.getString("title",  "Quarc Music");
+        String artist   = call.getString("artist", "");
+        Boolean playing = call.getBoolean("isPlaying"); // null if not provided → service keeps current state
+        Intent intent = new Intent(getContext(), MusicForegroundService.class);
+        intent.setAction(MusicForegroundService.ACTION_UPDATE);
+        intent.putExtra(MusicForegroundService.EXTRA_TITLE,  title);
+        intent.putExtra(MusicForegroundService.EXTRA_ARTIST, artist);
+        if (playing != null) intent.putExtra(MusicForegroundService.EXTRA_PLAYING, playing.booleanValue());
+        startService(intent);
         call.resolve();
     }
 
     @PluginMethod
     public void stop(PluginCall call) {
-        sendIntent(MusicForegroundService.ACTION_STOP, null, null);
+        Intent intent = new Intent(getContext(), MusicForegroundService.class);
+        intent.setAction(MusicForegroundService.ACTION_STOP);
+        startService(intent);
         call.resolve();
     }
+
+    // ── In-app update download + install ─────────────────────────────────────
 
     @PluginMethod
     public void downloadUpdate(PluginCall call) {
@@ -62,8 +82,6 @@ public class MusicServicePlugin extends Plugin {
         if (url == null) { call.reject("url required"); return; }
 
         Context ctx = getContext();
-
-        // Delete any previous update file
         File dest = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "quarc-music-update.apk");
         if (dest.exists()) dest.delete();
 
@@ -114,5 +132,15 @@ public class MusicServicePlugin extends Plugin {
         }
         intent.setDataAndType(uri, "application/vnd.android.package-archive");
         context.startActivity(intent);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private void startService(Intent intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getContext().startForegroundService(intent);
+        } else {
+            getContext().startService(intent);
+        }
     }
 }
