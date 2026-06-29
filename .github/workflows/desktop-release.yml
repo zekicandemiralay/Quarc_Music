@@ -152,7 +152,7 @@ jobs:
       - name: Build signed release APK
         working-directory: mobile/android
         env:
-          KEYSTORE_PATH: app/release.keystore
+          KEYSTORE_PATH: release.keystore
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: quarc-music
           KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
