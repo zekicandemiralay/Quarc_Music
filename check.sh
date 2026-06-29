@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # ============================================================
 #  Quarc Music — Full System Diagnostic
 #  Run from the project root: bash check.sh

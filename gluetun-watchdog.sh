@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # Rotates VPN_COUNTRY when gluetun is unhealthy.
 # Add to crontab:  */5 * * * * bash ~/Quarc_Music/gluetun-watchdog.sh
 

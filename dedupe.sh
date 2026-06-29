@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # ============================================================
 #  Quarc Music — Duplicate Song Cleaner
 #  Usage:

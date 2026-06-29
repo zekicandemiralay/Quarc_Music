@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # ============================================================
 #  Quarc Music — Feature Regression Tests
 #  Tests every API endpoint and feature end-to-end.
