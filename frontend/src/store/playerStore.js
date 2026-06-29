@@ -87,11 +87,12 @@ async function prefetchBlob(songId) {
 }
 
 function startPrebuffering(queue, currentIndex) {
+  // Include current song so its blob is ready if Tailscale drops mid-stream.
   const upcoming = new Set(
     queue.slice(currentIndex, currentIndex + PREBUFFER_COUNT + 1).map((s) => s.id)
   );
   pruneCache(upcoming);
-  for (const song of queue.slice(currentIndex + 1, currentIndex + 1 + PREBUFFER_COUNT)) {
+  for (const song of queue.slice(currentIndex, currentIndex + 1 + PREBUFFER_COUNT)) {
     prefetchBlob(song.id);
   }
 }
@@ -393,6 +394,21 @@ if ('mediaSession' in navigator) {
     usePlayerStore.setState({ isPlaying: true });
     const t = audio.currentTime || storeTime;
 
+    // Blob is already in memory — no Tailscale needed, resumes instantly
+    if (blobCache.has(currentSong.id)) {
+      const blobUrl = blobCache.get(currentSong.id);
+      if (audio.src !== blobUrl) {
+        audio.src = blobUrl;
+        audio.addEventListener('canplay', () => {
+          if (t > 0) audio.currentTime = t;
+          audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+        }, { once: true });
+      } else {
+        audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+      }
+      return;
+    }
+
     const reload = () => {
       audio.src = `/api/music/${currentSong.id}/stream`;
       const onCanPlay = () => {
@@ -450,13 +466,33 @@ if ('mediaSession' in navigator) {
 }
 
 // Sync state on unlock: if the store says playing but audio is paused after
-// the screen was locked, reload the stream and resume.
+// the screen was locked, resume from blob (no network) if available, else reload stream.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   const { isPlaying, currentSong, currentTime: storeTime } = usePlayerStore.getState();
   if (isPlaying && audio.paused) {
+    const t = audio.currentTime || storeTime;
+    // Blob is in memory — resume without needing Tailscale to reconnect
+    if (currentSong && blobCache.has(currentSong.id)) {
+      const blobUrl = blobCache.get(currentSong.id);
+      if (audio.src !== blobUrl) {
+        audio.src = blobUrl;
+        audio.addEventListener('canplay', () => {
+          if (t > 0) audio.currentTime = t;
+          audio.play().catch(() => {
+            usePlayerStore.setState({ isPlaying: false });
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+          });
+        }, { once: true });
+      } else {
+        audio.play().catch(() => {
+          usePlayerStore.setState({ isPlaying: false });
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        });
+      }
+      return;
+    }
     if (audio.readyState < 2 && currentSong) {
-      const t = audio.currentTime || storeTime;
       audio.src = `/api/music/${currentSong.id}/stream`;
       audio.addEventListener('canplay', () => {
         if (t > 0) audio.currentTime = t;
