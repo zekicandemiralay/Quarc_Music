@@ -1,4 +1,4 @@
-﻿# Quarc Music
+# Quarc Music
 
 A self-hosted music player for your local network. Stream your music library, download from YouTube, manage users, and listen offline from any device.
 
@@ -11,8 +11,9 @@ A self-hosted music player for your local network. Stream your music library, do
 - Listening stats: play counts, streaks, weekly listening time
 - Full offline support — download playlists and collections; newly added songs auto-download
 - Expanded player view — tap the player bar for a full-screen now-playing screen with swipe-to-close
-- PWA — add to your home screen for a native-app experience on mobile
+- Android APK — native app with background playback, lock screen controls (prev/play/next), and in-app updates — download from [Releases](https://github.com/zekicandemiralay/Quarc_Music/releases/latest)
 - Desktop app — native installers for Windows, macOS, and Linux built with Tauri — download from [Releases](https://github.com/zekicandemiralay/Quarc_Music/releases/latest)
+- PWA — add to your home screen on iOS/Android for a native-app experience in the browser
 - Spotify import — upload an Exportify ZIP/CSV and all your playlists are downloaded automatically
 - YouTube Music import — upload a Google Takeout export and playlists are downloaded by exact video ID (no searching, perfect matches)
 
@@ -94,7 +95,7 @@ Look for a box like this:
 ### Step 4 — Access the app
 
 ```
-https://quarcnet.tail5fe1a9.ts.net:4000
+https://quarcnet0.tail84500c.ts.net:4000
 ```
 
 The app uses a trusted Tailscale certificate — no browser warnings, no certificate installation required on any device.
@@ -131,8 +132,8 @@ After seeding, all users will see the collections in the sidebar and on the Home
 
 1. Go to **Admin** in the sidebar
 2. Click **New User**, enter a username and password
-3. Share `https://quarcnet.tail5fe1a9.ts.net:4000` and their credentials with them
-4. Direct them to **README_Users.md** — they just need Tailscale and a browser
+3. Share `https://quarcnet0.tail84500c.ts.net:4000` and their credentials with them
+4. Direct them to **README_Users.md** — they just need Tailscale and a browser (or the Android APK / desktop app)
 
 ---
 
@@ -152,7 +153,7 @@ Collections are curated playlists that appear for all users on the Home page and
 
 ```bash
 git pull
-docker compose up --build -d
+bash deploy.sh
 ```
 
 The database is stored in a Docker volume and survives rebuilds.
@@ -174,11 +175,10 @@ The database is stored in a Docker volume and survives rebuilds.
 | `SURFSHARK_PASSWORD` | *(empty)* | Surfshark OpenVPN service credential password |
 | `VPN_COUNTRY` | `Netherlands` | VPN server country for downloads |
 
-
 ---
 
 ## Part 2 — User Setup
 
 See **[README_Users.md](README_Users.md)** for the full user guide.
 
-**Short version:** Users need Tailscale installed and connected, then just open `https://quarcnet.tail5fe1a9.ts.net:4000` in any browser. No certificate installation required.
+**Short version:** Users need Tailscale installed and connected. Android users can install the native APK from [Releases](https://github.com/zekicandemiralay/Quarc_Music/releases/latest) for the best experience. Everyone else can open `https://quarcnet0.tail84500c.ts.net:4000` in any browser.
