@@ -41,6 +41,12 @@ function smartShuffle(songs) {
 const audio = new Audio();
 audio.preload = 'metadata';
 
+// Native foreground service — keeps CPU/network alive when screen locks on Android.
+// window.Capacitor is injected by the native WebView; no-op in a regular browser.
+function nativeService(method, data) {
+  try { window?.Capacitor?.Plugins?.MusicService?.[method]?.(data ?? {}); } catch {}
+}
+
 // Silent preloader — buffers the next song in the background so it starts instantly
 const preloader = new Audio();
 preloader.preload = 'auto';
@@ -363,6 +369,8 @@ audio.addEventListener('play', () => {
   playTrack.resumeAt = Date.now();
   usePlayerStore.setState({ isPlaying: true });
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  const { currentSong } = usePlayerStore.getState();
+  nativeService('start', { title: currentSong?.title ?? 'Quarc Music', artist: currentSong?.artist ?? '' });
 });
 
 audio.addEventListener('pause', () => {
@@ -371,10 +379,11 @@ audio.addEventListener('pause', () => {
     playTrack.resumeAt = null;
   }
   if (pausedByUser) {
-    // Intentional pause — reflect in state
+    // Intentional pause — reflect in state and stop foreground service
     pausedByUser = false;
     usePlayerStore.setState({ isPlaying: false });
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    nativeService('stop');
   }
   // iOS interruption (phone call, Siri): keep isPlaying=true so visibilitychange resumes
 });
