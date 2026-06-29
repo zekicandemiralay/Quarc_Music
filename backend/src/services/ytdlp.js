@@ -206,8 +206,8 @@ function scoreCandidate(candidate, queryWords, expectedSecs) {
     durationScore = Math.max(0, 1 - pct * 2.5);
   }
 
-  // When we have a duration hint, weight it at 40%; otherwise pure title match.
-  const dWeight = expectedSecs ? 0.4 : 0;
+  // When we have a duration hint, weight it at 70%; otherwise pure title match.
+  const dWeight = expectedSecs ? 0.7 : 0;
   return titleScore * (1 - dWeight) + durationScore * dWeight;
 }
 
