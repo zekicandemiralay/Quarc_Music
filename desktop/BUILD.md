@@ -1,4 +1,4 @@
-﻿# Building the Quarc Music desktop app
+# Building the Quarc Music desktop app
 
 ## Prerequisites (one-time setup)
 
