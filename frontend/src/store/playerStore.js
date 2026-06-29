@@ -52,30 +52,73 @@ function schedulePreload(queue, queueIndex) {
   if (preloader.src !== src) preloader.src = src;
 }
 
-// Download the current song to a blob so the browser audio pipeline no longer
-// depends on an active HTTP connection — prevents background stop when the OS
-// suspends network after the screen turns off (Android/iOS PWA behaviour).
+// Download songs as blobs so playback doesn't depend on a live HTTP connection.
+// When the OS suspends network on screen-lock the audio pipeline reads from
+// memory instead, preventing background stops on Android/iOS PWA.
 let activeBlobUrl = null;
+let nextBlobUrl = null;
+let nextBlobSongId = null;
+
 function disposeBlobUrl() {
   if (activeBlobUrl) { URL.revokeObjectURL(activeBlobUrl); activeBlobUrl = null; }
 }
-async function bufferToBlob(songId) {
-  const { cachedIds } = useOfflineStore.getState();
-  if (cachedIds.has(songId)) return; // offline cache already provides a blob
+function disposeNextBlobUrl() {
+  if (nextBlobUrl) { URL.revokeObjectURL(nextBlobUrl); nextBlobUrl = null; }
+  nextBlobSongId = null;
+}
+
+async function fetchBlob(songId) {
   try {
     const res = await fetch(`/api/music/${songId}/stream`);
-    if (!res.ok) return;
-    const blob = await res.blob();
-    // Song may have changed while we were downloading — bail out
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch { return null; }
+}
+
+// Pre-fetch the next queued song as a blob so transitions are blob-to-blob.
+async function bufferNextToBlob(afterSongId) {
+  const { queue, queueIndex, currentSong } = usePlayerStore.getState();
+  if (currentSong?.id !== afterSongId) return; // song changed while current was downloading
+  const nextSong = queue[queueIndex + 1];
+  if (!nextSong || nextBlobSongId === nextSong.id) return;
+  const { cachedIds } = useOfflineStore.getState();
+  if (cachedIds.has(nextSong.id)) return; // offline cache covers it
+  disposeNextBlobUrl();
+  nextBlobSongId = nextSong.id;
+  const blob = await fetchBlob(nextSong.id);
+  if (!blob || nextBlobSongId !== nextSong.id) return; // superseded
+  nextBlobUrl = URL.createObjectURL(blob);
+}
+
+async function bufferToBlob(songId) {
+  const { cachedIds } = useOfflineStore.getState();
+  if (cachedIds.has(songId)) { bufferNextToBlob(songId); return; }
+
+  // If this song was already pre-fetched as the "next" blob, use it immediately.
+  if (nextBlobSongId === songId && nextBlobUrl) {
     if (usePlayerStore.getState().currentSong?.id !== songId) return;
     disposeBlobUrl();
-    activeBlobUrl = URL.createObjectURL(blob);
+    activeBlobUrl = nextBlobUrl;
+    nextBlobUrl = null; nextBlobSongId = null;
     const t = audio.currentTime;
     const wasPlaying = !audio.paused;
     audio.src = activeBlobUrl;
     if (t > 0) audio.currentTime = t;
     if (wasPlaying) audio.play().catch(() => {});
-  } catch {}
+    bufferNextToBlob(songId);
+    return;
+  }
+
+  const blob = await fetchBlob(songId);
+  if (!blob || usePlayerStore.getState().currentSong?.id !== songId) return;
+  disposeBlobUrl();
+  activeBlobUrl = URL.createObjectURL(blob);
+  const t = audio.currentTime;
+  const wasPlaying = !audio.paused;
+  audio.src = activeBlobUrl;
+  if (t > 0) audio.currentTime = t;
+  if (wasPlaying) audio.play().catch(() => {});
+  bufferNextToBlob(songId);
 }
 
 // iOS shows seek buttons whenever setPositionState is called — skip it on iOS
@@ -192,8 +235,17 @@ const usePlayerStore = create((set, get) => ({
     // Play immediately from stream URL — no await before play() so iOS keeps
     // the user gesture context and audio starts without delay.
     disposeBlobUrl();
-    const streamSrc = `/api/music/${song.id}/stream`;
-    audio.src = streamSrc;
+    if (nextBlobSongId !== song.id) disposeNextBlobUrl();
+
+    // If the next-blob was pre-fetched for exactly this song, use it immediately
+    // (seamless blob-to-blob transition, no stream needed at all).
+    if (nextBlobSongId === song.id && nextBlobUrl) {
+      activeBlobUrl = nextBlobUrl;
+      nextBlobUrl = null; nextBlobSongId = null;
+      audio.src = activeBlobUrl;
+    } else {
+      audio.src = `/api/music/${song.id}/stream`;
+    }
     audio.play().catch(() => set({ isPlaying: false }));
     schedulePreload(finalQueue, finalIndex);
     bufferToBlob(song.id);
