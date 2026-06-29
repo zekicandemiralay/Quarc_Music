@@ -104,6 +104,13 @@ jobs:
         working-directory: desktop
         run: npm install
 
+      - name: Set desktop version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: desktop/src-tauri
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$TAG\"/" tauri.conf.json
+
       - name: Build and upload
         uses: tauri-apps/tauri-action@v0
         env:

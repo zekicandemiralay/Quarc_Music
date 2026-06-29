@@ -234,21 +234,38 @@ function useHideSearch() {
 }
 
 function useUpdateCheck() {
-  const [update, setUpdate] = useState(null); // { version, url }
+  const [update, setUpdate] = useState(null); // { version, url, platform }
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (!window?.Capacitor?.isNativePlatform?.()) return;
+    const isCapacitor = window?.Capacitor?.isNativePlatform?.();
+    const isTauri = !!window?.__TAURI__;
+    if (!isCapacitor && !isTauri) return;
+
     const check = async () => {
       try {
-        const [appInfo, release] = await Promise.all([
-          window.Capacitor.Plugins.App.getInfo(),
-          fetch('https://api.github.com/repos/zekicandemiralay/Quarc_Music/releases/latest').then(r => r.json()),
-        ]);
+        let currentVersion;
+        if (isCapacitor) {
+          const info = await window.Capacitor.Plugins.App.getInfo();
+          currentVersion = info.version;
+        } else {
+          currentVersion = await window.__TAURI__.app.getVersion();
+        }
+
+        const release = await fetch(
+          'https://api.github.com/repos/zekicandemiralay/Quarc_Music/releases/latest'
+        ).then(r => r.json());
+
         const latest = release.tag_name?.replace(/^v/, '');
-        if (latest && latest !== appInfo.version) {
+        if (!latest || latest === currentVersion) return;
+
+        if (isCapacitor) {
           const apk = release.assets?.find(a => a.name.endsWith('.apk'));
-          if (apk) setUpdate({ version: latest, url: apk.browser_download_url });
+          if (apk) setUpdate({ version: latest, url: apk.browser_download_url, platform: 'android' });
+        } else {
+          // Find the Windows x64 installer; fall back to the release page
+          const exe = release.assets?.find(a => a.name.includes('x64-setup.exe'));
+          setUpdate({ version: latest, url: exe?.browser_download_url ?? release.html_url, platform: 'desktop' });
         }
       } catch {}
     };
@@ -271,7 +288,13 @@ export default function Layout({ children }) {
   const bannerCount = (showBanner ? 1 : 0) + (showDownloadBanner ? 1 : 0) + (showUpdateBanner ? 1 : 0);
 
   function handleInstallUpdate() {
-    window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url: update.url, version: update.version });
+    if (update.platform === 'android') {
+      window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url: update.url, version: update.version });
+    } else {
+      // Desktop: open the installer download in the system browser.
+      // The NSIS installer updates in place — offline songs are preserved.
+      window.__TAURI__.shell.open(update.url);
+    }
     dismissUpdate();
   }
   const hideSearch = useHideSearch();
