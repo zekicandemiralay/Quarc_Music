@@ -26,7 +26,7 @@ public class MusicServicePlugin extends Plugin {
     public static MusicServicePlugin instance;
 
     @Override
-    protected void load() {
+    public void load() {
         instance = this;
     }
 
