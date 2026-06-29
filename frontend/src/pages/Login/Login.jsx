@@ -1,5 +1,4 @@
 ﻿import { useState } from 'react';
-import { Music2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
@@ -63,9 +62,7 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center mb-4">
-            <Music2 size={32} className="text-white" />
-          </div>
+          <img src="/logo.png" alt="Quarc Music" className="w-20 h-20 object-contain mb-4" />
           <h1 className="text-white text-2xl font-bold">Quarc Music</h1>
           <p className="text-zinc-500 text-sm mt-1">
             {isLogin ? t('auth.signInToAccount') : t('auth.createYourAccount')}
