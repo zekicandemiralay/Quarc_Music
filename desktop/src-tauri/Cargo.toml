@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "quarc-music"
 version = "0.1.0"
 description = "Quarc Music desktop client"
