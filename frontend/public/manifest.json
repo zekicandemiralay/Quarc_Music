@@ -1,6 +1,6 @@
 ﻿{
   "name": "Quarc Music",
-  "short_name": "Music",
+  "short_name": "Quarc Music",
   "description": "Personal music player with YouTube integration",
   "start_url": "/",
   "display": "standalone",
