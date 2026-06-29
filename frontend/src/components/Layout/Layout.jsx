@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, WifiOff, ServerCrash, Download, Search, X, Music, Youtube, ListOrdered } from 'lucide-react';
+import { Menu, WifiOff, ServerCrash, Download, Search, X, Music, Youtube, ListOrdered, RefreshCw } from 'lucide-react';
 import Sidebar from '../Sidebar/Sidebar';
 import Player from '../Player/Player';
 import useNetworkStatus from '../../hooks/useNetworkStatus';
@@ -233,6 +233,32 @@ function useHideSearch() {
   );
 }
 
+function useUpdateCheck() {
+  const [update, setUpdate] = useState(null); // { version, url }
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!window?.Capacitor?.isNativePlatform?.()) return;
+    const check = async () => {
+      try {
+        const [appInfo, release] = await Promise.all([
+          window.Capacitor.Plugins.App.getInfo(),
+          fetch('https://api.github.com/repos/zekicandemiralay/Quarc_Music/releases/latest').then(r => r.json()),
+        ]);
+        const latest = release.tag_name?.replace(/^v/, '');
+        if (latest && latest !== appInfo.version) {
+          const apk = release.assets?.find(a => a.name.endsWith('.apk'));
+          if (apk) setUpdate({ version: latest, url: apk.browser_download_url });
+        }
+      } catch {}
+    };
+    const t = setTimeout(check, 6000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return { update: dismissed ? null : update, dismiss: () => setDismissed(true) };
+}
+
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { online, serverOk } = useNetworkStatus();
@@ -240,7 +266,14 @@ export default function Layout({ children }) {
   const wakeLockActive = useOfflineStore((s) => s.wakeLockActive);
   const downloading = useOfflineStore((s) => s.downloading);
   const showDownloadBanner = wakeLockActive && Object.keys(downloading).length > 0;
-  const bannerCount = (showBanner ? 1 : 0) + (showDownloadBanner ? 1 : 0);
+  const { update, dismiss: dismissUpdate } = useUpdateCheck();
+  const showUpdateBanner = !!update;
+  const bannerCount = (showBanner ? 1 : 0) + (showDownloadBanner ? 1 : 0) + (showUpdateBanner ? 1 : 0);
+
+  function handleInstallUpdate() {
+    window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url: update.url, version: update.version });
+    dismissUpdate();
+  }
   const hideSearch = useHideSearch();
 
   return (
@@ -267,6 +300,7 @@ export default function Layout({ children }) {
 
         {/* Scrollable content area */}
         <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] md:pb-0 ${
+          bannerCount === 3 ? (hideSearch ? 'pt-[143px] md:pt-[90px]' : 'pt-[143px]') :
           bannerCount === 2 ? (hideSearch ? 'pt-[113px] md:pt-[60px]' : 'pt-[113px]') :
           bannerCount === 1 ? (hideSearch ? 'pt-[83px] md:pt-[30px]'  : 'pt-[83px]')  :
                               (hideSearch ? 'pt-[53px] md:pt-0'        : 'pt-[53px]')
@@ -306,6 +340,30 @@ export default function Layout({ children }) {
           Downloading offline songs — screen won&apos;t lock automatically
         </div>
       )}
+
+      {/* Update available banner */}
+      {showUpdateBanner && (() => {
+        const above = (showBanner ? 1 : 0) + (showDownloadBanner ? 1 : 0);
+        const topPx = 53 + above * 30;
+        return (
+          <div
+            className={`fixed left-0 md:left-64 right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium bg-emerald-700 text-white`}
+            style={{ top: topPx }}
+          >
+            <RefreshCw size={13} />
+            Update available — v{update.version}
+            <button
+              onClick={handleInstallUpdate}
+              className="ml-2 underline underline-offset-2 hover:text-emerald-200 transition-colors"
+            >
+              Install now
+            </button>
+            <button onClick={dismissUpdate} className="ml-1 hover:text-emerald-200 transition-colors">
+              <X size={13} />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Player — fixed on mobile, static flex child on desktop so sidebar stops above it */}
       <div className="fixed md:static bottom-0 left-0 right-0 z-30 md:z-auto md:shrink-0">

@@ -138,9 +138,25 @@ jobs:
         working-directory: mobile
         run: npx cap sync android
 
-      - name: Build debug APK
+      - name: Set version from tag
         working-directory: mobile/android
-        run: chmod +x gradlew && ./gradlew assembleDebug
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          CODE=$(echo $TAG | tr -d '.')
+          sed -i "s/versionCode [0-9]*/versionCode $CODE/" app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$TAG\"/" app/build.gradle
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > mobile/android/app/release.keystore
+
+      - name: Build signed release APK
+        working-directory: mobile/android
+        env:
+          KEYSTORE_PATH: app/release.keystore
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: quarc-music
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: chmod +x gradlew && ./gradlew assembleRelease
 
       - name: Upload APK to release
         uses: actions/github-script@v7
@@ -150,7 +166,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const data = fs.readFileSync('mobile/android/app/build/outputs/apk/debug/app-debug.apk');
+            const data = fs.readFileSync('mobile/android/app/build/outputs/apk/release/app-release.apk');
             await github.rest.repos.uploadReleaseAsset({
               owner: context.repo.owner,
               repo: context.repo.repo,
