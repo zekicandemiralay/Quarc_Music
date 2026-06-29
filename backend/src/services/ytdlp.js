@@ -168,13 +168,35 @@ function normalizeWords(s) {
   return (s || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
 }
 
+// Words that identify a specific version — if the query has one, the result must too.
+const VERSION_KEYWORDS = new Set([
+  'acoustic', 'acustic', 'akustik',
+  'live', 'concert', 'unplugged',
+  'remix', 'remixed', 'edit',
+  'instrumental', 'karaoke',
+  'cover', 'covered',
+  'extended', 'radio',
+  'demo', 'stripped', 'piano',
+  'remaster', 'remastered',
+  'slowed', 'sped', 'nightcore',
+]);
+
 function scoreCandidate(candidate, queryWords, expectedSecs) {
   // Title similarity: Jaccard word overlap between query and result title
   const titleWords = normalizeWords(candidate.title);
   const titleSet = new Set(titleWords);
   const matches = queryWords.filter(w => titleSet.has(w)).length;
   const union = new Set([...queryWords, ...titleWords]).size;
-  const titleScore = union > 0 ? matches / union : 0;
+  let titleScore = union > 0 ? matches / union : 0;
+
+  // If the query contains version keywords (acoustic, live, remix…) but the
+  // candidate title is missing them, heavily penalise — prevents the official
+  // MV from beating an acoustic/live version just because it's more popular.
+  const queryVersionWords = queryWords.filter(w => VERSION_KEYWORDS.has(w));
+  if (queryVersionWords.length > 0) {
+    const missing = queryVersionWords.filter(w => !titleSet.has(w)).length;
+    if (missing > 0) titleScore *= 0.25;
+  }
 
   // Duration proximity: penalises results that are way off the expected length.
   // >40% difference from expected → score approaches 0.
