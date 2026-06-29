@@ -52,6 +52,32 @@ function schedulePreload(queue, queueIndex) {
   if (preloader.src !== src) preloader.src = src;
 }
 
+// Download the current song to a blob so the browser audio pipeline no longer
+// depends on an active HTTP connection — prevents background stop when the OS
+// suspends network after the screen turns off (Android/iOS PWA behaviour).
+let activeBlobUrl = null;
+function disposeBlobUrl() {
+  if (activeBlobUrl) { URL.revokeObjectURL(activeBlobUrl); activeBlobUrl = null; }
+}
+async function bufferToBlob(songId) {
+  const { cachedIds } = useOfflineStore.getState();
+  if (cachedIds.has(songId)) return; // offline cache already provides a blob
+  try {
+    const res = await fetch(`/api/music/${songId}/stream`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    // Song may have changed while we were downloading — bail out
+    if (usePlayerStore.getState().currentSong?.id !== songId) return;
+    disposeBlobUrl();
+    activeBlobUrl = URL.createObjectURL(blob);
+    const t = audio.currentTime;
+    const wasPlaying = !audio.paused;
+    audio.src = activeBlobUrl;
+    if (t > 0) audio.currentTime = t;
+    if (wasPlaying) audio.play().catch(() => {});
+  } catch {}
+}
+
 // iOS shows seek buttons whenever setPositionState is called — skip it on iOS
 // so the lock screen always shows prev/next track buttons instead.
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -165,10 +191,12 @@ const usePlayerStore = create((set, get) => ({
 
     // Play immediately from stream URL — no await before play() so iOS keeps
     // the user gesture context and audio starts without delay.
+    disposeBlobUrl();
     const streamSrc = `/api/music/${song.id}/stream`;
     audio.src = streamSrc;
     audio.play().catch(() => set({ isPlaying: false }));
     schedulePreload(finalQueue, finalIndex);
+    bufferToBlob(song.id);
 
     // Background: if this song is cached, load the blob and swap in only when
     // offline (stream would fail anyway) or before audio has started buffering.
@@ -235,9 +263,11 @@ const usePlayerStore = create((set, get) => ({
       playTrack = { songId: queue[idx].id, accumulated: 0, resumeAt: null };
       set({ currentSong: queue[idx], isPlaying: true, currentTime: 0, queueIndex: idx, waitingForRadio: false });
       applyMediaSessionMeta(queue[idx]);
+      disposeBlobUrl();
       audio.src = nextSrc;
       audio.play().catch(() => {});
       schedulePreload(queue, idx);
+      bufferToBlob(queue[idx].id);
     } else {
       get().playSong(queue[idx], queue, idx, playContext, playContextLabel, true);
     }
