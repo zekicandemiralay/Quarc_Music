@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Music2, Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download } from 'lucide-react';
+import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
@@ -194,7 +194,7 @@ export default function Sidebar({ onNavigate }) {
       {/* App header + nav */}
       <div className="bg-zinc-900 rounded-lg p-4">
         <div className="flex items-center gap-2 mb-5">
-          <Music2 size={24} className="text-white" />
+          <img src="/logo.png" alt="Quarc Music" className="w-7 h-7 object-contain" />
           <span className="text-white font-bold text-base">Quarc Music</span>
         </div>
         <nav className="space-y-0.5">
