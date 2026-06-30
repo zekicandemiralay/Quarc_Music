@@ -45,6 +45,24 @@ audio.preload = 'metadata';
 // lock screen media session to activate (Apple's MediaSession API spec).
 document.body.appendChild(audio);
 
+// iOS releases the web audio session the moment audio stops playing, letting
+// native apps (Spotify etc.) steal the lock-screen media controls.
+// Keep the session alive during pauses with a looping silent audio clip.
+// play()/pause() are called synchronously from user-gesture handlers so iOS
+// allows it without a "NotAllowedError".
+const _SILENT_WAV = 'data:audio/wav;base64,UklGRiQIAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAIAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+const _silentAudio = new Audio(_SILENT_WAV);
+_silentAudio.loop = true;
+document.body.appendChild(_silentAudio);
+function _startSilentKeepAlive() {
+  if (!isIOS) return;
+  _silentAudio.play().catch(() => {});
+}
+function _stopSilentKeepAlive() {
+  if (!isIOS) return;
+  _silentAudio.pause();
+}
+
 // Native foreground service — keeps CPU/network alive when screen locks on Android.
 // window.Capacitor is injected by the native WebView; no-op in a regular browser.
 function nativeService(method, data) {
@@ -279,7 +297,7 @@ const usePlayerStore = create((set, get) => ({
     }
   },
 
-  pause: () => { pausedByUser = true; audio.pause(); set({ isPlaying: false }); },
+  pause: () => { pausedByUser = true; _startSilentKeepAlive(); audio.pause(); set({ isPlaying: false }); },
   resume: () => {
     set({ isPlaying: true }); // optimistic — reverted below if play() rejects
     audio.play().catch(() => set({ isPlaying: false }));
@@ -405,6 +423,7 @@ audio.addEventListener('durationchange', () => usePlayerStore.setState({ duratio
 audio.addEventListener('error', () => usePlayerStore.setState({ isPlaying: false }));
 
 audio.addEventListener('play', () => {
+  _stopSilentKeepAlive(); // real audio is playing — release the silent session hold
   playTrack.resumeAt = Date.now();
   usePlayerStore.setState({ isPlaying: true });
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -577,6 +596,7 @@ if ('mediaSession' in navigator) {
   });
   navigator.mediaSession.setActionHandler('pause', () => {
     pausedByUser = true;
+    _startSilentKeepAlive();
     audio.pause();
     usePlayerStore.setState({ isPlaying: false });
   });
