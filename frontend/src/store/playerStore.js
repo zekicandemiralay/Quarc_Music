@@ -45,23 +45,6 @@ audio.preload = 'metadata';
 // lock screen media session to activate (Apple's MediaSession API spec).
 document.body.appendChild(audio);
 
-// iOS releases the web audio session the moment audio stops playing, letting
-// native apps (Spotify etc.) steal the lock-screen media controls.
-// Keep the session alive during pauses with a looping silent audio clip.
-// play()/pause() are called synchronously from user-gesture handlers so iOS
-// allows it without a "NotAllowedError".
-const _SILENT_WAV = 'data:audio/wav;base64,UklGRiQIAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAIAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
-const _silentAudio = new Audio(_SILENT_WAV);
-_silentAudio.loop = true;
-document.body.appendChild(_silentAudio);
-function _startSilentKeepAlive() {
-  if (!isIOS) return;
-  _silentAudio.play().catch(() => {});
-}
-function _stopSilentKeepAlive() {
-  if (!isIOS) return;
-  _silentAudio.pause();
-}
 
 // Native foreground service — keeps CPU/network alive when screen locks on Android.
 // window.Capacitor is injected by the native WebView; no-op in a regular browser.
@@ -297,7 +280,7 @@ const usePlayerStore = create((set, get) => ({
     }
   },
 
-  pause: () => { pausedByUser = true; _startSilentKeepAlive(); audio.pause(); set({ isPlaying: false }); },
+  pause: () => { pausedByUser = true; audio.pause(); set({ isPlaying: false }); },
   resume: () => {
     set({ isPlaying: true }); // optimistic — reverted below if play() rejects
     audio.play().catch(() => set({ isPlaying: false }));
@@ -423,7 +406,6 @@ audio.addEventListener('durationchange', () => usePlayerStore.setState({ duratio
 audio.addEventListener('error', () => usePlayerStore.setState({ isPlaying: false }));
 
 audio.addEventListener('play', () => {
-  _stopSilentKeepAlive(); // real audio is playing — release the silent session hold
   playTrack.resumeAt = Date.now();
   usePlayerStore.setState({ isPlaying: true });
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -556,64 +538,32 @@ if ('mediaSession' in navigator) {
     const { currentSong, currentTime: storeTime } = usePlayerStore.getState();
     if (!currentSong) return;
     usePlayerStore.setState({ isPlaying: true });
-    const t = audio.currentTime || storeTime;
-
-    // Pre-buffered blob: swap src synchronously then call play() immediately.
-    // iOS requires audio.play() to be called synchronously within the user-gesture
-    // context of this handler — calling it inside a canplay callback loses that.
-    if (blobCache.has(currentSong.id)) {
-      const blobUrl = blobCache.get(currentSong.id);
-      if (audio.src !== blobUrl) {
-        audio.src = blobUrl;
-        audio.addEventListener('loadedmetadata', () => { if (t > 0) audio.currentTime = t; }, { once: true });
-      }
-      audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
-      return;
-    }
-
-    // Buffer still valid (most common after a brief lock-screen pause): direct resume.
-    if (audio.readyState >= 2) {
-      audio.play().catch(() => {
-        // play() rejected — only reload from network if screen is visible.
-        // When locked, iOS blocks new network connections; keep isPlaying=true
-        // so that visibilitychange resumes once the screen unlocks.
-        if (document.visibilityState === 'hidden') return;
-        audio.src = streamUrl(currentSong.id);
-        const onCanPlay = () => { clearTimeout(tmo); if (t > 0) audio.currentTime = t; audio.play().catch(() => usePlayerStore.setState({ isPlaying: false })); };
-        const tmo = setTimeout(() => { audio.removeEventListener('canplay', onCanPlay); usePlayerStore.setState({ isPlaying: false }); }, 5000);
-        audio.addEventListener('canplay', onCanPlay, { once: true });
-      });
-      return;
-    }
-
-    // Buffer cleared and no blob: reload from stream only when visible.
-    // If the screen is locked, keep isPlaying=true so visibilitychange picks it up.
-    if (document.visibilityState === 'hidden') return;
-    audio.src = streamUrl(currentSong.id);
-    const onCanPlay = () => { clearTimeout(tmo); if (t > 0) audio.currentTime = t; audio.play().catch(() => usePlayerStore.setState({ isPlaying: false })); };
-    const tmo = setTimeout(() => { audio.removeEventListener('canplay', onCanPlay); usePlayerStore.setState({ isPlaying: false }); }, 5000);
-    audio.addEventListener('canplay', onCanPlay, { once: true });
+    audio.play().catch(() => {
+      // Direct resume failed — try from blob cache or reload stream.
+      // Don't touch audio.src while screen is locked (iOS blocks network then);
+      // keep isPlaying=true so visibilitychange resumes on unlock.
+      if (document.visibilityState === 'hidden') return;
+      const t = audio.currentTime || storeTime;
+      const src = blobCache.has(currentSong.id) ? blobCache.get(currentSong.id) : streamUrl(currentSong.id);
+      audio.src = src;
+      const onCanPlay = () => { clearTimeout(tmo); if (t > 0) audio.currentTime = t; audio.play().catch(() => usePlayerStore.setState({ isPlaying: false })); };
+      const tmo = setTimeout(() => { audio.removeEventListener('canplay', onCanPlay); usePlayerStore.setState({ isPlaying: false }); }, 5000);
+      audio.addEventListener('canplay', onCanPlay, { once: true });
+    });
   });
   navigator.mediaSession.setActionHandler('pause', () => {
     pausedByUser = true;
-    _startSilentKeepAlive();
     audio.pause();
     usePlayerStore.setState({ isPlaying: false });
   });
   navigator.mediaSession.setActionHandler('nexttrack', () => usePlayerStore.getState().next());
   navigator.mediaSession.setActionHandler('previoustrack', () => usePlayerStore.getState().prev());
-  // On iOS, registering seekforward/seekbackward/seekto causes the lock screen
-  // to show seek buttons instead of prev/next. Skip all seek handlers on iOS.
-  if (!isIOS) {
-    navigator.mediaSession.setActionHandler('seekbackward', null);
-    navigator.mediaSession.setActionHandler('seekforward', null);
-    navigator.mediaSession.setActionHandler('seekto', (d) => {
-      if (d.seekTime !== undefined) {
-        audio.currentTime = d.seekTime;
-        usePlayerStore.setState({ currentTime: d.seekTime });
-      }
-    });
-  }
+  navigator.mediaSession.setActionHandler('seekto', (d) => {
+    if (d.seekTime !== undefined) {
+      audio.currentTime = d.seekTime;
+      usePlayerStore.setState({ currentTime: d.seekTime });
+    }
+  });
 }
 
 // Sync state on unlock: if the store says playing but audio is paused after
