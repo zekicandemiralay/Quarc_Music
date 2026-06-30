@@ -146,6 +146,24 @@ public class MusicForegroundService extends Service {
     }
 
     @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // User swiped the app away from recents — tear down service and notification
+        releaseWakeLock();
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+            mediaSession.release();
+            mediaSession = null;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
+        stopSelf();
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
     public void onDestroy() {
         releaseWakeLock();
         if (mediaSession != null) { mediaSession.release(); mediaSession = null; }
