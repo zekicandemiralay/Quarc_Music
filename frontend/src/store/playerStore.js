@@ -370,7 +370,13 @@ audio.addEventListener('play', () => {
   usePlayerStore.setState({ isPlaying: true });
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
   const { currentSong } = usePlayerStore.getState();
-  nativeService('start', { title: currentSong?.title ?? 'Quarc Music', artist: currentSong?.artist ?? '' });
+  nativeService('start', {
+    title: currentSong?.title ?? 'Quarc Music',
+    artist: currentSong?.artist ?? '',
+    coverUrl: currentSong?.has_cover
+      ? `${window.location.origin}/api/music/${currentSong.id}/cover`
+      : null,
+  });
 });
 
 audio.addEventListener('pause', () => {

@@ -7,6 +7,8 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -20,22 +22,29 @@ import androidx.core.app.NotificationCompat;
 import androidx.media.app.NotificationCompat.MediaStyle;
 import androidx.media.session.MediaButtonReceiver;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 public class MusicForegroundService extends Service {
 
-    static final String CHANNEL_ID    = "quarc_music_playback";
-    static final String ACTION_START  = "com.quarc.music.START";
-    static final String ACTION_UPDATE = "com.quarc.music.UPDATE";
-    static final String ACTION_STOP   = "com.quarc.music.STOP";
-    static final String EXTRA_TITLE   = "title";
-    static final String EXTRA_ARTIST  = "artist";
-    static final String EXTRA_PLAYING = "isPlaying";
-    static final int    NOTIF_ID      = 1;
+    static final String CHANNEL_ID     = "quarc_music_playback";
+    static final String ACTION_START   = "com.quarc.music.START";
+    static final String ACTION_UPDATE  = "com.quarc.music.UPDATE";
+    static final String ACTION_STOP    = "com.quarc.music.STOP";
+    static final String EXTRA_TITLE    = "title";
+    static final String EXTRA_ARTIST   = "artist";
+    static final String EXTRA_PLAYING  = "isPlaying";
+    static final String EXTRA_COVER_URL = "coverUrl";
+    static final int    NOTIF_ID       = 1;
 
     private PowerManager.WakeLock wakeLock;
     private MediaSessionCompat mediaSession;
     private boolean isPlaying    = true;
     private String currentTitle  = "Quarc Music";
     private String currentArtist = "";
+    private String currentCoverUrl = null;
+    private Bitmap currentArtBitmap = null;
 
     @Override
     public void onCreate() {
@@ -63,7 +72,6 @@ public class MusicForegroundService extends Service {
     private void dispatchControl(String action) {
         MusicServicePlugin plugin = MusicServicePlugin.instance;
         if (plugin == null) return;
-        // notifyListeners must run on the main thread
         new Handler(Looper.getMainLooper()).post(() -> plugin.notifyMediaControl(action));
     }
 
@@ -88,19 +96,20 @@ public class MusicForegroundService extends Service {
             return START_NOT_STICKY;
         }
 
-        // ACTION_START or ACTION_UPDATE: update metadata and play state
-        String title  = intent.getStringExtra(EXTRA_TITLE);
-        String artist = intent.getStringExtra(EXTRA_ARTIST);
+        String title    = intent.getStringExtra(EXTRA_TITLE);
+        String artist   = intent.getStringExtra(EXTRA_ARTIST);
+        String coverUrl = intent.getStringExtra(EXTRA_COVER_URL);
         if (title  != null) currentTitle  = title;
         if (artist != null) currentArtist = artist;
 
         if (ACTION_START.equals(action)) {
             isPlaying = true;
+            // Fetch new cover art if the song changed
+            fetchArtIfNeeded(coverUrl);
         } else if (ACTION_UPDATE.equals(action)) {
             isPlaying = intent.getBooleanExtra(EXTRA_PLAYING, isPlaying);
         }
 
-        // Acquire wake lock while playing, release while paused to save battery
         if (isPlaying) {
             if (wakeLock == null) {
                 PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
@@ -123,12 +132,58 @@ public class MusicForegroundService extends Service {
         return START_STICKY;
     }
 
+    private void fetchArtIfNeeded(String url) {
+        if (url == null) {
+            currentCoverUrl = null;
+            currentArtBitmap = null;
+            return;
+        }
+        if (url.equals(currentCoverUrl) && currentArtBitmap != null) return; // already loaded
+
+        currentCoverUrl = url;
+        currentArtBitmap = null;
+        final String fetchUrl = url;
+
+        new Thread(() -> {
+            Bitmap bitmap = downloadBitmap(fetchUrl);
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (!fetchUrl.equals(currentCoverUrl)) return; // song changed while fetching
+                currentArtBitmap = bitmap;
+                updateMediaSession();
+                NotificationManager nm = getSystemService(NotificationManager.class);
+                if (nm != null) nm.notify(NOTIF_ID, buildNotification());
+            });
+        }).start();
+    }
+
+    private Bitmap downloadBitmap(String urlStr) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+            conn.setConnectTimeout(4000);
+            conn.setReadTimeout(6000);
+            conn.connect();
+            if (conn.getResponseCode() == 200) {
+                InputStream in = conn.getInputStream();
+                Bitmap bitmap = BitmapFactory.decodeStream(in);
+                conn.disconnect();
+                return bitmap;
+            }
+            conn.disconnect();
+        } catch (Exception ignored) {}
+        return null;
+    }
+
     private void updateMediaSession() {
         if (mediaSession == null) return;
-        mediaSession.setMetadata(new MediaMetadataCompat.Builder()
+
+        MediaMetadataCompat.Builder meta = new MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE,  currentTitle)
-            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentArtist)
-            .build());
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentArtist);
+        if (currentArtBitmap != null) {
+            meta.putBitmap(MediaMetadataCompat.METADATA_KEY_ART,       currentArtBitmap);
+            meta.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, currentArtBitmap);
+        }
+        mediaSession.setMetadata(meta.build());
 
         long actions = PlaybackStateCompat.ACTION_PLAY_PAUSE
             | PlaybackStateCompat.ACTION_SKIP_TO_NEXT
@@ -147,7 +202,6 @@ public class MusicForegroundService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        // User swiped the app away from recents — tear down service and notification
         releaseWakeLock();
         if (mediaSession != null) {
             mediaSession.setActive(false);
@@ -201,7 +255,7 @@ public class MusicForegroundService extends Service {
         PendingIntent nextPi = MediaButtonReceiver.buildMediaButtonPendingIntent(
             this, PlaybackStateCompat.ACTION_SKIP_TO_NEXT);
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(currentTitle)
             .setContentText(currentArtist.isEmpty() ? "Now Playing" : currentArtist)
             .setSmallIcon(R.drawable.ic_notification)
@@ -209,15 +263,20 @@ public class MusicForegroundService extends Service {
             .setOngoing(isPlaying)
             .setSilent(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .addAction(android.R.drawable.ic_media_previous, "Previous", prevPi)
+            .addAction(R.drawable.ic_media_prev,  "Previous", prevPi)
             .addAction(
-                isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
+                isPlaying ? R.drawable.ic_media_pause : R.drawable.ic_media_play,
                 isPlaying ? "Pause" : "Play",
                 playPausePi)
-            .addAction(android.R.drawable.ic_media_next, "Next", nextPi)
+            .addAction(R.drawable.ic_media_next, "Next", nextPi)
             .setStyle(new MediaStyle()
                 .setMediaSession(mediaSession != null ? mediaSession.getSessionToken() : null)
-                .setShowActionsInCompactView(0, 1, 2))
-            .build();
+                .setShowActionsInCompactView(0, 1, 2));
+
+        if (currentArtBitmap != null) {
+            builder.setLargeIcon(currentArtBitmap);
+        }
+
+        return builder.build();
     }
 }

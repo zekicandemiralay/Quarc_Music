@@ -41,12 +41,14 @@ public class MusicServicePlugin extends Plugin {
 
     @PluginMethod
     public void start(PluginCall call) {
-        String title  = call.getString("title",  "Quarc Music");
-        String artist = call.getString("artist", "");
+        String title    = call.getString("title",    "Quarc Music");
+        String artist   = call.getString("artist",   "");
+        String coverUrl = call.getString("coverUrl", null);
         Intent intent = new Intent(getContext(), MusicForegroundService.class);
         intent.setAction(MusicForegroundService.ACTION_START);
         intent.putExtra(MusicForegroundService.EXTRA_TITLE,  title);
         intent.putExtra(MusicForegroundService.EXTRA_ARTIST, artist);
+        if (coverUrl != null) intent.putExtra(MusicForegroundService.EXTRA_COVER_URL, coverUrl);
         startService(intent);
         call.resolve();
     }
