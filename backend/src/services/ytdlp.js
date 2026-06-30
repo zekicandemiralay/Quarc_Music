@@ -81,7 +81,6 @@ function downloadAudio(videoId, outputDir, onProgress) {
       '--newline',
       '-o', `${outputDir}/%(uploader)s/%(title)s.%(ext)s`,
       '--no-playlist',
-      '--js-runtimes', 'node',
       ...PROXY_ARGS,
       ...RATE_ARGS,
     ]);
@@ -129,7 +128,6 @@ function downloadBySearch(query, outputDir, onProgress) {
       '--newline',
       '-o', `${outputDir}/%(uploader)s/%(title)s.%(ext)s`,
       '--no-playlist',
-      '--js-runtimes', 'node',
       ...PROXY_ARGS,
       ...RATE_ARGS,
     ]);

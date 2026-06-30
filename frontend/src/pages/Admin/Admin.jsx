@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { UserPlus, Trash2, ShieldCheck, User, KeyRound, X, Plus, Check, Search, Download, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, FolderSync } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { UserPlus, Trash2, ShieldCheck, User, KeyRound, X, Plus, Check, Search, Download, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, FolderSync, RefreshCw, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useFeaturedStore from '../../store/useFeaturedStore';
 
@@ -569,6 +569,182 @@ function CollectionsTab() {
   );
 }
 
+// ── Updates tab ──────────────────────────────────────────────────────────────
+
+const REPO = 'zekicandemiralay/Quarc_Music';
+
+function semverGt(a, b) {
+  const pa = (a || '0').split('.').map(Number);
+  const pb = (b || '0').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
+function UpdatesTab() {
+  const { t } = useTranslation();
+  const [currentVersion, setCurrentVersion] = useState(null);
+  const [platform, setPlatform] = useState(null); // 'android' | 'desktop' | 'web'
+  const [releases, setReleases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [installing, setInstalling] = useState(null);
+
+  const fetchReleases = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`https://api.github.com/repos/${REPO}/releases`);
+      if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+      setReleases(await res.json());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    async function init() {
+      if (window?.Capacitor?.isNativePlatform?.()) {
+        setPlatform('android');
+        try {
+          const info = await window.Capacitor.Plugins.App.getInfo();
+          setCurrentVersion(info.version);
+        } catch {}
+      } else if (window?.__TAURI__) {
+        setPlatform('desktop');
+        try { setCurrentVersion(await window.__TAURI__.app.getVersion()); } catch {}
+      } else {
+        setPlatform('web');
+      }
+      fetchReleases();
+    }
+    init();
+  }, [fetchReleases]);
+
+  function getDownloadUrl(release) {
+    if (platform === 'android') {
+      return release.assets?.find(a => a.name.endsWith('.apk'))?.browser_download_url;
+    }
+    if (platform === 'desktop') {
+      return release.assets?.find(a => a.name.includes('x64-setup.exe'))?.browser_download_url
+        ?? release.html_url;
+    }
+    return release.html_url;
+  }
+
+  function install(release) {
+    const url = getDownloadUrl(release);
+    const version = release.tag_name?.replace(/^v/, '');
+    if (!url) return;
+    if (platform === 'android') {
+      window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url, version });
+    } else if (platform === 'desktop') {
+      window.__TAURI__.shell.open(url);
+    }
+    setInstalling(version);
+  }
+
+  const latestVersion = releases[0]?.tag_name?.replace(/^v/, '');
+  const hasUpdate = currentVersion && latestVersion && semverGt(latestVersion, currentVersion);
+
+  return (
+    <div className="space-y-5">
+      {/* Current version + status */}
+      <div className="bg-zinc-800/50 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-zinc-400 text-xs mb-0.5">{platform === 'web' ? 'Web app' : (
+            currentVersion
+              ? t('admin.updates.installedVersion', { version: currentVersion })
+              : t('admin.updates.unknownVersion')
+          )}</p>
+          {platform === 'web' ? (
+            <p className="text-zinc-500 text-sm">{t('admin.updates.webNote')}</p>
+          ) : hasUpdate ? (
+            <p className="text-amber-400 text-sm font-medium">{t('admin.updates.updateAvailable')} — v{latestVersion}</p>
+          ) : !loading && (
+            <p className="text-green-400 text-sm font-medium">{t('admin.updates.upToDate')}</p>
+          )}
+        </div>
+        <button
+          onClick={fetchReleases}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded-full text-xs font-medium transition-colors disabled:opacity-40"
+        >
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+          {t('admin.updates.refresh')}
+        </button>
+      </div>
+
+      {/* Release list */}
+      {loading && !releases.length && (
+        <p className="text-zinc-500 text-sm text-center py-6">{t('admin.updates.loading')}</p>
+      )}
+      {error && (
+        <p className="text-red-400 text-sm text-center py-4">{t('admin.updates.error')}: {error}</p>
+      )}
+
+      {releases.length > 0 && (
+        <div className="space-y-2">
+          {releases.map((release) => {
+            const ver = release.tag_name?.replace(/^v/, '');
+            const isCurrent = ver === currentVersion;
+            const isNewer = currentVersion ? semverGt(ver, currentVersion) : false;
+            const downloadUrl = getDownloadUrl(release);
+            const date = release.published_at
+              ? new Date(release.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+              : '';
+
+            return (
+              <div key={release.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isCurrent ? 'bg-zinc-700/60 ring-1 ring-white/10' : 'bg-zinc-800/40'}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-white text-sm font-semibold">{release.tag_name}</span>
+                    {isCurrent && (
+                      <span className="flex items-center gap-1 text-green-400 text-xs font-medium">
+                        <CheckCircle size={11} />{t('admin.updates.installedBadge')}
+                      </span>
+                    )}
+                    {isNewer && (
+                      <span className="text-amber-400 text-xs font-medium">↑ {t('admin.updates.updateAvailable')}</span>
+                    )}
+                  </div>
+                  {date && <p className="text-zinc-500 text-xs mt-0.5">{date}</p>}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {platform !== 'web' && (isNewer || !currentVersion) && downloadUrl && (
+                    <button
+                      onClick={() => install(release)}
+                      disabled={installing === ver}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-full text-xs font-medium transition-colors disabled:opacity-50"
+                    >
+                      <Download size={12} />
+                      {installing === ver ? '…' : t('admin.updates.installBtn')}
+                    </button>
+                  )}
+                  <a
+                    href={release.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 text-zinc-600 hover:text-zinc-400 transition-colors"
+                    title={t('admin.updates.viewGithub')}
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Admin page ───────────────────────────────────────────────────────────
 
 function LibraryTab() {
@@ -626,8 +802,8 @@ export default function Admin() {
       <h1 className="text-2xl font-bold text-white mb-5">{t('admin.title')}</h1>
 
       {/* Tab bar */}
-      <div className="flex gap-1 bg-zinc-800/60 rounded-xl p-1 mb-6 w-fit">
-        {[['users', t('admin.tabs.users')], ['collections', t('admin.tabs.collections')], ['library', t('admin.tabs.library')]].map(([key, label]) => (
+      <div className="flex gap-1 bg-zinc-800/60 rounded-xl p-1 mb-6 w-fit flex-wrap">
+        {[['users', t('admin.tabs.users')], ['collections', t('admin.tabs.collections')], ['library', t('admin.tabs.library')], ['updates', t('admin.tabs.updates')]].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -643,6 +819,7 @@ export default function Admin() {
       {tab === 'users' && <UsersTab />}
       {tab === 'collections' && <CollectionsTab />}
       {tab === 'library' && <LibraryTab />}
+      {tab === 'updates' && <UpdatesTab />}
     </div>
   );
 }

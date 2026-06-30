@@ -161,7 +161,22 @@
     "tabs": {
       "users": "Kullanıcılar",
       "collections": "Koleksiyonlar",
-      "library": "Kütüphane"
+      "library": "Kütüphane",
+      "updates": "Güncellemeler"
+    },
+    "updates": {
+      "installedVersion": "Yüklü: v{{version}}",
+      "unknownVersion": "Sürüm bilinmiyor",
+      "upToDate": "Güncel",
+      "updateAvailable": "Güncelleme mevcut",
+      "installBtn": "Yükle",
+      "installedBadge": "Yüklü",
+      "loading": "Güncellemeler kontrol ediliyor…",
+      "error": "Sürümler alınamadı",
+      "noAsset": "Bu platform için indirme yok",
+      "viewGithub": "GitHub'da görüntüle ↗",
+      "webNote": "Sunucu yeniden dağıtıldığında güncellemeler otomatik olarak uygulanır.",
+      "refresh": "Yenile"
     },
     "users": {
       "accounts": "{{n}} hesap",

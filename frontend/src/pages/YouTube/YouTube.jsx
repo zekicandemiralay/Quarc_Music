@@ -22,6 +22,7 @@ function DownloadBtn({ videoId, title }) {
   const [status, setStatus] = useState(null);
   const [progress, setProgress] = useState(0);
   const [jobId, setJobId] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     if (!jobId || status === 'done' || status === 'error') return;
@@ -35,7 +36,8 @@ function DownloadBtn({ videoId, title }) {
           // Invalidate library cache so the new song appears on next Library visit
           try { localStorage.removeItem('quarc_songs'); } catch {}
         }
-        if (d.status === 'done' || d.status === 'error') clearInterval(t);
+        if (d.status === 'error') { setErrorMsg(d.error || null); clearInterval(t); }
+        else if (d.status === 'done') clearInterval(t);
       } catch {}
     }, 1000);
     return () => clearInterval(t);
@@ -43,6 +45,7 @@ function DownloadBtn({ videoId, title }) {
 
   async function start() {
     setStatus('pending');
+    setErrorMsg(null);
     try {
       const r = await fetch('/api/youtube/download', {
         method: 'POST',
@@ -60,7 +63,12 @@ function DownloadBtn({ videoId, title }) {
   if (status === 'done')
     return <span className="flex items-center gap-1.5 text-green-400 text-sm"><CheckCircle size={15} />{t('youtube.savedToLibrary')}</span>;
   if (status === 'error')
-    return <span className="flex items-center gap-1.5 text-red-400 text-sm"><AlertCircle size={15} />{t('youtube.failed')}</span>;
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="flex items-center gap-1.5 text-red-400 text-sm"><AlertCircle size={15} />{t('youtube.failed')}</span>
+        {errorMsg && <span className="text-xs text-zinc-500 max-w-xs truncate" title={errorMsg}>{errorMsg}</span>}
+      </div>
+    );
   if (status === 'downloading' || status === 'pending')
     return (
       <div className="flex items-center gap-2 text-zinc-400 text-sm">

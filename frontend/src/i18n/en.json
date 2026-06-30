@@ -161,7 +161,22 @@
     "tabs": {
       "users": "Users",
       "collections": "Collections",
-      "library": "Library"
+      "library": "Library",
+      "updates": "Updates"
+    },
+    "updates": {
+      "installedVersion": "Installed: v{{version}}",
+      "unknownVersion": "Version unknown",
+      "upToDate": "Up to date",
+      "updateAvailable": "Update available",
+      "installBtn": "Install",
+      "installedBadge": "Installed",
+      "loading": "Checking for updates…",
+      "error": "Could not fetch releases",
+      "noAsset": "No download for this platform",
+      "viewGithub": "View on GitHub ↗",
+      "webNote": "Updates are deployed automatically when the server is redeployed.",
+      "refresh": "Refresh"
     },
     "users": {
       "accounts": "{{n}} account",
