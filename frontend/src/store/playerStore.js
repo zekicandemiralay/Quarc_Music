@@ -41,6 +41,9 @@ function smartShuffle(songs) {
 
 const audio = new Audio();
 audio.preload = 'metadata';
+// iOS requires the audio element to be attached to the document for the
+// lock screen media session to activate (Apple's MediaSession API spec).
+document.body.appendChild(audio);
 
 // Native foreground service — keeps CPU/network alive when screen locks on Android.
 // window.Capacitor is injected by the native WebView; no-op in a regular browser.
