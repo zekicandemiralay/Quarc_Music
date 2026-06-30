@@ -288,7 +288,7 @@ function LibrarySearchPanel({ playlistId, currentSongIds, onSongAdded }) {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetch('/api/music').then((r) => r.json()).then(setAllSongs).catch(() => {});
+    fetch('/api/music').then((r) => r.ok ? r.json() : []).then((d) => { if (Array.isArray(d)) setAllSongs(d); }).catch(() => {});
   }, []);
 
   const filtered = allSongs

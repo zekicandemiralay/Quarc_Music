@@ -485,7 +485,9 @@ export default function Library({ view = 'all' }) {
       const timer = setTimeout(() => controller.abort(), 30000);
       const res = await fetch('/api/music', { signal: controller.signal });
       clearTimeout(timer);
+      if (!res.ok) return;
       const data = await res.json();
+      if (!Array.isArray(data)) return;
       setSongs(data);
       try { localStorage.setItem('quarc_songs', JSON.stringify(data)); } catch {}
     } catch {

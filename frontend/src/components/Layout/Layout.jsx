@@ -30,7 +30,7 @@ function GlobalSearch() {
 
   useEffect(() => {
     try { setSongs(JSON.parse(localStorage.getItem('quarc_songs') || '[]')); } catch {}
-    fetch('/api/music').then((r) => r.json()).then(setSongs).catch(() => {});
+    fetch('/api/music').then((r) => r.ok ? r.json() : []).then((d) => { if (Array.isArray(d)) setSongs(d); }).catch(() => {});
   }, []);
 
   useEffect(() => {

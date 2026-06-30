@@ -141,11 +141,11 @@ export default function Stats() {
 
   useEffect(() => {
     fetch('/api/me/stats')
-      .then((r) => r.json())
+      .then((r) => r.ok ? r.json() : null)
       .then((data) => { setStats(data); setLoading(false); })
       .catch(() => setLoading(false));
     fetch('/api/me/stats/library')
-      .then((r) => r.json())
+      .then((r) => r.ok ? r.json() : null)
       .then(setLibraryStats)
       .catch(() => {});
   }, []);
