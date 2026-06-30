@@ -408,6 +408,8 @@ audio.addEventListener('play', () => {
   const { currentSong } = usePlayerStore.getState();
   const title = currentSong?.title ?? 'Quarc Music';
   const artist = currentSong?.artist ?? '';
+  // Re-apply metadata now that audio is active — iOS only registers it once playing
+  applyMediaSessionMeta(currentSong);
   const isNewSong = currentSong?.id !== lastNativeStartSongId;
   if (isNewSong) {
     lastNativeStartSongId = currentSong?.id ?? null;
@@ -417,10 +419,26 @@ audio.addEventListener('play', () => {
         if (!coverBase64) return;
         if (usePlayerStore.getState().currentSong?.id !== currentSong.id) return;
         nativeService('update', { title, artist, isPlaying: true, coverBase64 });
+        // Replace URL-based artwork with data URL so iOS system can display it
+        // without needing auth cookies (the system fetches artwork out-of-process)
+        if ('mediaSession' in navigator && navigator.mediaSession.metadata) {
+          navigator.mediaSession.metadata.artwork = [
+            { src: `data:image/jpeg;base64,${coverBase64}`, sizes: '512x512', type: 'image/jpeg' }
+          ];
+        }
       });
     }
   } else {
     nativeService('update', { title, artist, isPlaying: true });
+    // For resumes, push cached artwork as data URL if we have it
+    if (currentSong?.has_cover && currentSong.id && coverB64Cache.has(currentSong.id)) {
+      const b64 = coverB64Cache.get(currentSong.id);
+      if ('mediaSession' in navigator && navigator.mediaSession.metadata) {
+        navigator.mediaSession.metadata.artwork = [
+          { src: `data:image/jpeg;base64,${b64}`, sizes: '512x512', type: 'image/jpeg' }
+        ];
+      }
+    }
   }
 });
 
