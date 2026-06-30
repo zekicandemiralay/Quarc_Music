@@ -16,6 +16,9 @@ if (API_BASE) {
     if (typeof url === 'string' && url.startsWith('/')) {
       return _fetch(API_BASE + url, { credentials: 'include', ...init });
     }
+    if (typeof url === 'string' && url.startsWith(API_BASE)) {
+      return _fetch(input, { credentials: 'include', ...init });
+    }
     return _fetch(input, init);
   };
 }
