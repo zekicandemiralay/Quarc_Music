@@ -47,6 +47,41 @@ function nativeService(method, data) {
   try { window?.Capacitor?.Plugins?.MusicService?.[method]?.(data ?? {}); } catch {}
 }
 
+// Fetch, resize to 512×512, and base64-encode cover art for the native service.
+// Doing this in JS avoids SSL trust differences between WebView and native HTTP stack.
+const coverB64Cache = new Map();
+async function fetchCoverBase64(songId) {
+  if (coverB64Cache.has(songId)) return coverB64Cache.get(songId);
+  try {
+    const res = await fetch(`/api/music/${songId}/cover`);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const img = document.createElement('img');
+    const blobUrl = URL.createObjectURL(blob);
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = blobUrl; });
+    URL.revokeObjectURL(blobUrl);
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    canvas.getContext('2d').drawImage(img, 0, 0, size, size);
+    const jpegBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+    const b64 = await new Promise(r => {
+      const fr = new FileReader();
+      fr.onloadend = () => r(fr.result?.split(',')[1] ?? null);
+      fr.readAsDataURL(jpegBlob);
+    });
+    if (b64) {
+      if (coverB64Cache.size >= 10) coverB64Cache.delete(coverB64Cache.keys().next().value);
+      coverB64Cache.set(songId, b64);
+    }
+    return b64;
+  } catch { return null; }
+}
+
+// Track the last song for which we called nativeService('start') so we can
+// distinguish a new-song start from a resume (same song, same ID).
+let lastNativeStartSongId = null;
+
 // Silent preloader — buffers the next song in the background so it starts instantly
 const preloader = new Audio();
 preloader.preload = 'auto';
@@ -370,13 +405,22 @@ audio.addEventListener('play', () => {
   usePlayerStore.setState({ isPlaying: true });
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
   const { currentSong } = usePlayerStore.getState();
-  nativeService('start', {
-    title: currentSong?.title ?? 'Quarc Music',
-    artist: currentSong?.artist ?? '',
-    coverUrl: currentSong?.has_cover
-      ? `${window.location.origin}/api/music/${currentSong.id}/cover`
-      : null,
-  });
+  const title = currentSong?.title ?? 'Quarc Music';
+  const artist = currentSong?.artist ?? '';
+  const isNewSong = currentSong?.id !== lastNativeStartSongId;
+  if (isNewSong) {
+    lastNativeStartSongId = currentSong?.id ?? null;
+    nativeService('start', { title, artist });
+    if (currentSong?.has_cover && currentSong.id) {
+      fetchCoverBase64(currentSong.id).then(coverBase64 => {
+        if (!coverBase64) return;
+        if (usePlayerStore.getState().currentSong?.id !== currentSong.id) return;
+        nativeService('update', { title, artist, isPlaying: true, coverBase64 });
+      });
+    }
+  } else {
+    nativeService('update', { title, artist, isPlaying: true });
+  }
 });
 
 audio.addEventListener('pause', () => {

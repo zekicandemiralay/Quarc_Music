@@ -41,28 +41,28 @@ public class MusicServicePlugin extends Plugin {
 
     @PluginMethod
     public void start(PluginCall call) {
-        String title    = call.getString("title",    "Quarc Music");
-        String artist   = call.getString("artist",   "");
-        String coverUrl = call.getString("coverUrl", null);
+        String title   = call.getString("title",  "Quarc Music");
+        String artist  = call.getString("artist", "");
         Intent intent = new Intent(getContext(), MusicForegroundService.class);
         intent.setAction(MusicForegroundService.ACTION_START);
         intent.putExtra(MusicForegroundService.EXTRA_TITLE,  title);
         intent.putExtra(MusicForegroundService.EXTRA_ARTIST, artist);
-        if (coverUrl != null) intent.putExtra(MusicForegroundService.EXTRA_COVER_URL, coverUrl);
         startService(intent);
         call.resolve();
     }
 
     @PluginMethod
     public void update(PluginCall call) {
-        String title    = call.getString("title",  "Quarc Music");
-        String artist   = call.getString("artist", "");
-        Boolean playing = call.getBoolean("isPlaying"); // null if not provided → service keeps current state
+        String title       = call.getString("title",  "Quarc Music");
+        String artist      = call.getString("artist", "");
+        Boolean playing    = call.getBoolean("isPlaying");
+        String coverBase64 = call.getString("coverBase64", null);
         Intent intent = new Intent(getContext(), MusicForegroundService.class);
         intent.setAction(MusicForegroundService.ACTION_UPDATE);
         intent.putExtra(MusicForegroundService.EXTRA_TITLE,  title);
         intent.putExtra(MusicForegroundService.EXTRA_ARTIST, artist);
-        if (playing != null) intent.putExtra(MusicForegroundService.EXTRA_PLAYING, playing.booleanValue());
+        if (playing    != null) intent.putExtra(MusicForegroundService.EXTRA_PLAYING,      playing.booleanValue());
+        if (coverBase64 != null) intent.putExtra(MusicForegroundService.EXTRA_COVER_BASE64, coverBase64);
         startService(intent);
         call.resolve();
     }

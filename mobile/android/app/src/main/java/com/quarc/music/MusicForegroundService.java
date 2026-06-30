@@ -10,10 +10,9 @@ import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.PowerManager;
+import android.util.Base64;
 
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
@@ -22,28 +21,26 @@ import androidx.core.app.NotificationCompat;
 import androidx.media.app.NotificationCompat.MediaStyle;
 import androidx.media.session.MediaButtonReceiver;
 
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import android.os.Handler;
+import android.os.Looper;
 
 public class MusicForegroundService extends Service {
 
-    static final String CHANNEL_ID     = "quarc_music_playback";
-    static final String ACTION_START   = "com.quarc.music.START";
-    static final String ACTION_UPDATE  = "com.quarc.music.UPDATE";
-    static final String ACTION_STOP    = "com.quarc.music.STOP";
-    static final String EXTRA_TITLE    = "title";
-    static final String EXTRA_ARTIST   = "artist";
-    static final String EXTRA_PLAYING  = "isPlaying";
-    static final String EXTRA_COVER_URL = "coverUrl";
-    static final int    NOTIF_ID       = 1;
+    static final String CHANNEL_ID      = "quarc_music_playback";
+    static final String ACTION_START    = "com.quarc.music.START";
+    static final String ACTION_UPDATE   = "com.quarc.music.UPDATE";
+    static final String ACTION_STOP     = "com.quarc.music.STOP";
+    static final String EXTRA_TITLE     = "title";
+    static final String EXTRA_ARTIST    = "artist";
+    static final String EXTRA_PLAYING   = "isPlaying";
+    static final String EXTRA_COVER_BASE64 = "coverBase64";
+    static final int    NOTIF_ID        = 1;
 
     private PowerManager.WakeLock wakeLock;
     private MediaSessionCompat mediaSession;
     private boolean isPlaying    = true;
     private String currentTitle  = "Quarc Music";
     private String currentArtist = "";
-    private String currentCoverUrl = null;
     private Bitmap currentArtBitmap = null;
 
     @Override
@@ -96,18 +93,23 @@ public class MusicForegroundService extends Service {
             return START_NOT_STICKY;
         }
 
-        String title    = intent.getStringExtra(EXTRA_TITLE);
-        String artist   = intent.getStringExtra(EXTRA_ARTIST);
-        String coverUrl = intent.getStringExtra(EXTRA_COVER_URL);
+        String title  = intent.getStringExtra(EXTRA_TITLE);
+        String artist = intent.getStringExtra(EXTRA_ARTIST);
         if (title  != null) currentTitle  = title;
         if (artist != null) currentArtist = artist;
 
         if (ACTION_START.equals(action)) {
             isPlaying = true;
-            // Fetch new cover art if the song changed
-            fetchArtIfNeeded(coverUrl);
+            // Clear old art when a new song starts; cover arrives via ACTION_UPDATE shortly after
+            currentArtBitmap = null;
         } else if (ACTION_UPDATE.equals(action)) {
             isPlaying = intent.getBooleanExtra(EXTRA_PLAYING, isPlaying);
+        }
+
+        // Decode cover art if provided (sent from JS after fetching + resizing to 512×512 JPEG)
+        String coverBase64 = intent.getStringExtra(EXTRA_COVER_BASE64);
+        if (coverBase64 != null) {
+            decodeArtBase64(coverBase64);
         }
 
         if (isPlaying) {
@@ -132,45 +134,12 @@ public class MusicForegroundService extends Service {
         return START_STICKY;
     }
 
-    private void fetchArtIfNeeded(String url) {
-        if (url == null) {
-            currentCoverUrl = null;
-            currentArtBitmap = null;
-            return;
-        }
-        if (url.equals(currentCoverUrl) && currentArtBitmap != null) return; // already loaded
-
-        currentCoverUrl = url;
-        currentArtBitmap = null;
-        final String fetchUrl = url;
-
-        new Thread(() -> {
-            Bitmap bitmap = downloadBitmap(fetchUrl);
-            new Handler(Looper.getMainLooper()).post(() -> {
-                if (!fetchUrl.equals(currentCoverUrl)) return; // song changed while fetching
-                currentArtBitmap = bitmap;
-                updateMediaSession();
-                NotificationManager nm = getSystemService(NotificationManager.class);
-                if (nm != null) nm.notify(NOTIF_ID, buildNotification());
-            });
-        }).start();
-    }
-
-    private Bitmap downloadBitmap(String urlStr) {
+    private void decodeArtBase64(String base64) {
         try {
-            HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
-            conn.setConnectTimeout(4000);
-            conn.setReadTimeout(6000);
-            conn.connect();
-            if (conn.getResponseCode() == 200) {
-                InputStream in = conn.getInputStream();
-                Bitmap bitmap = BitmapFactory.decodeStream(in);
-                conn.disconnect();
-                return bitmap;
-            }
-            conn.disconnect();
+            byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+            Bitmap bm = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            if (bm != null) currentArtBitmap = bm;
         } catch (Exception ignored) {}
-        return null;
     }
 
     private void updateMediaSession() {
