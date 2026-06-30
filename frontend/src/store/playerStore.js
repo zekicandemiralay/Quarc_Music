@@ -142,8 +142,8 @@ function startPrebuffering(queue, currentIndex) {
   }
 }
 
-// iOS shows seek buttons whenever setPositionState is called — skip it on iOS
-// so the lock screen always shows prev/next track buttons instead.
+// Seek buttons on iOS appear when seekforward/seekbackward handlers are registered,
+// NOT from calling setPositionState — so we still skip those handlers below.
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
 // Tracks accumulated real-time seconds for the current song
@@ -390,7 +390,7 @@ const usePlayerStore = create((set, get) => ({
 audio.addEventListener('timeupdate', () => {
   const t = audio.currentTime;
   usePlayerStore.setState({ currentTime: t });
-  if (!isIOS && 'mediaSession' in navigator && !isNaN(audio.duration) && audio.duration > 0) {
+  if ('mediaSession' in navigator && !isNaN(audio.duration) && audio.duration > 0) {
     try {
       navigator.mediaSession.setPositionState({
         duration: audio.duration,
