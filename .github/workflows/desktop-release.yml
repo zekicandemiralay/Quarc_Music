@@ -138,6 +138,19 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build frontend for Android (bundled, points to server)
+        working-directory: frontend
+        env:
+          VITE_API_URL: https://quarcnet0.tail84500c.ts.net:4000
+        run: npm run build
+
+      - name: Copy frontend build into Capacitor web dir
+        run: cp -r frontend/dist/* mobile/www/
+
       - name: Install Capacitor dependencies
         working-directory: mobile
         run: npm install

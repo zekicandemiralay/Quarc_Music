@@ -7,6 +7,7 @@ import Player from '../Player/Player';
 import useNetworkStatus from '../../hooks/useNetworkStatus';
 import useOfflineStore from '../../store/useOfflineStore';
 import usePlayerStore from '../../store/playerStore';
+import { coverUrl } from '../../lib/apiUrl';
 
 function norm(s) {
   return (s || '').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -181,7 +182,7 @@ function GlobalSearch() {
               >
                 <div className="w-9 h-9 bg-zinc-800 rounded shrink-0 overflow-hidden">
                   {song.has_cover
-                    ? <img src={`/api/music/${song.id}/cover`} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    ? <img src={coverUrl(song.id)} alt="" loading="lazy" className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center"><Music size={12} className="text-zinc-600" /></div>}
                 </div>
                 <div className="min-w-0 flex-1">

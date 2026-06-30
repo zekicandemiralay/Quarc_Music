@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, Music, Download, Flame, TrendingUp, BarChart2, Library } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { coverUrl } from '../../lib/apiUrl';
 
 // Benford's Law expected percentages for first digits 1–9
 const BENFORD = [30.1, 17.6, 12.5, 9.7, 7.9, 6.7, 5.8, 5.1, 4.6];
@@ -240,7 +241,7 @@ export default function Stats() {
                       <span className="text-zinc-600 text-sm w-4 shrink-0 text-right">{i + 1}</span>
                       <div className="w-9 h-9 bg-zinc-700 rounded shrink-0 overflow-hidden">
                         {s.has_cover
-                          ? <img src={`/api/music/${s.song_id}/cover`} alt="" className="w-full h-full object-cover" />
+                          ? <img src={coverUrl(s.song_id)} alt="" className="w-full h-full object-cover" />
                           : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={12} /></div>}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -294,7 +295,7 @@ export default function Stats() {
                   <div key={s.song_id} className="flex items-center gap-3 py-1.5">
                     <div className="w-9 h-9 bg-zinc-700 rounded shrink-0 overflow-hidden">
                       {s.has_cover
-                        ? <img src={`/api/music/${s.song_id}/cover`} alt="" className="w-full h-full object-cover" />
+                        ? <img src={coverUrl(s.song_id)} alt="" className="w-full h-full object-cover" />
                         : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={12} /></div>}
                     </div>
                     <div className="min-w-0">

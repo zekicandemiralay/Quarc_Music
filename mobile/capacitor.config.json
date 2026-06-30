@@ -2,11 +2,6 @@
   "appId": "com.quarc.music",
   "appName": "Quarc Music",
   "webDir": "www",
-  "server": {
-    "url": "https://quarcnet0.tail84500c.ts.net:4000",
-    "cleartext": false,
-    "allowNavigation": ["quarcnet0.tail84500c.ts.net"]
-  },
   "android": {
     "allowMixedContent": false,
     "backgroundColor": "#121212"

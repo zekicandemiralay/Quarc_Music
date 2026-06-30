@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { saveAudio, getAudioBlob, removeAudio, getAllCachedIds, getStorageEstimate } from '../lib/offlineLib';
+import { streamUrl } from '../lib/apiUrl';
 
 // ── Wake Lock ────────────────────────────────────────────────────────────
 let wakeLock = null;
@@ -68,7 +69,7 @@ const useOfflineStore = create((set, get) => ({
     set((s) => ({ downloading: { ...s.downloading, [song.id]: 0 } }));
 
     try {
-      const res = await fetch(`/api/music/${song.id}/stream`);
+      const res = await fetch(streamUrl(song.id));
       if (!res.ok) throw new Error('Fetch failed');
 
       const total = parseInt(res.headers.get('Content-Length') || '0', 10);

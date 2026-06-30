@@ -1,6 +1,7 @@
 ﻿import { create } from 'zustand';
 import { getAudioBlob } from '../lib/offlineLib';
 import useOfflineStore from './useOfflineStore';
+import { coverUrl, streamUrl } from '../lib/apiUrl';
 
 function weightedShuffle(songs) {
   const arr = [...songs];
@@ -53,7 +54,7 @@ const coverB64Cache = new Map();
 async function fetchCoverBase64(songId) {
   if (coverB64Cache.has(songId)) return coverB64Cache.get(songId);
   try {
-    const res = await fetch(`/api/music/${songId}/cover`);
+    const res = await fetch(coverUrl(songId));
     if (!res.ok) return null;
     const blob = await res.blob();
     const img = document.createElement('img');
@@ -89,7 +90,7 @@ preloader.preload = 'auto';
 function schedulePreload(queue, queueIndex) {
   const next = queue[queueIndex + 1];
   if (!next) return;
-  const src = `/api/music/${next.id}/stream`;
+  const src = streamUrl(next.id);
   if (preloader.src !== src) preloader.src = src;
 }
 
@@ -116,7 +117,7 @@ async function prefetchBlob(songId) {
   if (cachedIds.has(songId)) return; // offline cache already handles it
   blobFetching.add(songId);
   try {
-    const res = await fetch(`/api/music/${songId}/stream`);
+    const res = await fetch(streamUrl(songId));
     if (res.ok) {
       const blob = await res.blob();
       if (blobFetching.has(songId)) { // still relevant
@@ -180,7 +181,7 @@ function applyMediaSessionMeta(song) {
     artist: song.artist || '',
     album: song.album || '',
     artwork: song.has_cover
-      ? [{ src: `/api/music/${song.id}/cover`, sizes: '512x512', type: 'image/jpeg' }]
+      ? [{ src: coverUrl(song.id), sizes: '512x512', type: 'image/jpeg' }]
       : [],
   });
 }
@@ -253,7 +254,7 @@ const usePlayerStore = create((set, get) => ({
     // (no stutter, no network needed). Otherwise stream normally.
     audio.src = blobCache.has(song.id)
       ? blobCache.get(song.id)
-      : `/api/music/${song.id}/stream`;
+      : streamUrl(song.id);
     audio.play().catch(() => set({ isPlaying: false }));
     schedulePreload(finalQueue, finalIndex);
     startPrebuffering(finalQueue, finalIndex);
@@ -309,7 +310,7 @@ const usePlayerStore = create((set, get) => ({
       return;
     }
     // If preloader already buffered this song, swap it in directly for instant start
-    const nextSrc = `/api/music/${queue[idx].id}/stream`;
+    const nextSrc = streamUrl(queue[idx].id);
     if (preloader.src === nextSrc && !preloader.error) {
       // Save current song to history (playSong normally does this but is bypassed here)
       if (!goingBack) {
@@ -489,7 +490,7 @@ try {
       } else {
         audio.play().catch(() => {
           if (currentSong) {
-            audio.src = `/api/music/${currentSong.id}/stream`;
+            audio.src = streamUrl(currentSong.id);
             audio.addEventListener('canplay', () => {
               audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
             }, { once: true });
@@ -533,7 +534,7 @@ if ('mediaSession' in navigator) {
     }
 
     const reload = () => {
-      audio.src = `/api/music/${currentSong.id}/stream`;
+      audio.src = streamUrl(currentSong.id);
       const onCanPlay = () => {
         clearTimeout(reloadTimeout);
         if (t > 0) audio.currentTime = t;
@@ -616,7 +617,7 @@ document.addEventListener('visibilitychange', () => {
       return;
     }
     if (audio.readyState < 2 && currentSong) {
-      audio.src = `/api/music/${currentSong.id}/stream`;
+      audio.src = streamUrl(currentSong.id);
       audio.addEventListener('canplay', () => {
         if (t > 0) audio.currentTime = t;
         audio.play().catch(() => {
@@ -684,7 +685,7 @@ try {
       currentTime: saved.time || 0,
       isPlaying: false,
     });
-    audio.src = `/api/music/${saved.song.id}/stream`;
+    audio.src = streamUrl(saved.song.id);
     if (saved.time > 0) {
       audio.addEventListener('loadedmetadata', function onMeta() {
         audio.currentTime = saved.time;

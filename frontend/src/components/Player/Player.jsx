@@ -6,6 +6,7 @@ import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, C
 import { useTranslation } from 'react-i18next';
 import useRadioStore from '../../store/useRadioStore';
 import QueuePanel from './QueuePanel';
+import { coverUrl } from '../../lib/apiUrl';
 
 function fmt(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -74,7 +75,7 @@ function Cover({ song, className = '' }) {
   return (
     <div className={`bg-zinc-800 overflow-hidden flex items-center justify-center flex-shrink-0 ${className}`}>
       {song?.has_cover
-        ? <img src={`/api/music/${song.id}/cover`} alt="" loading="lazy" className="w-full h-full object-cover" />
+        ? <img src={coverUrl(song.id)} alt="" loading="lazy" className="w-full h-full object-cover" />
         : <Music size={24} className="text-zinc-600" />}
     </div>
   );

@@ -8,11 +8,14 @@ const { getDb } = require('../db');
 const { requireAuth } = require('../middleware/auth');
 
 const SECRET = () => process.env.JWT_SECRET || 'insecure-default-change-in-production';
+const SECURE_COOKIE = process.env.SECURE_COOKIE === 'true';
 const COOKIE_OPTS = {
   httpOnly: true,
-  sameSite: 'lax',
+  // SameSite=none required when the APK (capacitor://localhost) sends requests to
+  // the remote server cross-origin. Requires Secure=true per browser spec.
+  sameSite: SECURE_COOKIE ? 'none' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000,
-  secure: process.env.SECURE_COOKIE === 'true',
+  secure: SECURE_COOKIE,
 };
 
 router.post('/login', async (req, res) => {
@@ -56,7 +59,7 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/logout', (_req, res) => {
-  res.clearCookie('token');
+  res.clearCookie('token', { httpOnly: true, sameSite: SECURE_COOKIE ? 'none' : 'lax', secure: SECURE_COOKIE });
   res.json({ ok: true });
 });
 

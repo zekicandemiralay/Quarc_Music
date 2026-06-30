@@ -4,6 +4,7 @@ import { X, Music, ChevronUp, ChevronDown, Download, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import usePlayerStore from '../../store/playerStore';
 import useRadioStore from '../../store/useRadioStore';
+import { coverUrl } from '../../lib/apiUrl';
 
 function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, onPlay }) {
   const { t } = useTranslation();
@@ -16,7 +17,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
     >
       <div className="w-10 h-10 shrink-0 rounded overflow-hidden bg-zinc-800 flex items-center justify-center">
         {song.has_cover
-          ? <img src={`/api/music/${song.id}/cover`} alt="" loading="lazy" className="w-full h-full object-cover" />
+          ? <img src={coverUrl(song.id)} alt="" loading="lazy" className="w-full h-full object-cover" />
           : <Music size={14} className="text-zinc-600" />}
       </div>
       <div className="min-w-0 flex-1">
