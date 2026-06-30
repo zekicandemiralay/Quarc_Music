@@ -121,6 +121,7 @@ async function openExternal(url) {
 }
 
 function Modal({ video, onClose }) {
+  const { t } = useTranslation();
   if (!video) return null;
   return (
     // Full-screen on mobile, centred card on desktop
