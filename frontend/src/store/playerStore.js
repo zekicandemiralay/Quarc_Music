@@ -539,55 +539,41 @@ if ('mediaSession' in navigator) {
     usePlayerStore.setState({ isPlaying: true });
     const t = audio.currentTime || storeTime;
 
-    // Blob is already in memory — no Tailscale needed, resumes instantly
+    // Pre-buffered blob: swap src synchronously then call play() immediately.
+    // iOS requires audio.play() to be called synchronously within the user-gesture
+    // context of this handler — calling it inside a canplay callback loses that.
     if (blobCache.has(currentSong.id)) {
       const blobUrl = blobCache.get(currentSong.id);
       if (audio.src !== blobUrl) {
         audio.src = blobUrl;
-        audio.addEventListener('canplay', () => {
-          if (t > 0) audio.currentTime = t;
-          audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
-        }, { once: true });
-      } else {
-        audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
+        audio.addEventListener('loadedmetadata', () => { if (t > 0) audio.currentTime = t; }, { once: true });
       }
+      audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
       return;
     }
 
-    const reload = () => {
-      audio.src = streamUrl(currentSong.id);
-      const onCanPlay = () => {
-        clearTimeout(reloadTimeout);
-        if (t > 0) audio.currentTime = t;
-        audio.play().catch(() => usePlayerStore.setState({ isPlaying: false }));
-      };
-      // If canplay never fires (iOS blocking background network), show as paused
-      const reloadTimeout = setTimeout(() => {
-        audio.removeEventListener('canplay', onCanPlay);
-        usePlayerStore.setState({ isPlaying: false });
-      }, 5000);
-      audio.addEventListener('canplay', onCanPlay, { once: true });
-    };
-
-    if (audio.readyState < 2) {
-      // Stream definitely gone — reload immediately
-      reload();
+    // Buffer still valid (most common after a brief lock-screen pause): direct resume.
+    if (audio.readyState >= 2) {
+      audio.play().catch(() => {
+        // play() rejected — only reload from network if screen is visible.
+        // When locked, iOS blocks new network connections; keep isPlaying=true
+        // so that visibilitychange resumes once the screen unlocks.
+        if (document.visibilityState === 'hidden') return;
+        audio.src = streamUrl(currentSong.id);
+        const onCanPlay = () => { clearTimeout(tmo); if (t > 0) audio.currentTime = t; audio.play().catch(() => usePlayerStore.setState({ isPlaying: false })); };
+        const tmo = setTimeout(() => { audio.removeEventListener('canplay', onCanPlay); usePlayerStore.setState({ isPlaying: false }); }, 5000);
+        audio.addEventListener('canplay', onCanPlay, { once: true });
+      });
       return;
     }
 
-    // readyState OK: try play() directly first — works when app was backgrounded
-    // and stream is still alive (user manually paused via lock screen).
-    audio.play().catch(reload);
-
-    // If play() resolved silently but stream is dead (visible-then-locked case),
-    // the audio element fires 'waiting' when it runs out of data to play.
-    const onWaiting = () => {
-      clearTimeout(waitCleanup);
-      audio.removeEventListener('waiting', onWaiting);
-      if (!audio.paused) reload();
-    };
-    const waitCleanup = setTimeout(() => audio.removeEventListener('waiting', onWaiting), 8000);
-    audio.addEventListener('waiting', onWaiting);
+    // Buffer cleared and no blob: reload from stream only when visible.
+    // If the screen is locked, keep isPlaying=true so visibilitychange picks it up.
+    if (document.visibilityState === 'hidden') return;
+    audio.src = streamUrl(currentSong.id);
+    const onCanPlay = () => { clearTimeout(tmo); if (t > 0) audio.currentTime = t; audio.play().catch(() => usePlayerStore.setState({ isPlaying: false })); };
+    const tmo = setTimeout(() => { audio.removeEventListener('canplay', onCanPlay); usePlayerStore.setState({ isPlaying: false }); }, 5000);
+    audio.addEventListener('canplay', onCanPlay, { once: true });
   });
   navigator.mediaSession.setActionHandler('pause', () => {
     pausedByUser = true;
