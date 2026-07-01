@@ -295,5 +295,18 @@
     "unknown": "Unknown",
     "addedToQueue": "Added to queue",
     "linkCopied": "Link copied"
+  },
+  "updates": {
+    "title": "Check for Updates",
+    "checking": "Checking…",
+    "installed": "Installed",
+    "latest": "Latest",
+    "upToDate": "You're up to date",
+    "updateAvailable": "Update available",
+    "install": "Install",
+    "downloading": "Starting…",
+    "viewRelease": "View on GitHub",
+    "refresh": "Refresh",
+    "error": "Error"
   }
 }

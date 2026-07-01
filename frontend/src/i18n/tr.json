@@ -295,5 +295,18 @@
     "unknown": "Bilinmiyor",
     "addedToQueue": "Sıraya eklendi",
     "linkCopied": "Bağlantı kopyalandı"
+  },
+  "updates": {
+    "title": "Güncelleme Kontrol Et",
+    "checking": "Kontrol ediliyor…",
+    "installed": "Yüklü",
+    "latest": "En son",
+    "upToDate": "Güncelsiniz",
+    "updateAvailable": "Güncelleme mevcut",
+    "install": "Yükle",
+    "downloading": "Başlatılıyor…",
+    "viewRelease": "GitHub'da görüntüle",
+    "refresh": "Yenile",
+    "error": "Hata"
   }
 }

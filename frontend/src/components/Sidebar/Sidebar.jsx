@@ -1,11 +1,164 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download } from 'lucide-react';
+import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
 import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
+
+const REPO = 'zekicandemiralay/Quarc_Music';
+
+function semverGt(a, b) {
+  const pa = (a || '0').split('.').map(Number);
+  const pb = (b || '0').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
+function UpdateCheckModal({ onClose }) {
+  const { t } = useTranslation();
+  const [platform, setPlatform] = useState(null);
+  const [currentVersion, setCurrentVersion] = useState(null);
+  const [release, setRelease] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [installing, setInstalling] = useState(false);
+
+  const check = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      let p = 'web';
+      let ver = null;
+      if (window?.Capacitor?.isNativePlatform?.()) {
+        p = 'android';
+        try { ver = (await window.Capacitor.Plugins.App.getInfo()).version; } catch {}
+      } else if (window?.__TAURI__) {
+        p = 'desktop';
+        try { ver = await window.__TAURI__.app.getVersion(); } catch {}
+      }
+      setPlatform(p);
+      setCurrentVersion(ver);
+
+      const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`);
+      if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+      setRelease(await res.json());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { check(); }, [check]);
+
+  function getDownloadUrl() {
+    if (!release) return null;
+    if (platform === 'android') return release.assets?.find(a => a.name.endsWith('.apk'))?.browser_download_url;
+    if (platform === 'desktop') return release.assets?.find(a => a.name.includes('x64-setup.exe'))?.browser_download_url ?? release.html_url;
+    return release.html_url;
+  }
+
+  function handleInstall() {
+    const url = getDownloadUrl();
+    const version = release?.tag_name?.replace(/^v/, '');
+    if (!url) return;
+    setInstalling(true);
+    if (platform === 'android') {
+      window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url, version });
+    } else if (platform === 'desktop') {
+      window.__TAURI__.shell.open(url);
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  const latestVersion = release?.tag_name?.replace(/^v/, '');
+  const hasUpdate = currentVersion && latestVersion && semverGt(latestVersion, currentVersion);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-zinc-800 rounded-2xl p-5 w-full max-w-sm space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-white font-semibold">{t('updates.title', 'Check for Updates')}</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X size={18} /></button>
+        </div>
+
+        {loading && (
+          <div className="flex items-center gap-3 py-2">
+            <RefreshCw size={15} className="animate-spin text-zinc-400 shrink-0" />
+            <span className="text-zinc-400 text-sm">{t('updates.checking', 'Checking…')}</span>
+          </div>
+        )}
+
+        {error && !loading && (
+          <p className="text-red-400 text-sm">{t('updates.error', 'Error')}: {error}</p>
+        )}
+
+        {!loading && !error && release && (
+          <div className="space-y-3">
+            {platform !== 'web' && currentVersion && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-400">{t('updates.installed', 'Installed')}</span>
+                <span className="text-white font-medium">v{currentVersion}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-400">{t('updates.latest', 'Latest')}</span>
+              <span className="text-white font-medium">{release.tag_name}</span>
+            </div>
+
+            <div className={`flex items-center gap-2 text-sm font-medium py-2 px-3 rounded-lg ${hasUpdate ? 'bg-amber-500/10 text-amber-400' : 'bg-green-500/10 text-green-400'}`}>
+              {hasUpdate ? (
+                <>{t('updates.updateAvailable', 'Update available')}</>
+              ) : (
+                <><CheckCircle size={14} /> {t('updates.upToDate', "You're up to date")}</>
+              )}
+            </div>
+
+            {(hasUpdate || platform === 'web') && (
+              <div className="flex gap-2">
+                {platform !== 'web' ? (
+                  <button
+                    onClick={handleInstall}
+                    disabled={installing}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    <Download size={14} />
+                    {installing ? t('updates.downloading', 'Starting…') : t('updates.install', 'Install')}
+                  </button>
+                ) : (
+                  <a
+                    href={release.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-xl text-sm font-medium transition-colors"
+                  >
+                    <ExternalLink size={14} />
+                    {t('updates.viewRelease', 'View on GitHub')}
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <button
+          onClick={check}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 py-2 text-zinc-500 hover:text-zinc-300 text-xs transition-colors disabled:opacity-40"
+        >
+          <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+          {t('updates.refresh', 'Refresh')}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const MIX_ICONS = {
   your_mix: <Sparkles size={15} className="text-purple-400 shrink-0" />,
@@ -160,6 +313,7 @@ export default function Sidebar({ onNavigate }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
   const navigate = useNavigate();
 
   const nav = (to) => { navigate(to); onNavigate?.(); };
@@ -336,12 +490,16 @@ export default function Sidebar({ onNavigate }) {
         <button onClick={() => setChangingPassword(true)} className="text-zinc-500 hover:text-white transition-colors" title={t('sidebar.changePassword')}>
           <KeyRound size={15} />
         </button>
+        <button onClick={() => setCheckingUpdates(true)} className="text-zinc-500 hover:text-white transition-colors" title={t('updates.title', 'Check for Updates')}>
+          <RefreshCw size={15} />
+        </button>
         <button onClick={handleLogout} className="text-zinc-500 hover:text-white transition-colors" title={t('sidebar.signOut')}>
           <LogOut size={15} />
         </button>
       </div>
 
       {changingPassword && <ChangePasswordModal onClose={() => setChangingPassword(false)} />}
+      {checkingUpdates && <UpdateCheckModal onClose={() => setCheckingUpdates(false)} />}
     </div>
   );
 }
