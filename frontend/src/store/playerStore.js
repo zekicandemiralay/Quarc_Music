@@ -86,6 +86,9 @@ async function fetchCoverBase64(songId) {
 // Track the last song for which we called nativeService('start') so we can
 // distinguish a new-song start from a resume (same song, same ID).
 let lastNativeStartSongId = null;
+// Track the last song for which we set MediaMetadata so we don't recreate it
+// on every resume — iOS may reset the lock screen widget when metadata changes.
+let lastMetadataSongId = null;
 
 // Silent preloader — buffers the next song in the background so it starts instantly
 const preloader = new Audio();
@@ -412,8 +415,12 @@ audio.addEventListener('play', () => {
   const { currentSong } = usePlayerStore.getState();
   const title = currentSong?.title ?? 'Quarc Music';
   const artist = currentSong?.artist ?? '';
-  // Re-apply metadata now that audio is active — iOS only registers it once playing
-  applyMediaSessionMeta(currentSong);
+  // Set MediaMetadata once per song after audio is active (iOS ignores it before play).
+  // Don't recreate on resumes — rebuilding MediaMetadata resets the lock screen widget.
+  if (currentSong?.id !== lastMetadataSongId) {
+    lastMetadataSongId = currentSong?.id ?? null;
+    applyMediaSessionMeta(currentSong);
+  }
   const isNewSong = currentSong?.id !== lastNativeStartSongId;
   if (isNewSong) {
     lastNativeStartSongId = currentSong?.id ?? null;
