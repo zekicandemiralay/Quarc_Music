@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { Search, X, Download, CheckCircle, AlertCircle, Play, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -18,17 +19,37 @@ function fmtViews(n) {
   return `${n} views`;
 }
 
-function PlaylistPicker({ songId, onClose }) {
+function PlaylistPicker({ songId, onClose, anchorRef }) {
   const { t } = useTranslation();
   const { playlists, addToPlaylist } = useUserDataStore();
   const [added, setAdded] = useState(null);
-  const ref = useRef(null);
+  const [coords, setCoords] = useState(null);
+  const pickerRef = useRef(null);
 
   useEffect(() => {
-    function onDown(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
+    if (anchorRef?.current) {
+      const r = anchorRef.current.getBoundingClientRect();
+      // prefer opening above; if not enough space, open below
+      const spaceAbove = r.top;
+      const maxH = 224; // max-h-56 = 14rem = 224px
+      if (spaceAbove >= maxH + 8) {
+        setCoords({ bottom: window.innerHeight - r.top + 8, left: r.left, top: 'auto' });
+      } else {
+        setCoords({ top: r.bottom + 8, left: r.left, bottom: 'auto' });
+      }
+    }
+  }, [anchorRef]);
+
+  useEffect(() => {
+    function onDown(e) {
+      if (
+        pickerRef.current && !pickerRef.current.contains(e.target) &&
+        anchorRef?.current && !anchorRef.current.contains(e.target)
+      ) onClose();
+    }
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [onClose]);
+  }, [onClose, anchorRef]);
 
   async function handleAdd(playlistId) {
     await addToPlaylist(playlistId, String(songId));
@@ -36,8 +57,14 @@ function PlaylistPicker({ songId, onClose }) {
     setTimeout(onClose, 900);
   }
 
-  return (
-    <div ref={ref} className="absolute bottom-full left-0 mb-2 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-20 min-w-44 max-h-56 overflow-y-auto">
+  if (!coords) return null;
+
+  return createPortal(
+    <div
+      ref={pickerRef}
+      style={{ top: coords.top, bottom: coords.bottom, left: coords.left }}
+      className="fixed bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-[300] min-w-44 max-h-56 overflow-y-auto"
+    >
       {playlists.length === 0 ? (
         <p className="text-zinc-500 text-xs px-3 py-3">{t('nav.noPlaylists')}</p>
       ) : playlists.map((p) => (
@@ -50,7 +77,8 @@ function PlaylistPicker({ songId, onClose }) {
           {added === p.id && <CheckCircle size={13} className="text-green-400 shrink-0" />}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -99,6 +127,8 @@ function DownloadBtn({ videoId, title }) {
     } catch { setStatus('error'); }
   }
 
+  const pickerBtnRef = useRef(null);
+
   if (status === 'done')
     return (
       <div className="flex items-center gap-2 flex-wrap">
@@ -106,16 +136,17 @@ function DownloadBtn({ videoId, title }) {
           <CheckCircle size={15} />{t('youtube.savedToLibrary')}
         </span>
         {songId && (
-          <div className="relative">
+          <>
             <button
+              ref={pickerBtnRef}
               onClick={() => setShowPicker((v) => !v)}
               className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white rounded-full text-xs font-medium transition-colors"
             >
               <ListPlus size={13} />
               {t('library.addToPlaylist')}
             </button>
-            {showPicker && <PlaylistPicker songId={songId} onClose={() => setShowPicker(false)} />}
-          </div>
+            {showPicker && <PlaylistPicker songId={songId} anchorRef={pickerBtnRef} onClose={() => setShowPicker(false)} />}
+          </>
         )}
       </div>
     );
