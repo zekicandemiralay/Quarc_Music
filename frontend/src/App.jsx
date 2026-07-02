@@ -10,6 +10,7 @@ import Admin from './pages/Admin/Admin';
 import Stats from './pages/Stats/Stats';
 import Home from './pages/Home/Home';
 import Import from './pages/Import/Import';
+import Radio from './pages/Radio/Radio';
 import useOfflineStore from './store/useOfflineStore';
 import useMixStore from './store/useMixStore';
 import useFeaturedStore from './store/useFeaturedStore';
@@ -88,6 +89,7 @@ export default function App() {
                 <Route path="/mix/:mixId" element={<Library view="mix" />} />
                 <Route path="/featured/:featuredId" element={<Library view="featured" />} />
                 <Route path="/youtube" element={<YouTube />} />
+                <Route path="/radio" element={<Radio />} />
                 <Route path="/import" element={<Import />} />
                 <Route path="/stats" element={<Stats />} />
                 <Route path="/admin" element={

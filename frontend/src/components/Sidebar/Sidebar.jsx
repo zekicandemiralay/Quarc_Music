@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink } from 'lucide-react';
+import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink, Radio } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
@@ -370,6 +370,10 @@ export default function Sidebar({ onNavigate }) {
           <NavLink to="/youtube" className={linkClass} onClick={onNavigate}>
             <Youtube size={18} className="text-red-500" />
             {t('nav.youtube')}
+          </NavLink>
+          <NavLink to="/radio" className={linkClass} onClick={onNavigate}>
+            <Radio size={18} className="text-pink-400" />
+            {t('nav.radio')}
           </NavLink>
           <NavLink to="/stats" className={linkClass} onClick={onNavigate}>
             <BarChart2 size={18} className="text-blue-400" />

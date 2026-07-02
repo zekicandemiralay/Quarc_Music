@@ -41,10 +41,11 @@ function getCachedSongs() {
 }
 
 const useUserDataStore = create((set, get) => ({
-  likedSongs: [],   // string[] of song IDs
-  playlists: [],    // { id, name, songs: string[] }[]
+  likedSongs: [],      // string[] of song IDs
+  playlists: [],       // { id, name, songs: string[] }[]
+  radioFavorites: [],  // { stationuuid, name, url_resolved, favicon, tags, country, bitrate }[]
   loaded: false,
-  _mut: 0,          // increments on every mutation; prevents stale server loads from overwriting
+  _mut: 0,             // increments on every mutation; prevents stale server loads from overwriting
 
   load: () => {
     const genAtLoad = get()._mut;
@@ -52,22 +53,28 @@ const useUserDataStore = create((set, get) => ({
     set({
       likedSongs: lsGet('quarc_liked_songs') || [],
       playlists: lsGet('quarc_playlists') || [],
+      radioFavorites: lsGet('quarc_radio_favorites') || [],
       loaded: true,
     });
     // Refresh from server, but only write back if no mutations happened while waiting
-    Promise.all([loadFromServer('liked_songs'), loadFromServer('playlists')])
-      .then(([liked, playlists]) => {
+    Promise.all([
+      loadFromServer('liked_songs'),
+      loadFromServer('playlists'),
+      loadFromServer('radio_favorites'),
+    ]).then(([liked, playlists, radioFavs]) => {
         if (get()._mut !== genAtLoad) return; // a mutation happened — server data is stale
         const likedSongs = liked || lsGet('quarc_liked_songs') || [];
         const pls = playlists || lsGet('quarc_playlists') || [];
+        const radioFavorites = radioFavs || lsGet('quarc_radio_favorites') || [];
         lsSet('quarc_liked_songs', likedSongs);
         lsSet('quarc_playlists', pls);
-        set({ likedSongs, playlists: pls });
+        lsSet('quarc_radio_favorites', radioFavorites);
+        set({ likedSongs, playlists: pls, radioFavorites });
       })
       .catch(() => {});
   },
 
-  reset: () => set({ likedSongs: [], playlists: [], loaded: false, _mut: 0 }),
+  reset: () => set({ likedSongs: [], playlists: [], radioFavorites: [], loaded: false, _mut: 0 }),
 
   // ── Liked songs ──────────────────────────────────────────────────────────
 
@@ -138,6 +145,27 @@ const useUserDataStore = create((set, get) => ({
     );
     set((s) => ({ playlists: next, _mut: s._mut + 1 }));
     await save('playlists', next);
+  },
+
+  // ── Radio favourites ─────────────────────────────────────────────────────────
+
+  toggleRadioFavorite: async (station) => {
+    const { radioFavorites } = get();
+    // Store only the fields we need (avoid storing stale API fields)
+    const slim = {
+      stationuuid: station.stationuuid,
+      name: station.name,
+      url_resolved: station.url_resolved || station.url,
+      favicon: station.favicon || '',
+      tags: station.tags || '',
+      country: station.country || '',
+      bitrate: station.bitrate || 0,
+    };
+    const next = radioFavorites.some((f) => f.stationuuid === station.stationuuid)
+      ? radioFavorites.filter((f) => f.stationuuid !== station.stationuuid)
+      : [...radioFavorites, slim];
+    set((s) => ({ radioFavorites: next, _mut: s._mut + 1 }));
+    await save('radio_favorites', next);
   },
 
   removeFromPlaylist: async (playlistId, songId) => {

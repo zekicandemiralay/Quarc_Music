@@ -409,6 +409,7 @@ audio.addEventListener('durationchange', () => usePlayerStore.setState({ duratio
 audio.addEventListener('error', () => usePlayerStore.setState({ isPlaying: false }));
 
 audio.addEventListener('play', () => {
+  window.dispatchEvent(new Event('quarc-music-started'));
   playTrack.resumeAt = Date.now();
   usePlayerStore.setState({ isPlaying: true });
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -494,6 +495,13 @@ audio.addEventListener('waiting', () => {
     if (t > 0) audio.currentTime = t;
     audio.play().catch(() => {});
   }, { once: true });
+});
+
+// Stop music when internet radio takes over
+window.addEventListener('quarc-internet-radio-started', () => {
+  pausedByUser = true;
+  audio.pause();
+  usePlayerStore.setState({ isPlaying: false });
 });
 
 // Native lock-screen buttons (Android notification prev/play-pause/next via MusicServicePlugin)

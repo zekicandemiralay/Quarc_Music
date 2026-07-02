@@ -4,6 +4,7 @@
     "library": "Library",
     "likedSongs": "Liked Songs",
     "youtube": "YouTube",
+    "radio": "Radio",
     "stats": "Stats",
     "import": "Import",
     "admin": "Admin",
@@ -295,6 +296,14 @@
     "unknown": "Unknown",
     "addedToQueue": "Added to queue",
     "linkCopied": "Link copied"
+  },
+  "radio": {
+    "searchPlaceholder": "Search stations…",
+    "favourites": "Favourites",
+    "topStations": "Top Stations",
+    "noResults": "No stations found",
+    "loading": "Loading stations…",
+    "streamError": "Stream unavailable — try another station"
   },
   "updates": {
     "title": "Check for Updates",

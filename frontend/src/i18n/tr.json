@@ -4,6 +4,7 @@
     "library": "Kütüphane",
     "likedSongs": "Beğenilen Şarkılar",
     "youtube": "YouTube",
+    "radio": "Radyo",
     "stats": "İstatistikler",
     "import": "İçe Aktar",
     "admin": "Yönetici",
@@ -295,6 +296,14 @@
     "unknown": "Bilinmiyor",
     "addedToQueue": "Sıraya eklendi",
     "linkCopied": "Bağlantı kopyalandı"
+  },
+  "radio": {
+    "searchPlaceholder": "İstasyon ara…",
+    "favourites": "Favoriler",
+    "topStations": "Popüler İstasyonlar",
+    "noResults": "İstasyon bulunamadı",
+    "loading": "İstasyonlar yükleniyor…",
+    "streamError": "Yayın kullanılamıyor — başka bir istasyon deneyin"
   },
   "updates": {
     "title": "Güncelleme Kontrol Et",

@@ -2,15 +2,40 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered, Share2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered, Share2, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useRadioStore from '../../store/useRadioStore';
+import useInternetRadioStore from '../../store/useInternetRadioStore';
 import QueuePanel from './QueuePanel';
 import { coverUrl } from '../../lib/apiUrl';
 
 function fmt(s) {
   if (!s || isNaN(s)) return '0:00';
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+}
+
+const STATION_PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'];
+function stationColor(name) {
+  let h = 0;
+  for (const c of name || '') h = (h << 5) - h + c.charCodeAt(0);
+  return STATION_PALETTE[Math.abs(h) % STATION_PALETTE.length];
+}
+
+function StationAvatar({ station, size }) {
+  const [failed, setFailed] = useState(false);
+  const color = stationColor(station.name);
+  if (station.favicon && !failed) {
+    return (
+      <div className={`${size} bg-zinc-800 rounded flex items-center justify-center shrink-0 overflow-hidden`} style={{ backgroundColor: color + '18' }}>
+        <img src={station.favicon} alt="" className="w-3/4 h-3/4 object-contain" onError={() => setFailed(true)} />
+      </div>
+    );
+  }
+  return (
+    <div className={`${size} rounded flex items-center justify-center shrink-0 font-bold text-base`} style={{ backgroundColor: color + '25', color }}>
+      {(station.name || '?')[0].toUpperCase()}
+    </div>
+  );
 }
 
 function ScrollingText({ text, className }) {
@@ -399,6 +424,7 @@ export default function Player() {
   } = usePlayerStore();
   const { likedSongs, toggleLike } = useUserDataStore();
   const { radioMode, toggleRadioMode } = useRadioStore();
+  const { currentStation, isPlaying: radioPlaying, stop: stopRadio } = useInternetRadioStore();
   const liked = currentSong ? likedSongs.includes(currentSong.id) : false;
 
   const [expanded, setExpanded] = useState(false);
@@ -453,84 +479,122 @@ export default function Player() {
         </div>
 
         {/* ── Mobile player ── */}
-        <div className="flex md:hidden items-center gap-3 px-3 py-3">
-          <Cover song={currentSong} className="w-12 h-12 rounded" />
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <div className="flex items-center gap-2 min-w-0">
-              {currentSong && <EqBars isPlaying={isPlaying} />}
-              <ScrollingText
-                text={currentSong?.title ?? t('player.nothingPlaying')}
-                className={`text-base font-semibold ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}
-              />
+        {currentStation ? (
+          <div className="flex md:hidden items-center gap-3 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+            <StationAvatar station={currentStation} size="w-12 h-12" />
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex items-center gap-2 min-w-0">
+                {radioPlaying && <EqBars isPlaying />}
+                <ScrollingText text={currentStation.name} className="text-base font-semibold text-pink-400" />
+              </div>
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />LIVE
+              </span>
             </div>
-            <p className="text-sm text-zinc-400 truncate">{currentSong?.artist ?? ''}</p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={sp(() => currentSong && toggleLike(currentSong.id))}
-              disabled={!currentSong}
-              className={`p-2 transition-colors disabled:opacity-30 ${liked ? 'text-red-400' : 'text-zinc-500 hover:text-white'}`}
-            >
-              <Heart size={18} className={liked ? 'fill-current' : ''} />
+            <button onClick={sp(stopRadio)} className="p-2 text-zinc-400 hover:text-white transition-colors">
+              <Square size={18} className="fill-current" />
             </button>
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
+          </div>
+        ) : (
+          <div className="flex md:hidden items-center gap-3 px-3 py-3">
+            <Cover song={currentSong} className="w-12 h-12 rounded" />
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex items-center gap-2 min-w-0">
+                {currentSong && <EqBars isPlaying={isPlaying} />}
+                <ScrollingText
+                  text={currentSong?.title ?? t('player.nothingPlaying')}
+                  className={`text-base font-semibold ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}
+                />
+              </div>
+              <p className="text-sm text-zinc-400 truncate">{currentSong?.artist ?? ''}</p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => currentSong && setShowMenu((v) => !v)}
+                onClick={sp(() => currentSong && toggleLike(currentSong.id))}
                 disabled={!currentSong}
-                className={`p-2 transition-colors disabled:opacity-30 ${showMenu ? 'text-white' : 'text-zinc-500 hover:text-white'}`}
+                className={`p-2 transition-colors disabled:opacity-30 ${liked ? 'text-red-400' : 'text-zinc-500 hover:text-white'}`}
               >
-                <ListPlus size={18} />
+                <Heart size={18} className={liked ? 'fill-current' : ''} />
               </button>
-              {showMenu && currentSong && <SongActionsMenu songId={currentSong.id} song={currentSong} onClose={() => setShowMenu(false)} upward />}
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => currentSong && setShowMenu((v) => !v)}
+                  disabled={!currentSong}
+                  className={`p-2 transition-colors disabled:opacity-30 ${showMenu ? 'text-white' : 'text-zinc-500 hover:text-white'}`}
+                >
+                  <ListPlus size={18} />
+                </button>
+                {showMenu && currentSong && <SongActionsMenu songId={currentSong.id} song={currentSong} onClose={() => setShowMenu(false)} upward />}
+              </div>
+              <button
+                onClick={sp(isPlaying ? pause : resume)}
+                disabled={!currentSong}
+                className="w-9 h-9 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-30"
+              >
+                {isPlaying ? <Pause size={16} className="text-black" /> : <Play size={16} className="text-black ml-0.5" />}
+              </button>
+              <button onClick={sp(next)} disabled={!currentSong} className="p-2 text-zinc-400 hover:text-white disabled:opacity-30">
+                <SkipForward size={20} />
+              </button>
             </div>
-            <button
-              onClick={sp(isPlaying ? pause : resume)}
-              disabled={!currentSong}
-              className="w-9 h-9 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-30"
-            >
-              {isPlaying ? <Pause size={16} className="text-black" /> : <Play size={16} className="text-black ml-0.5" />}
-            </button>
-            <button onClick={sp(next)} disabled={!currentSong} className="p-2 text-zinc-400 hover:text-white disabled:opacity-30">
-              <SkipForward size={20} />
-            </button>
           </div>
-        </div>
+        )}
 
         {/* ── Desktop player ── */}
         <div className="hidden md:flex items-center px-4 h-24 gap-6">
 
           {/* Song info + actions — left section */}
           <div className="flex items-center gap-3 min-w-0 w-1/3">
-            <Cover song={currentSong} className="w-14 h-14 rounded shrink-0" />
-            {currentSong ? (
+            {currentStation ? (
               <>
-                <div className="min-w-0 overflow-hidden flex items-center gap-2 flex-1">
-                  <EqBars isPlaying={isPlaying} />
-                  <div className="min-w-0 overflow-hidden">
-                    <p className="text-green-400 text-base font-semibold truncate">{currentSong.title}</p>
-                    <p className="text-zinc-400 text-sm truncate">{currentSong.artist}</p>
+                <StationAvatar station={currentStation} size="w-14 h-14" />
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {radioPlaying && <EqBars isPlaying />}
+                    <p className="text-pink-400 text-base font-semibold truncate">{currentStation.name}</p>
                   </div>
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />LIVE
+                  </span>
                 </div>
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <button
-                    onClick={sp(() => toggleLike(currentSong.id))}
-                    className={`p-1.5 transition-colors ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-300'}`}
-                  >
-                    <Heart size={15} className={liked ? 'fill-current' : ''} />
-                  </button>
-                  <div className="relative" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => setShowMenu((v) => !v)}
-                      className={`p-1.5 transition-colors ${showMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-300'}`}
-                    >
-                      <ListPlus size={15} />
-                    </button>
-                    {showMenu && <SongActionsMenu songId={currentSong.id} song={currentSong} onClose={() => setShowMenu(false)} upward />}
-                  </div>
-                </div>
+                <button onClick={sp(stopRadio)} className="p-1.5 text-zinc-500 hover:text-white transition-colors shrink-0" title="Stop radio">
+                  <Square size={15} className="fill-current" />
+                </button>
               </>
             ) : (
-              <p className="text-zinc-600 text-sm">{t('player.nothingPlaying')}</p>
+              <>
+                <Cover song={currentSong} className="w-14 h-14 rounded shrink-0" />
+                {currentSong ? (
+                  <>
+                    <div className="min-w-0 overflow-hidden flex items-center gap-2 flex-1">
+                      <EqBars isPlaying={isPlaying} />
+                      <div className="min-w-0 overflow-hidden">
+                        <p className="text-green-400 text-base font-semibold truncate">{currentSong.title}</p>
+                        <p className="text-zinc-400 text-sm truncate">{currentSong.artist}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        onClick={sp(() => toggleLike(currentSong.id))}
+                        className={`p-1.5 transition-colors ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-300'}`}
+                      >
+                        <Heart size={15} className={liked ? 'fill-current' : ''} />
+                      </button>
+                      <div className="relative" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setShowMenu((v) => !v)}
+                          className={`p-1.5 transition-colors ${showMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-300'}`}
+                        >
+                          <ListPlus size={15} />
+                        </button>
+                        {showMenu && <SongActionsMenu songId={currentSong.id} song={currentSong} onClose={() => setShowMenu(false)} upward />}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-zinc-600 text-sm">{t('player.nothingPlaying')}</p>
+                )}
+              </>
             )}
           </div>
 
