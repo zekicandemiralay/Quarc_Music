@@ -352,7 +352,36 @@ else
 fi
 
 info "YTDLP_RATE_LIMIT: ${YTDLP_RATE_LIMIT:-unlimited (not set)}"
-[ -n "${YTDLP_PROXY:-}" ] && info "YTDLP_PROXY: ${YTDLP_PROXY}" || true
+
+# Verify YTDLP_PROXY is set inside the backend container
+# (if missing, all yt-dlp calls bypass the VPN and hit YouTube directly)
+BACKEND_PROXY=$(dexec backend sh -c 'echo "$YTDLP_PROXY"' 2>/dev/null | tr -d '\r\n')
+if [ -z "$BACKEND_PROXY" ]; then
+  fail "YTDLP_PROXY not set in backend container — yt-dlp bypasses VPN (add YTDLP_PROXY=http://gluetun:8888 to .env)"
+else
+  ok "YTDLP_PROXY set in backend container: ${BACKEND_PROXY}"
+fi
+
+# Confirm traffic actually exits through the VPN by comparing the host's real IP
+# with the IP seen when making a request through gluetun:8888
+HOST_IP=$(curl -s --max-time 5 http://api.ipify.org 2>/dev/null | tr -d '\r\n' || echo "")
+VPN_IP=$(dexec backend python3 -c "
+import urllib.request
+p = urllib.request.ProxyHandler({'http':'http://gluetun:8888','https':'http://gluetun:8888'})
+o = urllib.request.build_opener(p)
+try:
+  print(o.open('http://api.ipify.org', timeout=8).read().decode().strip())
+except:
+  pass
+" 2>/dev/null | tr -d '\r\n' || echo "")
+
+if [ -z "$HOST_IP" ] || [ -z "$VPN_IP" ]; then
+  warn "Could not verify VPN IP routing (IP check timed out or failed)"
+elif [ "$HOST_IP" = "$VPN_IP" ]; then
+  fail "VPN not routing traffic — host IP and VPN exit IP are both ${HOST_IP}"
+else
+  ok "VPN routing confirmed — host: ${HOST_IP}  VPN exit: ${VPN_IP}"
+fi
 
 # ════════════════════════════════════════════════════════════════════════
 hdr "Last.fm / Radio"
