@@ -26,6 +26,13 @@ if [ -z "$BACKEND" ]; then
   exit 1
 fi
 
+# music.db runs in WAL mode — recent writes can sit in music.db-wal, which
+# this script doesn't copy. Checkpoint it into the main file first so the
+# backup is complete and doesn't depend on -wal/-shm files (also avoids
+# SQLITE_CANTOPEN when something later opens this copy read-only).
+echo "  · Checkpointing WAL into music.db ..."
+docker exec "$BACKEND" node -e "require('/app/src/db').getDb().pragma('wal_checkpoint(TRUNCATE)')" 2>/dev/null || true
+
 # SQLite database
 echo "  · Exporting music.db ..."
 docker cp "$BACKEND:/app/data/music.db" "$BACKUP_DIR/music.db"
