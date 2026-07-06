@@ -60,10 +60,15 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+      # Lets nginx reach the quarc-auth container by name for /api/auth/* —
+      # see MIGRATION.md / the Quarc_Notes repo for how quarc-auth is deployed.
+      - quarcnet-shared
 
 networks:
   app-network:
     driver: bridge
+  quarcnet-shared:
+    external: true
 
 volumes:
   db_data:
