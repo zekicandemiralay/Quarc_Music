@@ -171,7 +171,19 @@ function downloadBySearch(query, outputDir, onProgress) {
 }
 
 function normalizeWords(s) {
-  return (s || '').toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return (s || '')
+    // Turkish İ/ı fold to plain 'i' — JS's locale-independent toLowerCase() turns
+    // 'İ' into 'i' + a combining dot-above (U+0307), which the \w filter below
+    // would then strip as punctuation, splitting one word into two ("i", "stanbul").
+    // Handling it before case-folding avoids that split entirely.
+    .replace(/[İIı]/g, 'i')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // fold remaining diacritics (ç, ş, ğ, ö, ü…)
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
 }
 
 // Words that identify a specific version — if the query has one, the result must too.
@@ -187,22 +199,26 @@ const VERSION_KEYWORDS = new Set([
   'slowed', 'sped', 'nightcore',
 ]);
 
-function scoreCandidate(candidate, artistWords, titleWords, expectedSecs) {
-  // Song-title similarity: Jaccard word overlap, computed on the SONG NAME only
-  // (artist name is scored separately below) — otherwise any video by the right
-  // artist gets a free title-score boost even when it's the wrong song entirely.
+function scoreCandidate(candidate, artistWords, titleWords, versionWords, expectedSecs) {
+  // Song-title match: fraction of the actual song's words found in the candidate
+  // (recall), computed on the SONG NAME only (artist is scored separately below) —
+  // NOT a symmetric Jaccard overlap. A candidate with extra, legitimate words
+  // (channel prefix, "(acoustic cover)", "(Official Audio)"…) shouldn't be
+  // penalised for saying more than the bare title; a same-titled upload from an
+  // unrelated channel shouldn't win over the real artist's own upload just for
+  // omitting extra (accurate) words.
   const candWords = normalizeWords(candidate.title);
   const candSet = new Set(candWords);
   const matches = titleWords.filter(w => candSet.has(w)).length;
-  const union = new Set([...titleWords, ...candWords]).size;
-  let titleScore = union > 0 ? matches / union : 0;
+  let titleScore = titleWords.length > 0 ? matches / titleWords.length : 0;
 
-  // If the song title contains version keywords (acoustic, live, remix…) but the
-  // candidate title is missing them, heavily penalise — prevents the official
-  // MV from beating an acoustic/live version just because it's more popular.
-  const titleVersionWords = titleWords.filter(w => VERSION_KEYWORDS.has(w));
-  if (titleVersionWords.length > 0) {
-    const missing = titleVersionWords.filter(w => !candSet.has(w)).length;
+  // If this track is a specific version (acoustic, live, remix… — drawn from
+  // both the title AND the album name, since compilation exports often store
+  // this in the album field instead) but the candidate is missing that word,
+  // heavily penalise — prevents the official MV from beating an acoustic/live
+  // version just because it's more popular.
+  if (versionWords.length > 0) {
+    const missing = versionWords.filter(w => !candSet.has(w)).length;
     if (missing > 0) titleScore *= 0.25;
   }
 
@@ -263,6 +279,10 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
 
   const artistWords = normalizeWords(artist);
   const titleWords = normalizeWords(title);
+  // Version descriptors can end up in the title, artist, OR album field — Spotify's
+  // own metadata for compilations/soundtracks isn't consistent about which field
+  // gets the "(Akustik Versiyon)"-style annotation, so all three are checked.
+  const versionWords = [...new Set([...titleWords, ...artistWords, ...normalizeWords(album)])].filter(w => VERSION_KEYWORDS.has(w));
 
   const seen = new Map(); // dedupe candidates across queries by video id
   for (const query of queries) {
@@ -279,7 +299,7 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
   if (seen.size === 0) throw new Error('No search results');
 
   const best = [...seen.values()]
-    .map(c => ({ ...c, score: scoreCandidate(c, artistWords, titleWords, expectedSecs) }))
+    .map(c => ({ ...c, score: scoreCandidate(c, artistWords, titleWords, versionWords, expectedSecs) }))
     .sort((a, b) => b.score - a.score)[0];
 
   return downloadAudio(best.id, outputDir, onProgress);
