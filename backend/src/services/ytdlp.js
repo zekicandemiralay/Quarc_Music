@@ -170,8 +170,23 @@ function downloadBySearch(query, outputDir, onProgress) {
   });
 }
 
+// Classical scores are sometimes titled with British note-duration names instead of
+// the American ones Spotify tends to use (e.g. movement tempo markings like "Quarter
+// Note = 108" vs "Crotchet = 108") — fold to one form so they're recognised as the
+// same word rather than scoring as a partial/missing match.
+const NOTE_DURATION_SYNONYMS = [
+  [/whole[\s-]+notes?/gi, 'semibreve'],
+  [/half[\s-]+notes?/gi, 'minim'],
+  [/quarter[\s-]+notes?/gi, 'crotchet'],
+  [/eighth[\s-]+notes?/gi, 'quaver'],
+  [/sixteenth[\s-]+notes?/gi, 'semiquaver'],
+  [/thirty[\s-]*second[\s-]+notes?/gi, 'demisemiquaver'],
+];
+
 function normalizeWords(s) {
-  return (s || '')
+  let str = s || '';
+  for (const [pattern, replacement] of NOTE_DURATION_SYNONYMS) str = str.replace(pattern, replacement);
+  return str
     // Turkish İ/ı fold to plain 'i' — JS's locale-independent toLowerCase() turns
     // 'İ' into 'i' + a combining dot-above (U+0307), which the \w filter below
     // would then strip as punctuation, splitting one word into two ("i", "stanbul").
