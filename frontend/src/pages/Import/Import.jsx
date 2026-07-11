@@ -332,7 +332,9 @@ export default function Import() {
               </p>
               <div className="max-h-28 overflow-y-auto space-y-0.5">
                 {job.errors.map((e, i) => (
-                  <p key={i} className="text-red-400 text-xs truncate">{e.track}</p>
+                  <p key={i} className="text-red-400 text-xs truncate" title={e.error}>
+                    {e.track}{e.error ? <span className="text-red-400/60"> — {e.error}</span> : null}
+                  </p>
                 ))}
               </div>
             </div>
