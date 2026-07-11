@@ -187,17 +187,24 @@ function normalizeWords(s) {
 }
 
 // Words that identify a specific version — if the query has one, the result must too.
-const VERSION_KEYWORDS = new Set([
+// Matched by stem (startsWith), not exact string, so plurals/inflections like
+// "instrumentals" or "covers" are recognised without listing every form.
+const VERSION_KEYWORDS = [
   'acoustic', 'acustic', 'akustik',
   'live', 'concert', 'unplugged',
-  'remix', 'remixed', 'edit',
+  'remix', 'edit',
   'instrumental', 'karaoke',
-  'cover', 'covered',
+  'cover',
   'extended', 'radio',
   'demo', 'stripped', 'piano',
-  'remaster', 'remastered',
+  'remaster',
   'slowed', 'sped', 'nightcore',
-]);
+];
+
+// Returns the canonical keyword stem a word matches ("instrumentals" -> "instrumental"), or null.
+function versionStem(word) {
+  return VERSION_KEYWORDS.find(kw => word === kw || word.startsWith(kw)) || null;
+}
 
 function scoreCandidate(candidate, artistWords, titleWords, versionWords, expectedSecs) {
   // Song-title match: fraction of the actual song's words found in the candidate
@@ -218,7 +225,7 @@ function scoreCandidate(candidate, artistWords, titleWords, versionWords, expect
   // heavily penalise — prevents the official MV from beating an acoustic/live
   // version just because it's more popular.
   if (versionWords.length > 0) {
-    const missing = versionWords.filter(w => !candSet.has(w)).length;
+    const missing = versionWords.filter(stem => !candWords.some(w => w === stem || w.startsWith(stem))).length;
     if (missing > 0) titleScore *= 0.25;
   }
 
@@ -256,7 +263,7 @@ function stripVersionWordsForSearch(title) {
   const kept = (title || '').split(/\s+/).filter(w => {
     const bare = w.toLowerCase().replace(/[^\w]/g, '');
     if (!bare) return false; // drop bare punctuation/separator tokens ("-", "(", ")")
-    return !VERSION_KEYWORDS.has(bare);
+    return !versionStem(bare);
   });
   return kept.join(' ').trim();
 }
@@ -282,7 +289,7 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
   // Version descriptors can end up in the title, artist, OR album field — Spotify's
   // own metadata for compilations/soundtracks isn't consistent about which field
   // gets the "(Akustik Versiyon)"-style annotation, so all three are checked.
-  const versionWords = [...new Set([...titleWords, ...artistWords, ...normalizeWords(album)])].filter(w => VERSION_KEYWORDS.has(w));
+  const versionWords = [...new Set([...titleWords, ...artistWords, ...normalizeWords(album)].map(versionStem).filter(Boolean))];
 
   // Each extra query is a full yt-dlp subprocess call (re-solving YouTube's bot-
   // check JS challenge every time), which dominates import time — so only widen
