@@ -187,21 +187,29 @@ const VERSION_KEYWORDS = new Set([
   'slowed', 'sped', 'nightcore',
 ]);
 
-function scoreCandidate(candidate, queryWords, expectedSecs) {
-  // Title similarity: Jaccard word overlap between query and result title
-  const titleWords = normalizeWords(candidate.title);
-  const titleSet = new Set(titleWords);
-  const matches = queryWords.filter(w => titleSet.has(w)).length;
-  const union = new Set([...queryWords, ...titleWords]).size;
+function scoreCandidate(candidate, artistWords, titleWords, expectedSecs) {
+  // Song-title similarity: Jaccard word overlap, computed on the SONG NAME only
+  // (artist name is scored separately below) — otherwise any video by the right
+  // artist gets a free title-score boost even when it's the wrong song entirely.
+  const candWords = normalizeWords(candidate.title);
+  const candSet = new Set(candWords);
+  const matches = titleWords.filter(w => candSet.has(w)).length;
+  const union = new Set([...titleWords, ...candWords]).size;
   let titleScore = union > 0 ? matches / union : 0;
 
-  // If the query contains version keywords (acoustic, live, remix…) but the
+  // If the song title contains version keywords (acoustic, live, remix…) but the
   // candidate title is missing them, heavily penalise — prevents the official
   // MV from beating an acoustic/live version just because it's more popular.
-  const queryVersionWords = queryWords.filter(w => VERSION_KEYWORDS.has(w));
-  if (queryVersionWords.length > 0) {
-    const missing = queryVersionWords.filter(w => !titleSet.has(w)).length;
+  const titleVersionWords = titleWords.filter(w => VERSION_KEYWORDS.has(w));
+  if (titleVersionWords.length > 0) {
+    const missing = titleVersionWords.filter(w => !candSet.has(w)).length;
     if (missing > 0) titleScore *= 0.25;
+  }
+
+  // Artist presence: does the candidate title mention the artist at all?
+  let artistScore = 0.5; // neutral when artist unknown
+  if (artistWords.length > 0) {
+    artistScore = artistWords.filter(w => candSet.has(w)).length / artistWords.length;
   }
 
   // Duration proximity: penalises results that are way off the expected length.
@@ -212,20 +220,25 @@ function scoreCandidate(candidate, queryWords, expectedSecs) {
     durationScore = Math.max(0, 1 - pct * 2.5);
   }
 
-  // When we have a duration hint, weight it at 70%; otherwise pure title match.
-  const dWeight = expectedSecs ? 0.7 : 0;
-  return titleScore * (1 - dWeight) + durationScore * dWeight;
+  // Song title match is the primary signal — duration and artist presence support
+  // it but must not be able to outweigh a wrong song title on their own.
+  const dWeight = expectedSecs ? 0.35 : 0;
+  const aWeight = 0.15;
+  const tWeight = 1 - dWeight - aWeight;
+  return titleScore * tWeight + durationScore * dWeight + artistScore * aWeight;
 }
 
 // Search for up to 5 candidates, score them, download the best match.
 // expectedSecs is the track duration from the source (Spotify CSV etc.) — null if unknown.
-async function searchAndDownload(query, expectedSecs, outputDir, onProgress) {
+async function searchAndDownload(artist, title, expectedSecs, outputDir, onProgress) {
+  const query = artist ? `${artist} - ${title}` : title;
   const candidates = await searchYoutube(query, 5);
   if (candidates.length === 0) throw new Error('No search results');
 
-  const queryWords = normalizeWords(query);
+  const artistWords = normalizeWords(artist);
+  const titleWords = normalizeWords(title);
   const best = candidates
-    .map(c => ({ ...c, score: scoreCandidate(c, queryWords, expectedSecs) }))
+    .map(c => ({ ...c, score: scoreCandidate(c, artistWords, titleWords, expectedSecs) }))
     .sort((a, b) => b.score - a.score)[0];
 
   return downloadAudio(best.id, outputDir, onProgress);

@@ -137,8 +137,7 @@ async function downloadWithRetry(track, maxAttempts = 3) {
       if (track.videoId) {
         return await withTimeout(downloadAudio(track.videoId, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
       } else {
-        const query = track.artist ? `${track.artist} - ${track.name}` : track.name;
-        return await withTimeout(searchAndDownload(query, track.durationSecs || null, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
+        return await withTimeout(searchAndDownload(track.artist, track.name, track.durationSecs || null, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
       }
     } catch (err) {
       lastErr = err;
