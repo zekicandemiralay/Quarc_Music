@@ -2,6 +2,9 @@
   "identifier": "default",
   "description": "Default capability for the main window",
   "windows": ["main"],
+  "remote": {
+    "urls": ["https://quarcnet0.tail84500c.ts.net:4000"]
+  },
   "permissions": [
     "core:default",
     "shell:allow-open"

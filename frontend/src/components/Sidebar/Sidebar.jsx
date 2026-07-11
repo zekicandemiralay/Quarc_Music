@@ -71,7 +71,7 @@ function UpdateCheckModal({ onClose }) {
     if (platform === 'android') {
       window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url, version });
     } else if (platform === 'desktop') {
-      window.__TAURI__.shell.open(url);
+      window.__TAURI__.shell.open(url).catch(e => { setError(e.message); setInstalling(false); });
     } else {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
