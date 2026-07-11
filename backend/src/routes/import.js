@@ -69,6 +69,7 @@ function csvToPlaylist(filename, buffer) {
       return {
         name: r['track name'] || r['name'] || '',
         artist: firstArtist(r['artist name(s)'] || r['artist'] || ''),
+        album: r['album name'] || r['album'] || '',
         durationSecs: durationMs > 0 ? Math.round(durationMs / 1000) : null,
       };
     })
@@ -137,7 +138,7 @@ async function downloadWithRetry(track, maxAttempts = 3) {
       if (track.videoId) {
         return await withTimeout(downloadAudio(track.videoId, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
       } else {
-        return await withTimeout(searchAndDownload(track.artist, track.name, track.durationSecs || null, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
+        return await withTimeout(searchAndDownload(track.artist, track.name, track.album, track.durationSecs || null, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
       }
     } catch (err) {
       lastErr = err;

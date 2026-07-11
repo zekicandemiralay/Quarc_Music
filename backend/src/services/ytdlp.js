@@ -225,19 +225,60 @@ function scoreCandidate(candidate, artistWords, titleWords, expectedSecs) {
   const dWeight = expectedSecs ? 0.35 : 0;
   const aWeight = 0.15;
   const tWeight = 1 - dWeight - aWeight;
-  return titleScore * tWeight + durationScore * dWeight + artistScore * aWeight;
+  const total = titleScore * tWeight + durationScore * dWeight + artistScore * aWeight;
+
+  // If the candidate shares literally no words with the actual song title, it's
+  // almost certainly the wrong song — an artist-name or duration coincidence
+  // (e.g. a different track by a same-named artist) must not be enough to win.
+  return matches === 0 ? total * 0.15 : total;
 }
 
-// Search for up to 5 candidates, score them, download the best match.
+// Search queries should skip version-descriptor words ("Instrumental", "Live"...) —
+// the real YouTube upload rarely repeats them literally, so keeping them in the
+// query text just drags in unrelated results. They're still used for scoring below.
+function stripVersionWordsForSearch(title) {
+  const kept = (title || '').split(/\s+/).filter(w => {
+    const bare = w.toLowerCase().replace(/[^\w]/g, '');
+    if (!bare) return false; // drop bare punctuation/separator tokens ("-", "(", ")")
+    return !VERSION_KEYWORDS.has(bare);
+  });
+  return kept.join(' ').trim();
+}
+
+// Search for candidates, score them, download the best match.
 // expectedSecs is the track duration from the source (Spotify CSV etc.) — null if unknown.
-async function searchAndDownload(artist, title, expectedSecs, outputDir, onProgress) {
-  const query = artist ? `${artist} - ${title}` : title;
-  const candidates = await searchYoutube(query, 5);
-  if (candidates.length === 0) throw new Error('No search results');
+// album is an optional fallback artist hint — Spotify's "Artist Name(s)" field is
+// sometimes wrong or a compilation/session credit (common for classical/soundtrack
+// tracks), which can send YouTube search completely off-track; the real composer
+// often ends up in the album name instead, so it's tried as an extra search angle.
+async function searchAndDownload(artist, title, album, expectedSecs, outputDir, onProgress) {
+  const searchTitle = stripVersionWordsForSearch(title) || title;
+
+  // Title alone is the most reliable search — prepending a wrong/generic artist
+  // credit can bury the correct video entirely (verified: it can push YouTube's
+  // search to return completely unrelated results). Try it first, then widen.
+  const queries = [searchTitle];
+  if (artist) queries.push(`${artist} - ${searchTitle}`);
+  if (album && album.trim().toLowerCase() !== (artist || '').trim().toLowerCase()) queries.push(`${album} - ${searchTitle}`);
 
   const artistWords = normalizeWords(artist);
   const titleWords = normalizeWords(title);
-  const best = candidates
+
+  const seen = new Map(); // dedupe candidates across queries by video id
+  for (const query of queries) {
+    let candidates;
+    try {
+      candidates = await searchYoutube(query, 10);
+    } catch {
+      continue;
+    }
+    for (const c of candidates) {
+      if (!seen.has(c.id)) seen.set(c.id, c);
+    }
+  }
+  if (seen.size === 0) throw new Error('No search results');
+
+  const best = [...seen.values()]
     .map(c => ({ ...c, score: scoreCandidate(c, artistWords, titleWords, expectedSecs) }))
     .sort((a, b) => b.score - a.score)[0];
 
