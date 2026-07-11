@@ -284,7 +284,12 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
   // gets the "(Akustik Versiyon)"-style annotation, so all three are checked.
   const versionWords = [...new Set([...titleWords, ...artistWords, ...normalizeWords(album)])].filter(w => VERSION_KEYWORDS.has(w));
 
+  // Each extra query is a full yt-dlp subprocess call (re-solving YouTube's bot-
+  // check JS challenge every time), which dominates import time — so only widen
+  // past the title-only search when it didn't already turn up a confident match.
+  const CONFIDENT_ENOUGH = 0.4;
   const seen = new Map(); // dedupe candidates across queries by video id
+  let best = null;
   for (const query of queries) {
     let candidates;
     try {
@@ -293,14 +298,14 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
       continue;
     }
     for (const c of candidates) {
-      if (!seen.has(c.id)) seen.set(c.id, c);
+      if (seen.has(c.id)) continue;
+      seen.set(c.id, true);
+      const score = scoreCandidate(c, artistWords, titleWords, versionWords, expectedSecs);
+      if (!best || score > best.score) best = { ...c, score };
     }
+    if (best && best.score >= CONFIDENT_ENOUGH) break;
   }
-  if (seen.size === 0) throw new Error('No search results');
-
-  const best = [...seen.values()]
-    .map(c => ({ ...c, score: scoreCandidate(c, artistWords, titleWords, versionWords, expectedSecs) }))
-    .sort((a, b) => b.score - a.score)[0];
+  if (!best) throw new Error('No search results');
 
   return downloadAudio(best.id, outputDir, onProgress);
 }
