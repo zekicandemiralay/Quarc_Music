@@ -296,6 +296,7 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
   // past the title-only search when it didn't already turn up a confident match.
   const CONFIDENT_ENOUGH = 0.4;
   const seen = new Map(); // dedupe candidates across queries by video id
+  const scored = [];
   let best = null;
   for (const query of queries) {
     let candidates;
@@ -307,12 +308,21 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
     for (const c of candidates) {
       if (seen.has(c.id)) continue;
       seen.set(c.id, true);
-      const score = scoreCandidate(c, artistWords, titleWords, versionWords, expectedSecs);
-      if (!best || score > best.score) best = { ...c, score };
+      const entry = { ...c, score: scoreCandidate(c, artistWords, titleWords, versionWords, expectedSecs) };
+      scored.push(entry);
+      if (!best || entry.score > best.score) best = entry;
     }
     if (best && best.score >= CONFIDENT_ENOUGH) break;
   }
   if (!best) throw new Error('No search results');
+
+  // Log the pick + runner-ups so a mismatch can be diagnosed from server logs
+  // directly (`docker logs`) instead of re-guessing against a different region's
+  // YouTube search results — the backend's VPN egress may see different results
+  // than a local/unproxied search would.
+  const top3 = scored.sort((a, b) => b.score - a.score).slice(0, 3)
+    .map(c => `${c.score.toFixed(3)} "${c.title}" (${c.id}, ${c.duration}s)`).join(' | ');
+  console.log(`[import] "${artist ? artist + ' - ' : ''}${title}" expected=${expectedSecs ?? '?'}s -> ${top3}`);
 
   return downloadAudio(best.id, outputDir, onProgress);
 }
