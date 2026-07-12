@@ -296,9 +296,18 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
   // Title alone is the most reliable search — prepending a wrong/generic artist
   // credit can bury the correct video entirely (verified: it can push YouTube's
   // search to return completely unrelated results). Try it first, then widen.
+  //
+  // Album before artist: across every real mismatch diagnosed so far, Spotify's
+  // "Artist Name(s)" field was the unreliable one (a compilation credit, an
+  // unrelated phrase, or outright wrong), while the real artist/composer had
+  // ended up in the Album field instead. Album+title had a perfect track record
+  // recovering the correct video; artist+title only helped when that field
+  // happened to already contain something real, and actively hurt when it
+  // didn't — so it's kept only as a further fallback, tried last.
   const queries = [searchTitle];
+  const albumDiffersFromArtist = album && album.trim().toLowerCase() !== (artist || '').trim().toLowerCase();
+  if (albumDiffersFromArtist) queries.push(`${album} - ${searchTitle}`);
   if (artist) queries.push(`${artist} - ${searchTitle}`);
-  if (album && album.trim().toLowerCase() !== (artist || '').trim().toLowerCase()) queries.push(`${album} - ${searchTitle}`);
 
   const artistWords = normalizeWords(artist);
   const titleWords = normalizeWords(title);
