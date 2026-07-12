@@ -268,7 +268,8 @@ function scoreCandidate(candidate, artistWords, titleWords, versionWords, expect
   // If the candidate shares literally no words with the actual song title, it's
   // almost certainly the wrong song — an artist-name or duration coincidence
   // (e.g. a different track by a same-named artist) must not be enough to win.
-  return matches === 0 ? total * 0.15 : total;
+  const score = matches === 0 ? total * 0.15 : total;
+  return { score, titleScore, durationScore, artistScore };
 }
 
 // Search queries should skip version-descriptor words ("Instrumental", "Live"...) —
@@ -323,11 +324,17 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
     for (const c of candidates) {
       if (seen.has(c.id)) continue;
       seen.set(c.id, true);
-      const entry = { ...c, score: scoreCandidate(c, artistWords, titleWords, versionWords, expectedSecs) };
+      const entry = { ...c, ...scoreCandidate(c, artistWords, titleWords, versionWords, expectedSecs) };
       scored.push(entry);
       if (!best || entry.score > best.score) best = entry;
     }
-    if (best && best.score >= CONFIDENT_ENOUGH) break;
+    // A high score from title-recall alone isn't trustworthy corroboration when
+    // the title is short/generic — e.g. "Cleaning Apartment" also gets a perfect
+    // title-only match against unrelated cleaning vlogs. Require the duration or
+    // artist signal to be at least plausible too before treating a title-only hit
+    // as confident enough to skip the wider (costlier) queries.
+    const corroborated = best && (best.durationScore > 0.3 || best.artistScore > 0.3);
+    if (best && best.score >= CONFIDENT_ENOUGH && corroborated) break;
   }
   if (!best) throw new Error('No search results');
 
