@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 
 const PROXY_ARGS = process.env.YTDLP_PROXY ? ['--proxy', process.env.YTDLP_PROXY] : [];
 const RATE_ARGS = process.env.YTDLP_RATE_LIMIT ? ['--limit-rate', process.env.YTDLP_RATE_LIMIT] : [];
-const JS_ARGS = ['--js-runtimes', 'nodejs'];
+const JS_ARGS = ['--js-runtimes', 'node'];
 const FRAG_ARGS = ['--concurrent-fragments', process.env.YTDLP_CONCURRENT_FRAGMENTS || '4'];
 
 function searchYoutube(query, limit = 10) {
