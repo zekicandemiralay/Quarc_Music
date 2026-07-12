@@ -5,7 +5,7 @@ const AdmZip = require('adm-zip');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { requireAuth } = require('../middleware/auth');
-const { searchAndDownload, downloadAudio, normalizeWords } = require('../services/ytdlp');
+const { searchAndDownload, downloadAudio } = require('../services/ytdlp');
 const { scanFile } = require('../services/scanner');
 const { getDb } = require('../db');
 
@@ -156,52 +156,28 @@ function normalizeStr(s) {
 }
 
 function buildSongLookup(db) {
-  const songs = db.prepare('SELECT id, title, artist, filepath, duration FROM songs').all();
   const map = new Map();
-  for (const s of songs) {
+  for (const s of db.prepare('SELECT id, title, artist, filepath FROM songs').all()) {
     const t = normalizeStr(s.title);
     const a = normalizeStr(s.artist || '');
     if (!map.has(`${t}||${a}`)) map.set(`${t}||${a}`, s);
     if (!map.has(`t:${t}`)) map.set(`t:${t}`, s);
   }
-  return { map, songs };
+  return map;
 }
 
-// Conservative bar for treating a library song as "already downloaded" — a false
-// positive here means silently skipping a track that isn't actually present,
-// which is worse than the false negative of a redundant re-download.
-const LIBRARY_MATCH_CONFIDENCE = 0.85;
-
-// Exact match (normalized title[+artist]) handles the common case cheaply. If it
-// misses, fall back to a fuzzy scan — the library's stored metadata (from YouTube
-// titles / ID3 tags) is often phrased differently than the import source's title
-// (e.g. "Can Atilla - Vivaldi İstanbul'da (akustik cover)" vs plain "Vivaldi
-// İstanbul'da" from Spotify), so an exact miss doesn't mean the song isn't already
-// downloaded — without this, re-imports could re-download songs that already exist.
-function lookupSong(lookup, title, artist, durationSecs) {
+// Exact match only — deliberately NOT fuzzy. This is only used for YouTube Takeout
+// tracks, where track.name IS the video's own title, so an exact match is
+// unambiguous. Spotify tracks never call this: their title comes from a different
+// source than the library's (YouTube-derived) titles, so pre-matching against the
+// library before searching risked silently treating an unrelated, already-
+// downloaded song as "this one." They always search first and let the scored
+// YouTube result decide — yt-dlp and scanFile already dedupe by video/file, so nothing
+// is lost by not pre-checking.
+function lookupSong(map, title, artist) {
   const t = normalizeStr(title);
   const a = normalizeStr(artist || '');
-  const exact = lookup.map.get(`${t}||${a}`) || lookup.map.get(`t:${t}`);
-  if (exact) return exact;
-  if (!title) return null;
-
-  const titleWords = normalizeWords(title);
-  if (titleWords.length === 0) return null;
-  let best = null;
-  for (const s of lookup.songs) {
-    const candSet = new Set(normalizeWords(s.title));
-    const matches = titleWords.filter(w => candSet.has(w)).length;
-    if (matches === 0) continue; // shares no words — not a plausible match
-    const titleScore = matches / titleWords.length;
-    let durationScore = 1; // neutral when duration is unknown on either side
-    if (durationSecs && s.duration) {
-      const pct = Math.abs(s.duration - durationSecs) / durationSecs;
-      durationScore = Math.max(0, 1 - pct * 2.5);
-    }
-    const score = titleScore * 0.7 + durationScore * 0.3;
-    if (!best || score > best.score) best = { song: s, score };
-  }
-  return best && best.score >= LIBRARY_MATCH_CONFIDENCE ? best.song : null;
+  return map.get(`${t}||${a}`) || map.get(`t:${t}`) || null;
 }
 
 async function runImport(userId, playlists, startPli = 0, startTi = 0) {
@@ -266,9 +242,9 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
       job.currentTrack = label;
 
       try {
-        // Check library first (fuzzy fallback handles non-ASCII case folding and
-        // differently-phrased stored metadata — see lookupSong)
-        let song = track.name ? lookupSong(songLookup, track.name, track.artist, track.durationSecs) : null;
+        // Only pre-check the library for known-video (YouTube Takeout) tracks —
+        // see lookupSong for why Spotify tracks always search first instead.
+        let song = (track.videoId && track.name) ? lookupSong(songLookup, track.name, track.artist) : null;
 
         if (!song) {
           const filepath = await downloadWithRetry(track);
@@ -278,9 +254,8 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
             if (song) {
               const t = normalizeStr(song.title);
               const a = normalizeStr(song.artist || '');
-              songLookup.map.set(`${t}||${a}`, song);
-              if (!songLookup.map.has(`t:${t}`)) songLookup.map.set(`t:${t}`, song);
-              songLookup.songs.push(song);
+              songLookup.set(`${t}||${a}`, song);
+              if (!songLookup.has(`t:${t}`)) songLookup.set(`t:${t}`, song);
             }
           } else {
             job.errors.push({ track: label, error: 'Download returned no file path' });

@@ -342,4 +342,4 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
   return downloadAudio(best.id, outputDir, onProgress);
 }
 
-module.exports = { searchYoutube, downloadAudio, downloadBySearch, searchAndDownload, normalizeWords };
+module.exports = { searchYoutube, downloadAudio, downloadBySearch, searchAndDownload };
