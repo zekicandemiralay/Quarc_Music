@@ -351,6 +351,28 @@ else
   fail "YouTube search failed — VPN down, or YouTube blocking yt-dlp"
 fi
 
+# Search alone isn't enough to catch real problems: flat-playlist search doesn't
+# need to solve YouTube's JS signature challenge, but an actual download does —
+# so search can report healthy while every real download is silently failing
+# (this is exactly what happened: a broken --js-runtimes value passed search
+# checks for a long time before anyone noticed downloads were failing). Run the
+# same -x --audio-format mp3 extraction the app actually performs.
+info "Testing actual audio download+extraction via VPN (may take ~20-30s)..."
+DL_ERR=$(dexec backend yt-dlp \
+  --proxy http://gluetun:8888 \
+  --js-runtimes node \
+  -x --audio-format mp3 --no-warnings \
+  -o "/tmp/checksh_test.%(ext)s" \
+  "https://www.youtube.com/watch?v=dQw4w9WgXcQ" 2>&1)
+DL_OK=$(dexec backend sh -c 'test -s /tmp/checksh_test.mp3 && echo yes || echo no')
+if [ "$DL_OK" = "yes" ]; then
+  ok "YouTube download + mp3 extraction OK via VPN"
+  dexec backend rm -f /tmp/checksh_test.mp3
+else
+  fail "YouTube download failed — search works but actual downloads are blocked or broken"
+  info "$(echo "$DL_ERR" | tail -3)"
+fi
+
 info "YTDLP_RATE_LIMIT: ${YTDLP_RATE_LIMIT:-unlimited (not set)}"
 
 # Verify YTDLP_PROXY is set inside the backend container
