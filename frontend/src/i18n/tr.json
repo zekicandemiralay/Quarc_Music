@@ -64,6 +64,7 @@
     "mix": "Karışım",
     "collection": "Koleksiyon",
     "shuffle": "Karıştır",
+    "exportCsv": "CSV Dışa Aktar",
     "scanLibrary": "Kütüphaneyi Tara",
     "scanning": "Taranıyor…",
     "refreshMix": "Karışımı Yenile",

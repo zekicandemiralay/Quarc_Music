@@ -64,6 +64,7 @@
     "mix": "Mix",
     "collection": "Collection",
     "shuffle": "Shuffle",
+    "exportCsv": "Export CSV",
     "scanLibrary": "Scan Library",
     "scanning": "Scanning…",
     "refreshMix": "Refresh Mix",

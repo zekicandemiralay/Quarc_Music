@@ -9,7 +9,7 @@ import useOfflineStore from '../../store/useOfflineStore';
 import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
 import useRadioStore from '../../store/useRadioStore';
-import { coverUrl } from '../../lib/apiUrl';
+import { apiUrl, coverUrl } from '../../lib/apiUrl';
 
 // Normalize for search: strips diacritics (ş→s, ü→u, é→e, etc.) and lowercases.
 // ı (Turkish dotless-i, U+0131) has no NFD decomposition so we replace it explicitly.
@@ -584,6 +584,19 @@ export default function Library({ view = 'all' }) {
               </button>
               <OfflineButton songs={filtered} playlistId={view === 'playlist' ? playlistId : undefined} />
             </>
+          )}
+          {(view === 'liked' || view === 'playlist') && filtered.length > 0 && (
+            <button
+              onClick={() => window.open(
+                apiUrl(view === 'liked' ? '/api/export/liked-songs' : `/api/export/playlist/${playlistId}`),
+                '_blank'
+              )}
+              className="flex items-center gap-2 px-3 md:px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
+              title={t('library.exportCsv')}
+            >
+              <Download size={15} />
+              <span className="hidden sm:inline">{t('library.exportCsv')}</span>
+            </button>
           )}
           {view === 'all' && (
             <button
