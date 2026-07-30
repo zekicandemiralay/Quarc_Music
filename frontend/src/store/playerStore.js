@@ -107,32 +107,42 @@ function schedulePreload(queue, queueIndex) {
 // The current song still streams (no mid-song swap = no stutter).
 const PREBUFFER_COUNT = 3;
 const blobCache = new Map(); // songId → objectURL
-const blobFetching = new Set(); // songIds currently being fetched
+const blobFetching = new Map(); // songId → in-flight fetch Promise<url|null>
 
 function pruneCache(keepIds) {
   for (const [id, url] of blobCache.entries()) {
     if (!keepIds.has(id)) { URL.revokeObjectURL(url); blobCache.delete(id); }
   }
-  for (const id of blobFetching) {
+  for (const id of blobFetching.keys()) {
     if (!keepIds.has(id)) blobFetching.delete(id);
   }
 }
 
-async function prefetchBlob(songId) {
-  if (blobCache.has(songId) || blobFetching.has(songId)) return;
+// Returns a Promise for the full song's blob URL, deduped — multiple callers
+// (prebuffering + the quick-start handoff below) share the same in-flight
+// fetch instead of downloading the file twice.
+function prefetchBlob(songId) {
+  if (blobCache.has(songId)) return Promise.resolve(blobCache.get(songId));
+  if (blobFetching.has(songId)) return blobFetching.get(songId);
   const { cachedIds } = useOfflineStore.getState();
-  if (cachedIds.has(songId)) return; // offline cache already handles it
-  blobFetching.add(songId);
-  try {
-    const res = await fetch(streamUrl(songId));
-    if (res.ok) {
-      const blob = await res.blob();
-      if (blobFetching.has(songId)) { // still relevant
-        blobCache.set(songId, URL.createObjectURL(blob));
+  if (cachedIds.has(songId)) return Promise.resolve(null); // offline cache already handles it
+  const p = (async () => {
+    try {
+      const res = await fetch(streamUrl(songId));
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blobFetching.get(songId) === p) { // still relevant
+          const url = URL.createObjectURL(blob);
+          blobCache.set(songId, url);
+          return url;
+        }
       }
-    }
-  } catch {}
-  blobFetching.delete(songId);
+    } catch {}
+    return null;
+  })();
+  blobFetching.set(songId, p);
+  p.finally(() => { if (blobFetching.get(songId) === p) blobFetching.delete(songId); });
+  return p;
 }
 
 function startPrebuffering(queue, currentIndex) {
@@ -143,6 +153,68 @@ function startPrebuffering(queue, currentIndex) {
   pruneCache(upcoming);
   for (const song of queue.slice(currentIndex, currentIndex + 1 + PREBUFFER_COUNT)) {
     prefetchBlob(song.id);
+  }
+}
+
+// Cold-start latency fix: a network-streamed <audio> element waits for a large,
+// duration-based amount of buffered audio (measured ~70-80s worth) before it
+// will start playing, regardless of connection speed or bitrate — because it
+// can't be sure more data won't stall it. A Blob has no such uncertainty (it's
+// already fully "downloaded" from the browser's point of view), so fetching
+// just a small leading chunk as a Blob and playing from that starts audible
+// playback almost immediately. The full song is fetched in the background via
+// the existing prebuffer/blob-cache mechanism (deduped — this never downloads
+// the same bytes twice) and swapped in seamlessly, at the same playback
+// position, once ready. Only used for "cold" plays not already pre-buffered —
+// most songs during normal queue playback already have a full blob ready before
+// they're ever clicked, via startPrebuffering, and skip this path entirely.
+const QUICK_START_BYTES = 600 * 1024; // ~15-20s of audio at max quality — enough headroom for the full fetch to usually finish first
+async function quickStart(songId) {
+  const { cachedIds } = useOfflineStore.getState();
+  if (cachedIds.has(songId)) return; // offline blob swap already handles this song
+  let chunkUrl = null;
+  try {
+    const res = await fetch(streamUrl(songId), { headers: { Range: `bytes=0-${QUICK_START_BYTES - 1}` } });
+    if (usePlayerStore.getState().currentSong?.id !== songId) return; // song changed while fetching
+    if (!res.ok) return;
+    if (audio.readyState >= 2) return; // network stream already buffering fine — don't disrupt it
+    const chunkBlob = await res.blob();
+    if (usePlayerStore.getState().currentSong?.id !== songId || audio.readyState >= 2) return;
+
+    chunkUrl = URL.createObjectURL(chunkBlob);
+    const t = audio.currentTime;
+    const wasPlaying = !audio.paused;
+    audio.src = chunkUrl;
+    if (t > 0) audio.currentTime = t;
+    if (wasPlaying) audio.play().catch(() => {});
+
+    // Safety net: if playback runs past the end of this partial chunk before
+    // the full blob is ready, fall back to the live network stream rather
+    // than stalling. Fires at most once — after that, either the fallback
+    // stream or the full-blob handoff below is in control.
+    const onRunDry = () => {
+      if (usePlayerStore.getState().currentSong?.id !== songId || blobCache.has(songId)) return;
+      const tt = audio.currentTime;
+      audio.src = streamUrl(songId);
+      if (tt > 0) audio.currentTime = tt;
+      audio.play().catch(() => {});
+    };
+    audio.addEventListener('waiting', onRunDry, { once: true });
+
+    const fullUrl = await prefetchBlob(songId); // shares the fetch startPrebuffering already kicked off
+    audio.removeEventListener('waiting', onRunDry);
+    if (!fullUrl || usePlayerStore.getState().currentSong?.id !== songId) return;
+
+    const t2 = audio.currentTime;
+    const wasPlaying2 = !audio.paused;
+    audio.src = fullUrl;
+    if (t2 > 0) audio.currentTime = t2;
+    if (wasPlaying2) audio.play().catch(() => {});
+  } catch {
+    // Quick-start is a pure optimization — any failure just leaves the
+    // already-started network stream (from playSong) in control.
+  } finally {
+    if (chunkUrl) URL.revokeObjectURL(chunkUrl);
   }
 }
 
@@ -258,11 +330,12 @@ const usePlayerStore = create((set, get) => ({
     applyMediaSessionMeta(song);
 
     // If this song was pre-buffered as a blob, use it from the very first frame
-    // (no stutter, no network needed). Otherwise stream normally.
-    audio.src = blobCache.has(song.id)
-      ? blobCache.get(song.id)
-      : streamUrl(song.id);
+    // (no stutter, no network needed). Otherwise stream normally as a guaranteed
+    // fallback, and race a quick-start chunk in parallel — see quickStart().
+    const preBuffered = blobCache.has(song.id);
+    audio.src = preBuffered ? blobCache.get(song.id) : streamUrl(song.id);
     audio.play().catch(() => set({ isPlaying: false }));
+    if (!preBuffered) quickStart(song.id);
     schedulePreload(finalQueue, finalIndex);
     startPrebuffering(finalQueue, finalIndex);
 

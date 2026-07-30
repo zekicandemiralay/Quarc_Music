@@ -5,11 +5,10 @@ const RATE_ARGS = process.env.YTDLP_RATE_LIMIT ? ['--limit-rate', process.env.YT
 const JS_ARGS = ['--js-runtimes', 'node'];
 const FRAG_ARGS = ['--concurrent-fragments', process.env.YTDLP_CONCURRENT_FRAGMENTS || '4'];
 
-// VBR quality 5 (~130-160kbps) instead of 0 (~250-280kbps) — measured to cut
-// time-to-first-sound by ~40% on its own, since the browser's playback-start
-// buffering is duration-based (waits for ~70-80s of decoded audio, not a fixed
-// byte count), so a lower bitrate needs proportionally fewer bytes to satisfy it.
-const AUDIO_QUALITY_ARGS = ['--audio-quality', '5'];
+// Kept at max quality (VBR 0, ~250-280kbps) per user preference — see
+// playerStore.js's quick-start chunk logic for how playback-start latency is
+// addressed instead, without trading off audio quality.
+const AUDIO_QUALITY_ARGS = ['--audio-quality', '0'];
 
 // Embedded cover art sits in the MP3's ID3v2 header, which downloaders (and this
 // app's <audio> element) must fetch in full before reaching any playable audio
