@@ -660,7 +660,7 @@ export default function Library({ view = 'all' }) {
       ) : (
         <div>
           {/* Desktop-only header row */}
-          <div className="hidden md:grid md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-3 px-4 py-2 text-zinc-500 text-xs uppercase tracking-wider border-b border-zinc-800 mb-1">
+          <div className="hidden md:grid md:grid-cols-[2rem_2fr_1fr_1fr_4rem_3rem] gap-3 px-4 py-2 text-zinc-500 text-xs uppercase tracking-wider border-b border-zinc-800 mb-1">
             <span>#</span>
             <span>{t('library.title_col')}</span>
             <span>{t('library.artist_col')}</span>
@@ -686,7 +686,7 @@ export default function Library({ view = 'all' }) {
                   <span className="text-sm font-medium text-green-400">Add to queue</span>
                 </div>
               <div
-                className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_1fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group ${
+                className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_2fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group ${
                   active ? 'bg-zinc-700/40' : 'bg-[#121212] md:bg-transparent hover:bg-zinc-700/20'
                 }`}
                 onClick={() => playSong(song, isPlaylist ? visibleSongs : songQueue, isPlaylist ? visibleSongs.indexOf(song) : 0, isPlaylist ? 'playlist' : 'single', heading)}

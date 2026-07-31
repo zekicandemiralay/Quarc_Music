@@ -279,6 +279,12 @@ function useUpdateCheck() {
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Force phone-style (collapsible) sidebar/layout in the native Android app,
+  // even on tablets — Tailwind's md: breakpoint only knows viewport width,
+  // which a tablet satisfies just like a desktop browser window, but the
+  // native app should always use the compact layout regardless of screen size.
+  const isNative = !!window?.Capacitor?.isNativePlatform?.();
+  const dt = (cls) => (isNative ? '' : cls);
   const { online, serverOk } = useNetworkStatus();
   const showBanner = !online || !serverOk;
   const wakeLockActive = useOfflineStore((s) => s.wakeLockActive);
@@ -305,7 +311,7 @@ export default function Layout({ children }) {
 
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setSidebarOpen(false)}>
+        <div className={`fixed inset-0 z-40 ${dt('md:hidden')}`} onClick={() => setSidebarOpen(false)}>
           <div className="absolute inset-0 bg-black/70" />
         </div>
       )}
@@ -313,21 +319,21 @@ export default function Layout({ children }) {
       {/* Content row: sidebar + main (fills all space above the player bar) */}
       <div className="flex flex-1 overflow-hidden min-h-0">
 
-        {/* Sidebar — fixed overlay on mobile, static column on desktop */}
+        {/* Sidebar — fixed overlay on mobile (and always in the native app), static column on desktop/tablet browsers */}
         <div className={`
-          fixed md:static inset-y-0 left-0 z-50
-          transform transition-transform duration-300 ease-in-out md:transform-none
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          fixed ${dt('md:static')} inset-y-0 left-0 z-50
+          transform transition-transform duration-300 ease-in-out ${dt('md:transform-none')}
+          ${sidebarOpen ? 'translate-x-0' : `-translate-x-full ${dt('md:translate-x-0')}`}
         `}>
           <Sidebar onNavigate={() => setSidebarOpen(false)} />
         </div>
 
         {/* Scrollable content area */}
-        <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] md:pb-0 ${
-          bannerCount === 3 ? (hideSearch ? 'pt-[143px] md:pt-[90px]' : 'pt-[143px]') :
-          bannerCount === 2 ? (hideSearch ? 'pt-[113px] md:pt-[60px]' : 'pt-[113px]') :
-          bannerCount === 1 ? (hideSearch ? 'pt-[83px] md:pt-[30px]'  : 'pt-[83px]')  :
-                              (hideSearch ? 'pt-[53px] md:pt-0'        : 'pt-[53px]')
+        <main className={`flex-1 overflow-y-auto bg-gradient-to-b from-zinc-800 to-zinc-900 pb-[72px] ${dt('md:pb-0')} ${
+          bannerCount === 3 ? (hideSearch ? `pt-[143px] ${dt('md:pt-[90px]')}` : 'pt-[143px]') :
+          bannerCount === 2 ? (hideSearch ? `pt-[113px] ${dt('md:pt-[60px]')}` : 'pt-[113px]') :
+          bannerCount === 1 ? (hideSearch ? `pt-[83px] ${dt('md:pt-[30px]')}`  : 'pt-[83px]')  :
+                              (hideSearch ? `pt-[53px] ${dt('md:pt-0')}`        : 'pt-[53px]')
         }`}>
           {children}
         </main>
@@ -335,21 +341,21 @@ export default function Layout({ children }) {
       </div>
 
       {/* Top bar */}
-      <div className={`fixed top-0 left-0 right-0 md:left-64 z-30 flex items-center gap-3 px-4 py-3 bg-zinc-900 border-b border-zinc-800 ${
-        hideSearch ? 'md:hidden' : ''
+      <div className={`fixed top-0 left-0 right-0 ${dt('md:left-64')} z-30 flex items-center gap-3 px-4 py-3 bg-zinc-900 border-b border-zinc-800 ${
+        hideSearch ? dt('md:hidden') : ''
       }`}>
-        <button onClick={() => setSidebarOpen(true)} className="md:hidden text-zinc-400 hover:text-white transition-colors shrink-0">
+        <button onClick={() => setSidebarOpen(true)} className={`${dt('md:hidden')} text-zinc-400 hover:text-white transition-colors shrink-0`}>
           <Menu size={22} />
         </button>
         {hideSearch
-          ? <span className="text-white font-bold text-base md:hidden">Quarc Music</span>
+          ? <span className={`text-white font-bold text-base ${dt('md:hidden')}`}>Quarc Music</span>
           : <GlobalSearch />
         }
       </div>
 
       {/* Network status banner */}
       {showBanner && (
-        <div className={`fixed top-[53px] left-0 ${hideSearch ? 'md:left-64 md:top-0' : 'md:left-64'} right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium ${
+        <div className={`fixed top-[53px] left-0 ${hideSearch ? `${dt('md:left-64')} ${dt('md:top-0')}` : dt('md:left-64')} right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium ${
           !online ? 'bg-[#1DB954] text-black' : 'bg-amber-600 text-amber-50'
         }`}>
           {!online ? <WifiOff size={13} /> : <ServerCrash size={13} />}
@@ -359,7 +365,7 @@ export default function Layout({ children }) {
 
       {/* Download wake lock banner */}
       {showDownloadBanner && (
-        <div className={`fixed ${showBanner ? (hideSearch ? 'top-[83px] md:top-[30px]' : 'top-[83px]') : (hideSearch ? 'top-[53px] md:top-0' : 'top-[53px]')} left-0 md:left-64 right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium bg-blue-600 text-white`}>
+        <div className={`fixed ${showBanner ? (hideSearch ? `top-[83px] ${dt('md:top-[30px]')}` : 'top-[83px]') : (hideSearch ? `top-[53px] ${dt('md:top-0')}` : 'top-[53px]')} left-0 ${dt('md:left-64')} right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium bg-blue-600 text-white`}>
           <Download size={13} className="animate-bounce" />
           Downloading offline songs — screen won&apos;t lock automatically
         </div>
@@ -371,7 +377,7 @@ export default function Layout({ children }) {
         const topPx = 53 + above * 30;
         return (
           <div
-            className={`fixed left-0 md:left-64 right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium bg-emerald-700 text-white`}
+            className={`fixed left-0 ${dt('md:left-64')} right-0 z-20 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium bg-emerald-700 text-white`}
             style={{ top: topPx }}
           >
             <RefreshCw size={13} />
@@ -389,8 +395,8 @@ export default function Layout({ children }) {
         );
       })()}
 
-      {/* Player — fixed on mobile, static flex child on desktop so sidebar stops above it */}
-      <div className="fixed md:static bottom-0 left-0 right-0 z-30 md:z-auto md:shrink-0">
+      {/* Player — fixed on mobile (and always in the native app), static flex child on desktop/tablet browsers so sidebar stops above it */}
+      <div className={`fixed ${dt('md:static')} bottom-0 left-0 right-0 z-30 ${dt('md:z-auto')} ${dt('md:shrink-0')}`}>
         <Player />
       </div>
 
