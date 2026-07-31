@@ -248,6 +248,7 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
               if (!songLookup.has(`t:${t}`)) songLookup.set(`t:${t}`, song);
             }
           } else {
+            console.log(`[import] FAILED "${label}": Download returned no file path`);
             job.errors.push({ track: label, error: 'Download returned no file path' });
           }
         }
@@ -271,6 +272,7 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
           }
         }
       } catch (err) {
+        console.log(`[import] FAILED "${label}": ${err.message}`);
         job.errors.push({ track: label, error: err.message });
       }
 
