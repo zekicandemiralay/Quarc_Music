@@ -40,10 +40,14 @@ function getCachedSongs() {
   try { return JSON.parse(localStorage.getItem('quarc_songs') || '[]'); } catch { return []; }
 }
 
+const SEARCH_HISTORY_LIMIT = 25;
+
 const useUserDataStore = create((set, get) => ({
   likedSongs: [],      // string[] of song IDs
   playlists: [],       // { id, name, songs: string[] }[]
   radioFavorites: [],  // { stationuuid, name, url_resolved, favicon, tags, country, bitrate }[]
+  youtubeSearchHistory: [],  // string[] of past YouTube queries, most recent first
+  librarySearchHistory: [],  // string[] of past library queries, most recent first
   loaded: false,
   _mut: 0,             // increments on every mutation; prevents stale server loads from overwriting
 
@@ -54,6 +58,8 @@ const useUserDataStore = create((set, get) => ({
       likedSongs: lsGet('quarc_liked_songs') || [],
       playlists: lsGet('quarc_playlists') || [],
       radioFavorites: lsGet('quarc_radio_favorites') || [],
+      youtubeSearchHistory: lsGet('quarc_youtube_search_history') || [],
+      librarySearchHistory: lsGet('quarc_library_search_history') || [],
       loaded: true,
     });
     // Refresh from server, but only write back if no mutations happened while waiting
@@ -61,20 +67,61 @@ const useUserDataStore = create((set, get) => ({
       loadFromServer('liked_songs'),
       loadFromServer('playlists'),
       loadFromServer('radio_favorites'),
-    ]).then(([liked, playlists, radioFavs]) => {
+      loadFromServer('youtube_search_history'),
+      loadFromServer('library_search_history'),
+    ]).then(([liked, playlists, radioFavs, ytHistory, libHistory]) => {
         if (get()._mut !== genAtLoad) return; // a mutation happened — server data is stale
         const likedSongs = liked || lsGet('quarc_liked_songs') || [];
         const pls = playlists || lsGet('quarc_playlists') || [];
         const radioFavorites = radioFavs || lsGet('quarc_radio_favorites') || [];
+        const youtubeSearchHistory = ytHistory || lsGet('quarc_youtube_search_history') || [];
+        const librarySearchHistory = libHistory || lsGet('quarc_library_search_history') || [];
         lsSet('quarc_liked_songs', likedSongs);
         lsSet('quarc_playlists', pls);
         lsSet('quarc_radio_favorites', radioFavorites);
-        set({ likedSongs, playlists: pls, radioFavorites });
+        lsSet('quarc_youtube_search_history', youtubeSearchHistory);
+        lsSet('quarc_library_search_history', librarySearchHistory);
+        set({ likedSongs, playlists: pls, radioFavorites, youtubeSearchHistory, librarySearchHistory });
       })
       .catch(() => {});
   },
 
-  reset: () => set({ likedSongs: [], playlists: [], radioFavorites: [], loaded: false, _mut: 0 }),
+  reset: () => set({
+    likedSongs: [], playlists: [], radioFavorites: [],
+    youtubeSearchHistory: [], librarySearchHistory: [],
+    loaded: false, _mut: 0,
+  }),
+
+  // ── Search history ───────────────────────────────────────────────────────
+  // type is 'youtube' or 'library' — kept as two separate lists per the two
+  // distinct search surfaces (YouTube search page vs. the library search bar).
+
+  addSearchHistory: async (type, query) => {
+    const q = (query || '').trim();
+    if (!q) return;
+    const stateKey = type === 'youtube' ? 'youtubeSearchHistory' : 'librarySearchHistory';
+    const dataKey = type === 'youtube' ? 'youtube_search_history' : 'library_search_history';
+    const prev = get()[stateKey];
+    // Move to front, dedupe case-insensitively, cap the list
+    const next = [q, ...prev.filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, SEARCH_HISTORY_LIMIT);
+    set((s) => ({ [stateKey]: next, _mut: s._mut + 1 }));
+    await save(dataKey, next);
+  },
+
+  removeSearchHistoryItem: async (type, query) => {
+    const stateKey = type === 'youtube' ? 'youtubeSearchHistory' : 'librarySearchHistory';
+    const dataKey = type === 'youtube' ? 'youtube_search_history' : 'library_search_history';
+    const next = get()[stateKey].filter((x) => x !== query);
+    set((s) => ({ [stateKey]: next, _mut: s._mut + 1 }));
+    await save(dataKey, next);
+  },
+
+  clearSearchHistory: async (type) => {
+    const stateKey = type === 'youtube' ? 'youtubeSearchHistory' : 'librarySearchHistory';
+    const dataKey = type === 'youtube' ? 'youtube_search_history' : 'library_search_history';
+    set((s) => ({ [stateKey]: [], _mut: s._mut + 1 }));
+    await save(dataKey, []);
+  },
 
   // ── Liked songs ──────────────────────────────────────────────────────────
 

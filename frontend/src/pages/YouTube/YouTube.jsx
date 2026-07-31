@@ -283,11 +283,33 @@ export default function YouTube() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyBoxRef = useRef(null);
+  const { youtubeSearchHistory, addSearchHistory, removeSearchHistoryItem, clearSearchHistory } = useUserDataStore();
 
   useEffect(() => {
+    // Single place a YouTube search actually executes, regardless of whether it
+    // came from this page's own form, a handoff from the library search bar, or
+    // a direct/bookmarked URL — recording history here (not in submit()) avoids
+    // double-counting the same search.
     const q = searchParams.get('q');
-    if (q) { setQuery(q); doSearch(q); }
+    if (q) { setQuery(q); doSearch(q); addSearchHistory('youtube', q); }
   }, [searchParams.get('q')]);
+
+  useEffect(() => {
+    if (!historyOpen) return;
+    function onDown(e) {
+      if (historyBoxRef.current && !historyBoxRef.current.contains(e.target)) setHistoryOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [historyOpen]);
+
+  function runSearch(q) {
+    setQuery(q);
+    setHistoryOpen(false);
+    setSearchParams({ q });
+  }
 
   async function doSearch(q) {
     if (!q?.trim()) return;
@@ -320,11 +342,12 @@ export default function YouTube() {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur border-b border-zinc-800 px-6 py-4">
         <form onSubmit={submit} className="flex gap-3 max-w-2xl mx-auto">
-          <div className="relative flex-1">
+          <div className="relative flex-1" ref={historyBoxRef}>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setHistoryOpen(true)}
               placeholder={t('youtube.searchPlaceholder')}
               className="w-full bg-zinc-800 text-white placeholder-zinc-500 rounded-full px-5 py-2.5 pr-10 text-sm border border-zinc-700 focus:outline-none focus:border-red-500"
             />
@@ -332,6 +355,38 @@ export default function YouTube() {
               <button type="button" onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
                 <X size={15} />
               </button>
+            )}
+
+            {historyOpen && !query && youtubeSearchHistory.length > 0 && (
+              <div className="absolute top-full mt-2 left-0 right-0 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-20 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-700/60">
+                  <span className="text-xs text-zinc-500 uppercase tracking-wider">{t('youtube.recentSearches')}</span>
+                  <button type="button" onClick={() => clearSearchHistory('youtube')} className="text-xs text-zinc-500 hover:text-white">
+                    {t('youtube.clearAll')}
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {youtubeSearchHistory.slice(0, 8).map((q) => (
+                    <div key={q} className="flex items-center justify-between px-3 py-2 hover:bg-zinc-700/60 group">
+                      <button
+                        type="button"
+                        onClick={() => runSearch(q)}
+                        className="flex items-center gap-2 text-sm text-zinc-200 truncate flex-1 text-left"
+                      >
+                        <Search size={13} className="text-zinc-500 shrink-0" />
+                        <span className="truncate">{q}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeSearchHistoryItem('youtube', q)}
+                        className="text-zinc-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pl-2"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
           <button type="submit" className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-full text-sm font-medium transition-colors flex items-center gap-2">
@@ -358,10 +413,37 @@ export default function YouTube() {
         )}
 
         {!loading && !error && results.length === 0 && !searchParams.get('q') && (
-          <div className="text-center py-24">
+          <div className="text-center py-12">
             <Search size={44} className="mx-auto text-zinc-700 mb-4" />
             <p className="text-zinc-400 text-lg">{t('youtube.emptyTitle')}</p>
             <p className="text-zinc-600 text-sm mt-2">{t('youtube.emptyHint')}</p>
+
+            {youtubeSearchHistory.length > 0 && (
+              <div className="max-w-xl mx-auto mt-10 text-left">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-zinc-500 uppercase tracking-wider">{t('youtube.recentSearches')}</span>
+                  <button type="button" onClick={() => clearSearchHistory('youtube')} className="text-xs text-zinc-500 hover:text-white">
+                    {t('youtube.clearAll')}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {youtubeSearchHistory.map((q) => (
+                    <div key={q} className="group flex items-center bg-zinc-800 hover:bg-zinc-700 rounded-full text-sm text-zinc-300 transition-colors overflow-hidden">
+                      <button type="button" onClick={() => runSearch(q)} className="pl-3 pr-1 py-1.5 truncate max-w-[220px] hover:text-white">
+                        {q}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeSearchHistoryItem('youtube', q)}
+                        className="pr-2.5 pl-1 py-1.5 text-zinc-600 group-hover:text-zinc-400 hover:!text-white transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -187,6 +187,20 @@ else
   fail "GET /api/me/data/playlists → unexpected: ${PLAYLISTS_RESP}"
 fi
 
+# Search history (YouTube + library) — round-trip on the generic user-data
+# endpoint under the keys the frontend actually uses (userDataStore.js)
+CURRENT_YT_HISTORY=$(api -b "$COOKIE" "${BASE}/api/me/data/youtube_search_history")
+YT_HISTORY_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" -X PUT "${BASE}/api/me/data/youtube_search_history" \
+  -H "Content-Type: application/json" -d '{"data":["test.sh search history check"]}')
+if [ "$YT_HISTORY_CODE" = "200" ]; then
+  pass "PUT /api/me/data/youtube_search_history → saved (HTTP 200)"
+  # Restore original
+  api -b "$COOKIE" -X PUT "${BASE}/api/me/data/youtube_search_history" \
+    -H "Content-Type: application/json" -d "{\"data\":${CURRENT_YT_HISTORY}}" >/dev/null
+else
+  fail "PUT /api/me/data/youtube_search_history → HTTP ${YT_HISTORY_CODE}"
+fi
+
 # Like/unlike a song (round-trip test)
 if [ -n "${FIRST_ID:-}" ]; then
   # Get current likes

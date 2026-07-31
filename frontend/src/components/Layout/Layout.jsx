@@ -7,6 +7,7 @@ import Player from '../Player/Player';
 import useNetworkStatus from '../../hooks/useNetworkStatus';
 import useOfflineStore from '../../store/useOfflineStore';
 import usePlayerStore from '../../store/playerStore';
+import useUserDataStore from '../../store/userDataStore';
 import { coverUrl } from '../../lib/apiUrl';
 
 function norm(s) {
@@ -26,6 +27,7 @@ function GlobalSearch() {
   const swipeRef = useRef({ startX: 0, startY: 0, song: null, el: null, isH: false, lastDx: 0 });
   const toastTimer = useRef(null);
   const { playSong, addToQueue } = usePlayerStore();
+  const { librarySearchHistory, addSearchHistory, removeSearchHistoryItem, clearSearchHistory } = useUserDataStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -90,7 +92,8 @@ function GlobalSearch() {
     return () => el.removeEventListener('touchmove', handler);
   }, [open, results.length]);
 
-  const showDropdown = open && (results.length > 0 || query.trim().length > 0);
+  const showingHistory = open && !query.trim() && librarySearchHistory.length > 0;
+  const showDropdown = open && (results.length > 0 || query.trim().length > 0 || showingHistory);
 
   function showToast() {
     clearTimeout(toastTimer.current);
@@ -101,6 +104,7 @@ function GlobalSearch() {
   function handleSelect(song) {
     const songQueue = [song, ...songs.filter((s) => s.id !== song.id)];
     playSong(song, songQueue, 0, 'single', 'Your Library');
+    if (query.trim()) addSearchHistory('library', query.trim());
     setQuery('');
     setOpen(false);
   }
@@ -146,11 +150,41 @@ function GlobalSearch() {
           className="fixed bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl overflow-y-auto"
           style={{ ...dropdownStyle, zIndex: 400, maxHeight: '60vh' }}
         >
-          {results.length === 0 && query.trim() && (
+          {showingHistory && (
+            <>
+              <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
+                <span className="text-xs text-zinc-500 uppercase tracking-wider">Recent searches</span>
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => clearSearchHistory('library')}
+                  className="text-xs text-zinc-500 hover:text-white"
+                >
+                  Clear all
+                </button>
+              </div>
+              {librarySearchHistory.slice(0, 10).map((q) => (
+                <div key={q} className="relative flex items-center justify-between px-3 py-2.5 hover:bg-zinc-800 cursor-pointer transition-colors group" onClick={() => setQuery(q)}>
+                  <span className="flex items-center gap-2 text-sm text-zinc-200 truncate min-w-0">
+                    <Search size={14} className="text-zinc-500 shrink-0" />
+                    <span className="truncate">{q}</span>
+                  </span>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => { e.stopPropagation(); removeSearchHistoryItem('library', q); }}
+                    className="text-zinc-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pl-2"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+
+          {!showingHistory && results.length === 0 && query.trim() && (
             <p className="text-zinc-500 text-xs px-4 py-3">No matches in library</p>
           )}
 
-          {results.map((song) => (
+          {!showingHistory && results.map((song) => (
             <div key={song.id} className="relative overflow-hidden">
               {/* Swipe-right reveal */}
               <div

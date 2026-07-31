@@ -126,6 +126,8 @@
     "backendError": "Arka ucun ve yt-dlp'nin çalıştığından emin olun",
     "emptyTitle": "YouTube'da müzik arayın",
     "emptyHint": "İzlemek veya MP3 olarak indirmek için bir sonuca tıklayın",
+    "recentSearches": "Son aramalar",
+    "clearAll": "Tümünü temizle",
     "downloadMp3": "MP3 İndir",
     "savedToLibrary": "Kütüphaneye kaydedildi",
     "failed": "Başarısız",
