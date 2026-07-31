@@ -29,6 +29,7 @@ function ExportSection() {
   const [selected, setSelected] = useState(new Set());
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
   const allKeys = ['liked', ...playlists.map((p) => p.id)];
   const allSelected = allKeys.length > 0 && allKeys.every((k) => selected.has(k));
@@ -48,24 +49,31 @@ function ExportSection() {
     if (selected.size === 0) return;
     setExporting(true);
     setError(null);
+    setSuccess(null);
     try {
+      let filename;
       if (selected.size === 1) {
         const key = [...selected][0];
         if (key === 'liked') {
-          await downloadResponse(await fetch(apiUrl('/api/export/liked-songs')), 'Liked Songs.csv');
+          filename = 'Liked Songs.csv';
+          await downloadResponse(await fetch(apiUrl('/api/export/liked-songs')), filename);
         } else {
           const pl = playlists.find((p) => p.id === key);
-          await downloadResponse(await fetch(apiUrl(`/api/export/playlist/${key}`)), `${pl?.name || 'playlist'}.csv`);
+          filename = `${pl?.name || 'playlist'}.csv`;
+          await downloadResponse(await fetch(apiUrl(`/api/export/playlist/${key}`)), filename);
         }
       } else {
+        filename = 'Quarc Music Export.zip';
         const items = [...selected].map((key) => (key === 'liked' ? { type: 'liked' } : { type: 'playlist', id: key }));
         const res = await fetch(apiUrl('/api/export/bulk'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items }),
         });
-        await downloadResponse(res, 'Quarc Music Export.zip');
+        await downloadResponse(res, filename);
       }
+      setSuccess(t('import.exportDone', { filename }));
+      setTimeout(() => setSuccess(null), 5000);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -107,6 +115,11 @@ function ExportSection() {
         )}
       </div>
 
+      {success && (
+        <p className="flex items-center gap-1.5 text-green-400 text-sm">
+          <CheckCircle size={15} className="shrink-0" />{success}
+        </p>
+      )}
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
       <button

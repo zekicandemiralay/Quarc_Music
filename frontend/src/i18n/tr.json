@@ -278,7 +278,8 @@
     "noPlaylists": "Henüz çalma listeniz yok",
     "exportSelected": "Dışa Aktar",
     "exportSelectedCount": "{{n}} listeyi ZIP olarak dışa aktar",
-    "exporting": "Dışa aktarılıyor…"
+    "exporting": "Dışa aktarılıyor…",
+    "exportDone": "{{filename}} indirildi — İndirilenler klasörünüzü kontrol edin"
   },
   "sidebar": {
     "changePassword": "Şifreyi Değiştir",

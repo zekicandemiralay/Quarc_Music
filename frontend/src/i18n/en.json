@@ -278,7 +278,8 @@
     "noPlaylists": "You don't have any playlists yet",
     "exportSelected": "Export",
     "exportSelectedCount": "Export {{n}} lists as ZIP",
-    "exporting": "Exporting…"
+    "exporting": "Exporting…",
+    "exportDone": "Downloaded {{filename}} — check your Downloads folder"
   },
   "sidebar": {
     "changePassword": "Change Password",
