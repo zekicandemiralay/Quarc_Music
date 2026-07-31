@@ -256,6 +256,16 @@ function scoreCandidate(candidate, artistWords, titleWords, versionWords, expect
   const matches = titleWords.filter(w => candSet.has(w)).length;
   let titleScore = titleWords.length > 0 ? matches / titleWords.length : 0;
 
+  // Short/generic titles (e.g. "Logos", "Run", "Gravity" — common for
+  // classical/soundtrack cues) matching all their words looks like 100% recall,
+  // but a single common word matching in a totally unrelated video (a logo
+  // design tutorial, a same-named pop song) happens easily by chance. Dampen
+  // confidence by how many words actually matched, not just the ratio, so a
+  // 1-word "full match" counts for much less than a 3+-word one — verified
+  // against real mismatches: "Logos"->logo tutorial and "Run"->Leona Lewis
+  // both had matches=1 and would otherwise score as confidently as a real match.
+  titleScore *= Math.min(matches, 3) / 3;
+
   // If this track is a specific version (acoustic, live, remix… — drawn from
   // both the title AND the album name, since compilation exports often store
   // this in the album field instead) but the candidate is missing that word,
@@ -285,13 +295,24 @@ function scoreCandidate(candidate, artistWords, titleWords, versionWords, expect
   const dWeight = expectedSecs ? 0.35 : 0;
   const aWeight = 0.15;
   const tWeight = 1 - dWeight - aWeight;
-  const total = titleScore * tWeight + durationScore * dWeight + artistScore * aWeight;
+  let total = titleScore * tWeight + durationScore * dWeight + artistScore * aWeight;
 
   // If the candidate shares literally no words with the actual song title, it's
   // almost certainly the wrong song — an artist-name or duration coincidence
   // (e.g. a different track by a same-named artist) must not be enough to win.
-  const score = matches === 0 ? total * 0.15 : total;
-  return { score, titleScore, durationScore, artistScore };
+  if (matches === 0) total *= 0.15;
+
+  // Hard gate: content more than ~60% longer/shorter than expected is very
+  // unlikely to be the same single track (more likely a medley, compilation, or
+  // a different recording entirely) regardless of how well the title text
+  // matches — verified against a real mismatch: an 11-minute orchestral medley
+  // scored a full 4/4-word title match against a 4:52 single track (129% off).
+  if (expectedSecs && candidate.duration) {
+    const pct = Math.abs(candidate.duration - expectedSecs) / expectedSecs;
+    if (pct > 0.6) total = Math.min(total, 0.3);
+  }
+
+  return { score: total, titleScore, durationScore, artistScore };
 }
 
 // Search queries should skip version-descriptor words ("Instrumental", "Live"...) —
@@ -364,7 +385,13 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
     // title-only match against unrelated cleaning vlogs. Require the duration or
     // artist signal to be at least plausible too before treating a title-only hit
     // as confident enough to skip the wider (costlier) queries.
-    const corroborated = best && (best.durationScore > 0.3 || best.artistScore > 0.3);
+    // Also require titleScore itself to clear a bar — a short/generic title
+    // (e.g. "Run") can have its recall dampened to ~0.33 yet still coincidentally
+    // pair with a plausible duration (a wrong pop song of the same runtime range),
+    // which durationScore alone wouldn't catch. Titles matching 3+ words aren't
+    // affected (dampening caps out at 1.0 there); shorter ones always widen for
+    // extra corroboration rather than risk a coincidental duration match.
+    const corroborated = best && best.titleScore > 0.4 && (best.durationScore > 0.3 || best.artistScore > 0.3);
     if (best && best.score >= CONFIDENT_ENOUGH && corroborated) break;
   }
   if (!best) throw new Error('No search results');
