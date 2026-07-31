@@ -411,11 +411,30 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
   // directly (`docker logs`) instead of re-guessing against a different region's
   // YouTube search results — the backend's VPN egress may see different results
   // than a local/unproxied search would.
-  const top3 = scored.sort((a, b) => b.score - a.score).slice(0, 3)
+  const ranked = scored.sort((a, b) => b.score - a.score);
+  const top3 = ranked.slice(0, 3)
     .map(c => `${c.score.toFixed(3)} "${c.title}" (${c.id}, ${c.duration}s)`).join(' | ');
   console.log(`[import] "${artist ? artist + ' - ' : ''}${title}" expected=${expectedSecs ?? '?'}s -> ${top3}`);
 
-  return downloadAudio(best.id, outputDir, onProgress);
+  // The top-scored candidate is occasionally a dead video (removed/region-locked)
+  // rather than a bad match — confirmed in production logs (yt-dlp: "This video
+  // is not available"). Retrying the same candidate can never succeed, so fall
+  // through to the next-best scored candidates instead of failing outright.
+  // Bounded to a handful of runner-ups that were still decent matches, so a dead
+  // top pick doesn't end up settling for a wildly wrong candidate lower down.
+  const attempts = ranked.filter(c => c.score >= 0.3).slice(0, 5);
+  if (!attempts.length) attempts.push(best);
+
+  let lastErr;
+  for (const candidate of attempts) {
+    try {
+      return await downloadAudio(candidate.id, outputDir, onProgress);
+    } catch (err) {
+      lastErr = err;
+      console.log(`[import] candidate "${candidate.title}" (${candidate.id}) failed: ${err.message}`);
+    }
+  }
+  throw lastErr;
 }
 
 function withTimeout(promise, ms, message) {
