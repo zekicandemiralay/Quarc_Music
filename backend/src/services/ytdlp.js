@@ -373,4 +373,32 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
   return downloadAudio(best.id, outputDir, onProgress);
 }
 
-module.exports = { searchYoutube, downloadAudio, downloadBySearch, searchAndDownload };
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message || `Timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+// Retries a known-video download up to maxAttempts times with backoff, each
+// attempt capped at 5 minutes. A shared commercial VPN exit IP occasionally
+// hits transient rate-limits/hiccups (confirmed happening in production) —
+// without this, a single blip either hangs forever (downloadAudio has no
+// internal timeout) or fails permanently with no chance to recover.
+async function downloadAudioWithRetry(videoId, outputDir, onProgress, maxAttempts = 3) {
+  let lastErr;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await withTimeout(downloadAudio(videoId, outputDir, onProgress), 5 * 60 * 1000, 'Download timed out after 5 minutes');
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts - 1) {
+        await new Promise(r => setTimeout(r, 4000 * (attempt + 1))); // 4s, 8s backoff
+      }
+    }
+  }
+  throw lastErr;
+}
+
+module.exports = { searchYoutube, downloadAudio, downloadBySearch, searchAndDownload, withTimeout, downloadAudioWithRetry };

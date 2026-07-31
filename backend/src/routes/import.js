@@ -5,7 +5,7 @@ const AdmZip = require('adm-zip');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { requireAuth } = require('../middleware/auth');
-const { searchAndDownload, downloadAudio } = require('../services/ytdlp');
+const { searchAndDownload, downloadAudioWithRetry, withTimeout } = require('../services/ytdlp');
 const { scanFile } = require('../services/scanner');
 const { getDb } = require('../db');
 
@@ -97,14 +97,6 @@ function parseUploadedFiles(files) {
   return playlists.filter(p => p.tracks.length > 0);
 }
 
-function withTimeout(promise, ms) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Download timed out after 5 minutes')), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
 const UPSERT_SQL = `
   INSERT INTO user_data (user_id, data_key, data_json, updated_at)
   VALUES (?, ?, ?, datetime('now'))
@@ -132,14 +124,12 @@ function persistImportState(userId, job, playlists, pli, ti) {
 }
 
 async function downloadWithRetry(track, maxAttempts = 3) {
+  if (track.videoId) return downloadAudioWithRetry(track.videoId, MUSIC_DIR(), () => {}, maxAttempts);
+
   let lastErr;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      if (track.videoId) {
-        return await withTimeout(downloadAudio(track.videoId, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
-      } else {
-        return await withTimeout(searchAndDownload(track.artist, track.name, track.album, track.durationSecs || null, MUSIC_DIR(), () => {}), 5 * 60 * 1000);
-      }
+      return await withTimeout(searchAndDownload(track.artist, track.name, track.album, track.durationSecs || null, MUSIC_DIR(), () => {}), 5 * 60 * 1000, 'Download timed out after 5 minutes');
     } catch (err) {
       lastErr = err;
       if (attempt < maxAttempts - 1) {

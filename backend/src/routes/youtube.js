@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { searchYoutube, downloadAudio } = require('../services/ytdlp');
+const { searchYoutube, downloadAudioWithRetry } = require('../services/ytdlp');
 const { getDb } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { requireAuth } = require('../middleware/auth');
@@ -31,7 +31,7 @@ router.post('/download', (req, res) => {
     jobId, videoId, title || 'Unknown', 'pending', req.user.id
   );
 
-  downloadAudio(videoId, MUSIC_DIR, (progress) => {
+  downloadAudioWithRetry(videoId, MUSIC_DIR, (progress) => {
     db.prepare('UPDATE downloads SET progress = ?, status = ? WHERE id = ?').run(
       progress, 'downloading', jobId
     );
