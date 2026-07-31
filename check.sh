@@ -338,17 +338,20 @@ else
   fail "yt-dlp not found in backend container"
 fi
 
-info "Testing YouTube search via VPN proxy (may take ~20s)..."
+# Search is deliberately NOT routed through the VPN in production (it's a light,
+# low-risk operation unlike downloads, and skipping the VPN avoids its latency/
+# rate-limit exposure for the thing that most needs to be fast) — test it the
+# same way the app actually does it, i.e. direct, no --proxy.
+info "Testing YouTube search direct, no VPN (may take ~10s)..."
 YT_RESULT=$(dexec backend yt-dlp \
-  --proxy http://gluetun:8888 \
   "ytsearch1:Rick Astley Never Gonna Give You Up" \
   --dump-json --flat-playlist --no-warnings \
   --socket-timeout 15 2>/dev/null | head -1 || echo "")
 YT_ID=$(echo "$YT_RESULT" | grep -oP '"id":\s*"\K[^"]+' | head -1 || echo "")
 if [ -n "$YT_ID" ]; then
-  ok "YouTube search OK via VPN — got video ID: ${YT_ID}"
+  ok "YouTube search OK (direct, no VPN) — got video ID: ${YT_ID}"
 else
-  fail "YouTube search failed — VPN down, or YouTube blocking yt-dlp"
+  fail "YouTube search failed — server's direct connection to YouTube may be blocked (search doesn't use the VPN)"
 fi
 
 # Search alone isn't enough to catch real problems: flat-playlist search doesn't

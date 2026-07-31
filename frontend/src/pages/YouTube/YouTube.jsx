@@ -293,13 +293,18 @@ export default function YouTube() {
     if (!q?.trim()) return;
     setLoading(true);
     setError(null);
+    // Don't let the UI spin forever if yt-dlp/VPN is having a bad moment —
+    // fail clearly within 20s instead of hanging indefinitely.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-      const r = await fetch(`/api/youtube/search?q=${encodeURIComponent(q)}`);
-      if (!r.ok) throw new Error('Search failed');
+      const r = await fetch(`/api/youtube/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error || 'Search failed');
       setResults(await r.json());
     } catch (e) {
-      setError(e.message);
+      setError(e.name === 'AbortError' ? t('youtube.searchTimedOut', 'Search timed out — try again in a moment') : e.message);
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }

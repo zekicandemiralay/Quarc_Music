@@ -123,6 +123,7 @@
     "searchPlaceholder": "YouTube'da ara…",
     "search": "Ara",
     "searching": "YouTube'da aranıyor…",
+    "searchTimedOut": "Arama zaman aşımına uğradı — birazdan tekrar deneyin",
     "backendError": "Arka ucun ve yt-dlp'nin çalıştığından emin olun",
     "emptyTitle": "YouTube'da müzik arayın",
     "emptyHint": "İzlemek veya MP3 olarak indirmek için bir sonuca tıklayın",

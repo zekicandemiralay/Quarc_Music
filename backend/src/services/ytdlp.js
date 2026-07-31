@@ -18,6 +18,12 @@ const AUDIO_QUALITY_ARGS = ['--audio-quality', '0'];
 // for an in-app album art thumbnail.
 const THUMB_ARGS = ['--convert-thumbnails', 'jpg', '--postprocessor-args', 'ThumbnailsConvertor:-vf scale=300:-1'];
 
+// Deliberately NOT routed through the VPN (PROXY_ARGS) — search is a light,
+// low-risk operation (no extraction, no bandwidth) unlike actual downloads,
+// so it doesn't need the VPN's protection, and skipping it avoids the VPN's
+// latency/rate-limit exposure entirely for the thing that most needs to be
+// fast. Only the real download functions below (downloadAudio,
+// downloadBySearch) route through the VPN.
 function searchYoutube(query, limit = 10) {
   return new Promise((resolve, reject) => {
     const proc = spawn('yt-dlp', [
@@ -26,7 +32,6 @@ function searchYoutube(query, limit = 10) {
       '--flat-playlist',
       '--no-warnings',
       '--socket-timeout', '10',
-      ...PROXY_ARGS,
       ...JS_ARGS,
     ]);
 
@@ -42,12 +47,14 @@ function searchYoutube(query, limit = 10) {
       fn();
     }
 
-    // Kill yt-dlp if it stalls (rate-limited, VPN reconnecting, etc.)
+    // Kill yt-dlp if it stalls (rate-limited, VPN reconnecting, etc.). A normal
+    // search resolves in a few seconds — 45s just meant the UI sat spinning
+    // silently for way too long before ever finding out something was wrong.
     // Return partial results if any arrived; otherwise reject so the UI shows an error.
     const timer = setTimeout(() => {
       proc.kill();
       finish(() => results.length > 0 ? resolve(results) : reject(new Error('Search timed out — yt-dlp took too long')));
-    }, 45000);
+    }, 18000);
 
     proc.stdout.on('data', (chunk) => {
       buffer += chunk.toString();

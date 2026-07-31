@@ -123,6 +123,7 @@
     "searchPlaceholder": "Search YouTube…",
     "search": "Search",
     "searching": "Searching YouTube…",
+    "searchTimedOut": "Search timed out — try again in a moment",
     "backendError": "Make sure the backend and yt-dlp are running",
     "emptyTitle": "Search for music on YouTube",
     "emptyHint": "Click a result to watch or download as MP3",
