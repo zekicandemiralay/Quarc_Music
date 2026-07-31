@@ -64,7 +64,6 @@
     "mix": "Mix",
     "collection": "Collection",
     "shuffle": "Shuffle",
-    "exportCsv": "Export CSV",
     "scanLibrary": "Scan Library",
     "scanning": "Scanning…",
     "refreshMix": "Refresh Mix",
@@ -271,7 +270,15 @@
     "youtubeStep4": "Click \"Next step\" → \"Create export\" and wait for the email",
     "youtubeStep5": "Download the ZIP and upload it below",
     "youtubeNote": "YouTube Music exports use exact video IDs — every download is a perfect match, no searching needed.",
-    "onlyAccepted": "Only {{accept}} files are accepted"
+    "onlyAccepted": "Only {{accept}} files are accepted",
+    "export": "Export",
+    "exportInstructions": "Export your library as CSV, just like Exportify.",
+    "exportHint": "Select one list to download it directly, or select several to get a ZIP with one CSV per list.",
+    "selectAll": "Select All",
+    "noPlaylists": "You don't have any playlists yet",
+    "exportSelected": "Export",
+    "exportSelectedCount": "Export {{n}} lists as ZIP",
+    "exporting": "Exporting…"
   },
   "sidebar": {
     "changePassword": "Change Password",

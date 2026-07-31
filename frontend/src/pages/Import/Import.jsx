@@ -1,7 +1,129 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, CheckCircle, AlertCircle, Loader2, X, Music, Pause, Play, Square } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Loader2, X, Music, Pause, Play, Square, Download, Heart, ListMusic } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useUserDataStore from '../../store/userDataStore';
+import { apiUrl } from '../../lib/apiUrl';
+
+// Triggers a real file download from a fetch Response, regardless of method
+// (GET or POST) — works reliably across web/desktop/mobile WebViews, unlike
+// window.open() which can't handle POST responses and is silently dropped in
+// some WebViews.
+async function downloadResponse(res, fallbackFilename) {
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Export failed');
+  const match = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/);
+  const filename = match?.[1] || fallbackFilename;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function ExportSection() {
+  const { t } = useTranslation();
+  const { likedSongs, playlists } = useUserDataStore();
+  const [selected, setSelected] = useState(new Set());
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const allKeys = ['liked', ...playlists.map((p) => p.id)];
+  const allSelected = allKeys.length > 0 && allKeys.every((k) => selected.has(k));
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(allKeys));
+  }
+  function toggleOne(key) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  async function handleExport() {
+    if (selected.size === 0) return;
+    setExporting(true);
+    setError(null);
+    try {
+      if (selected.size === 1) {
+        const key = [...selected][0];
+        if (key === 'liked') {
+          await downloadResponse(await fetch(apiUrl('/api/export/liked-songs')), 'Liked Songs.csv');
+        } else {
+          const pl = playlists.find((p) => p.id === key);
+          await downloadResponse(await fetch(apiUrl(`/api/export/playlist/${key}`)), `${pl?.name || 'playlist'}.csv`);
+        }
+      } else {
+        const items = [...selected].map((key) => (key === 'liked' ? { type: 'liked' } : { type: 'playlist', id: key }));
+        const res = await fetch(apiUrl('/api/export/bulk'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        });
+        await downloadResponse(res, 'Quarc Music Export.zip');
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-zinc-900 rounded-xl p-4 space-y-2">
+        <p className="text-zinc-300 text-sm font-medium">{t('import.exportInstructions')}</p>
+        <p className="text-zinc-500 text-xs">{t('import.exportHint')}</p>
+      </div>
+
+      <div className="bg-zinc-900 rounded-xl divide-y divide-zinc-800 max-h-80 overflow-y-auto">
+        <label className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-zinc-800/50">
+          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="shrink-0" />
+          <span className="text-sm font-medium text-white">{t('import.selectAll')}</span>
+        </label>
+
+        <label className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-zinc-800/50">
+          <input type="checkbox" checked={selected.has('liked')} onChange={() => toggleOne('liked')} className="shrink-0" />
+          <Heart size={15} className="text-red-400 shrink-0" />
+          <span className="flex-1 text-sm text-zinc-200 truncate">{t('library.likedSongs')}</span>
+          <span className="text-xs text-zinc-500">{likedSongs.length}</span>
+        </label>
+
+        {playlists.map((p) => (
+          <label key={p.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-zinc-800/50">
+            <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleOne(p.id)} className="shrink-0" />
+            <ListMusic size={15} className="text-zinc-500 shrink-0" />
+            <span className="flex-1 text-sm text-zinc-200 truncate">{p.name}</span>
+            <span className="text-xs text-zinc-500">{p.songs.length}</span>
+          </label>
+        ))}
+
+        {playlists.length === 0 && (
+          <p className="px-4 py-6 text-center text-zinc-500 text-sm">{t('import.noPlaylists')}</p>
+        )}
+      </div>
+
+      {error && <p className="text-red-400 text-sm">{error}</p>}
+
+      <button
+        onClick={handleExport}
+        disabled={selected.size === 0 || exporting}
+        className="w-full bg-white text-black rounded-xl py-3 font-medium text-sm hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+        {exporting
+          ? t('import.exporting')
+          : selected.size > 1
+          ? t('import.exportSelectedCount', { n: selected.size })
+          : t('import.exportSelected')}
+      </button>
+    </div>
+  );
+}
 
 function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
   const { t } = useTranslation();
@@ -200,10 +322,20 @@ export default function Import() {
         >
           {t('import.youtubeMusic')}
         </button>
+        <button
+          onClick={() => setTab('export')}
+          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+            tab === 'export' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          {t('import.export')}
+        </button>
       </div>
 
+      {tab === 'export' && <ExportSection />}
+
       {/* Upload section — hidden while a job is running/done */}
-      {!job && tab === 'spotify' && (
+      {tab !== 'export' && !job && tab === 'spotify' && (
         <UploadSection
           accept=".zip,.csv"
           endpoint="/api/import/spotify"

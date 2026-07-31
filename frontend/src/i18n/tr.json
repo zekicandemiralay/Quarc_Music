@@ -64,7 +64,6 @@
     "mix": "Karışım",
     "collection": "Koleksiyon",
     "shuffle": "Karıştır",
-    "exportCsv": "CSV Dışa Aktar",
     "scanLibrary": "Kütüphaneyi Tara",
     "scanning": "Taranıyor…",
     "refreshMix": "Karışımı Yenile",
@@ -271,7 +270,15 @@
     "youtubeStep4": "\"Sonraki adım\" → \"Dışa aktarmayı oluştur\"a tıklayın ve e-postayı bekleyin",
     "youtubeStep5": "ZIP'i indirip aşağıya yükleyin",
     "youtubeNote": "YouTube Music dışa aktarmaları tam video kimliklerini kullanır — her indirme mükemmel eşleşme sağlar.",
-    "onlyAccepted": "Yalnızca {{accept}} dosyaları kabul edilir"
+    "onlyAccepted": "Yalnızca {{accept}} dosyaları kabul edilir",
+    "export": "Dışa Aktar",
+    "exportInstructions": "Kütüphanenizi Exportify'daki gibi CSV olarak dışa aktarın.",
+    "exportHint": "Doğrudan indirmek için tek bir liste, veya her liste için ayrı CSV içeren bir ZIP almak için birden çok liste seçin.",
+    "selectAll": "Tümünü Seç",
+    "noPlaylists": "Henüz çalma listeniz yok",
+    "exportSelected": "Dışa Aktar",
+    "exportSelectedCount": "{{n}} listeyi ZIP olarak dışa aktar",
+    "exporting": "Dışa aktarılıyor…"
   },
   "sidebar": {
     "changePassword": "Şifreyi Değiştir",
