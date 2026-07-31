@@ -402,7 +402,16 @@ async function searchAndDownload(artist, title, album, expectedSecs, outputDir, 
     // which durationScore alone wouldn't catch. Titles matching 3+ words aren't
     // affected (dampening caps out at 1.0 there); shorter ones always widen for
     // extra corroboration rather than risk a coincidental duration match.
-    const corroborated = best && best.titleScore > 0.4 && (best.durationScore > 0.3 || best.artistScore > 0.3);
+    // A duration merely "in the right ballpark" isn't real corroboration when the
+    // title is a common phrase — verified against a real mismatch: "La vita è
+    // bella" (a world-famous film title) matched 3 of its 4 words in an unrelated
+    // remix channel's upload ("BONGAWAN REMIXER - La Vita Bella", 22% off on
+    // duration), and a merely-plausible duration was enough to call that
+    // "confident enough" and skip the composer-name query entirely — which would
+    // have found a real recording. Raise the duration bar to a tight ~12% match
+    // (durationScore>0.7) so a loose duration can no longer stand in for genuine
+    // artist corroboration.
+    const corroborated = best && best.titleScore > 0.4 && (best.artistScore > 0.3 || best.durationScore > 0.7);
     if (best && best.score >= CONFIDENT_ENOUGH && corroborated) break;
   }
   if (!best) throw new Error('No search results');
