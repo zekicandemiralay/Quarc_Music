@@ -10,7 +10,7 @@ services:
       - VPN_TYPE=openvpn
       - OPENVPN_USER=${SURFSHARK_USER}
       - OPENVPN_PASSWORD=${SURFSHARK_PASSWORD}
-      - SERVER_COUNTRIES=${VPN_COUNTRY:-Netherlands}
+      - SERVER_COUNTRIES=${VPN_COUNTRY:-Germany}
       - OPENVPN_PROTOCOL=tcp
       - HTTPPROXY=on
     healthcheck:
