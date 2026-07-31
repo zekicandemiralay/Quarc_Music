@@ -246,6 +246,12 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
               const a = normalizeStr(song.artist || '');
               songLookup.set(`${t}||${a}`, song);
               if (!songLookup.has(`t:${t}`)) songLookup.set(`t:${t}`, song);
+            } else {
+              // Download succeeded but metadata scanning failed (scanFile logs the
+              // parse error to stderr, not here) — without this, the track just
+              // vanishes with zero trace in [import]-filtered logs or job.errors.
+              console.log(`[import] FAILED "${label}": Downloaded file at "${filepath}" could not be scanned`);
+              job.errors.push({ track: label, error: `Downloaded file could not be scanned: ${filepath}` });
             }
           } else {
             console.log(`[import] FAILED "${label}": Download returned no file path`);
