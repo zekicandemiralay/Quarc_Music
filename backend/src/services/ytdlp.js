@@ -18,6 +18,17 @@ const AUDIO_QUALITY_ARGS = ['--audio-quality', '0'];
 // for an in-app album art thumbnail.
 const THUMB_ARGS = ['--convert-thumbnails', 'jpg', '--postprocessor-args', 'ThumbnailsConvertor:-vf scale=300:-1'];
 
+// yt-dlp prints non-fatal WARNINGs (e.g. the JS-runtime notice) before the actual
+// fatal ERROR line, which comes last. Slicing from the start of stderr surfaces the
+// warning noise instead of the real reason a download failed, so pull out the last
+// "ERROR:" line if one exists and fall back to the tail of the output otherwise.
+function summarizeError(errorOut) {
+  const lines = errorOut.split('\n').map((l) => l.trim()).filter(Boolean);
+  const errorLines = lines.filter((l) => l.startsWith('ERROR:'));
+  if (errorLines.length) return errorLines[errorLines.length - 1].slice(0, 300);
+  return errorOut.slice(-300);
+}
+
 // Deliberately NOT routed through the VPN (PROXY_ARGS) — search is a light,
 // low-risk operation (no extraction, no bandwidth) unlike actual downloads,
 // so it doesn't need the VPN's protection, and skipping it avoids the VPN's
@@ -81,7 +92,7 @@ function searchYoutube(query, limit = 10) {
     proc.on('close', (code) => {
       finish(() => {
         if (code !== 0 && results.length === 0) {
-          reject(new Error(`yt-dlp search failed: ${errorOut.slice(0, 300)}`));
+          reject(new Error(`yt-dlp search failed: ${summarizeError(errorOut)}`));
         } else {
           resolve(results);
         }
@@ -134,7 +145,7 @@ function downloadAudio(videoId, outputDir, onProgress) {
     proc.stderr.on('data', (c) => { errorOut += c.toString(); });
 
     proc.on('close', (code) => {
-      if (code !== 0) reject(new Error(`Download failed: ${errorOut.slice(0, 300)}`));
+      if (code !== 0) reject(new Error(`Download failed: ${summarizeError(errorOut)}`));
       else resolve(lastFile);
     });
 
@@ -184,7 +195,7 @@ function downloadBySearch(query, outputDir, onProgress) {
     proc.stderr.on('data', (c) => { errorOut += c.toString(); });
 
     proc.on('close', (code) => {
-      if (code !== 0) reject(new Error(`Download failed: ${errorOut.slice(0, 300)}`));
+      if (code !== 0) reject(new Error(`Download failed: ${summarizeError(errorOut)}`));
       else resolve(lastFile || null);
     });
 
