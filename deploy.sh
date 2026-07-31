@@ -29,7 +29,7 @@ build() {
 # container on every backend deploy instead of relying on a full rebuild.
 upgrade_ytdlp() {
   echo "Upgrading yt-dlp in the running backend container..."
-  docker compose exec -T backend pip3 install --break-system-packages --upgrade yt-dlp
+  docker compose exec -T backend pip3 install --break-system-packages --upgrade yt-dlp bgutil-ytdlp-pot-provider
 }
 
 pull_latest

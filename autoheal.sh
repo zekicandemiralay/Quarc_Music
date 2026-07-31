@@ -37,6 +37,7 @@ fi
 docker exec "$BACKEND_CID" sh -c '
   rm -f /tmp/autoheal_test.mp3 /tmp/autoheal_err.log
   yt-dlp --proxy http://gluetun:8888 --js-runtimes node \
+    --extractor-args "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416" \
     -x --audio-format mp3 --no-warnings \
     -o "/tmp/autoheal_test.%(ext)s" \
     "https://www.youtube.com/watch?v=dQw4w9WgXcQ" \

@@ -364,6 +364,7 @@ info "Testing actual audio download+extraction via VPN (may take ~20-30s)..."
 DL_ERR=$(dexec backend yt-dlp \
   --proxy http://gluetun:8888 \
   --js-runtimes node \
+  --extractor-args "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416" \
   -x --audio-format mp3 --no-warnings \
   -o "/tmp/checksh_test.%(ext)s" \
   "https://www.youtube.com/watch?v=dQw4w9WgXcQ" 2>&1)
@@ -385,6 +386,21 @@ if [ -z "$BACKEND_PROXY" ]; then
   fail "YTDLP_PROXY not set in backend container — yt-dlp bypasses VPN (add YTDLP_PROXY=http://gluetun:8888 to .env)"
 else
   ok "YTDLP_PROXY set in backend container: ${BACKEND_PROXY}"
+fi
+
+# bgutil-provider generates the proof-of-origin token YouTube requires before
+# serving video data — without it, downloads fail with "Sign in to confirm
+# you're not a bot" regardless of yt-dlp version or VPN health. No documented
+# health endpoint, so just confirm the port accepts a connection — wget exit
+# code 4 means the network request itself failed (refused/timed out, i.e.
+# actually down); any other code means something answered, which is enough
+# to prove the process is up and reachable.
+POT_CHECK=$(dexec backend sh -c 'wget -qO- --timeout=5 http://bgutil-provider:4416/ >/dev/null 2>&1; echo "EXIT_CODE:$?"')
+POT_EXIT=$(echo "$POT_CHECK" | grep -oP 'EXIT_CODE:\K[0-9]+' || echo "")
+if [ "$POT_EXIT" != "4" ] && [ -n "$POT_EXIT" ]; then
+  ok "bgutil-provider (PO token server) reachable"
+else
+  fail "bgutil-provider unreachable from backend — downloads may hit 'Sign in to confirm you're not a bot'"
 fi
 
 # Confirm traffic actually exits through the VPN by comparing the host's real IP

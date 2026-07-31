@@ -5,6 +5,14 @@ const RATE_ARGS = process.env.YTDLP_RATE_LIMIT ? ['--limit-rate', process.env.YT
 const JS_ARGS = ['--js-runtimes', 'node'];
 const FRAG_ARGS = ['--concurrent-fragments', process.env.YTDLP_CONCURRENT_FRAGMENTS || '4'];
 
+// Points yt-dlp at the bgutil-ytdlp-pot-provider sidecar so it can fetch the
+// proof-of-origin token YouTube now requires — without it, requests from a
+// flagged IP (routine for shared/commercial VPN exits) get "Sign in to
+// confirm you're not a bot" instead of video data.
+const POT_ARGS = process.env.YTDLP_POT_PROVIDER_URL
+  ? ['--extractor-args', `youtubepot-bgutilhttp:base_url=${process.env.YTDLP_POT_PROVIDER_URL}`]
+  : [];
+
 // Kept at max quality (VBR 0, ~250-280kbps) per user preference — see
 // playerStore.js's quick-start chunk logic for how playback-start latency is
 // addressed instead, without trading off audio quality.
@@ -44,6 +52,7 @@ function searchYoutube(query, limit = 10) {
       '--no-warnings',
       '--socket-timeout', '10',
       ...JS_ARGS,
+      ...POT_ARGS,
     ]);
 
     const results = [];
@@ -120,6 +129,7 @@ function downloadAudio(videoId, outputDir, onProgress) {
       ...PROXY_ARGS,
       ...RATE_ARGS,
       ...JS_ARGS,
+      ...POT_ARGS,
       ...FRAG_ARGS,
     ]);
 
@@ -170,6 +180,7 @@ function downloadBySearch(query, outputDir, onProgress) {
       ...PROXY_ARGS,
       ...RATE_ARGS,
       ...JS_ARGS,
+      ...POT_ARGS,
       ...FRAG_ARGS,
     ]);
 
