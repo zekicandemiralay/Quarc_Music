@@ -381,10 +381,10 @@ export default function Layout({ children }) {
         <button onClick={() => setSidebarOpen(true)} className={`${dt('md:hidden')} text-zinc-400 hover:text-white transition-colors shrink-0`}>
           <Menu size={22} />
         </button>
-        {hideSearch
-          ? <span className={`text-white font-bold text-base ${dt('md:hidden')}`}>Quarc Music</span>
-          : <GlobalSearch />
-        }
+        {/* Always available, on every route — previously replaced with plain
+            app-name text on Library/Playlist/YouTube/etc., which meant recent
+            search history was unreachable from those pages. */}
+        <GlobalSearch />
       </div>
 
       {/* Network status banner */}
