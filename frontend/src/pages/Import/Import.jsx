@@ -138,13 +138,22 @@ function ExportSection() {
   );
 }
 
-function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
+function UploadSection({ accept, mimeTypes, endpoint, instructions, hint, onJobStart }) {
   const { t } = useTranslation();
   const [files, setFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef(null);
+
+  // Android's WebView file-chooser (a system Storage Access Framework intent
+  // under the hood) can end up with a broken/empty MIME filter when given
+  // bare extensions like ".csv" with no matching MIME type — the picker then
+  // shows nothing selectable at all, for any file. Broadening only the
+  // actual <input accept> attribute with real MIME types fixes that, while
+  // validation/error text still uses the clean extension list so the
+  // message shown to the user doesn't get cluttered with MIME strings.
+  const htmlAccept = mimeTypes ? `${accept},${mimeTypes.join(',')}` : accept;
 
   function addFiles(incoming) {
     const exts = accept.split(',').map(e => e.trim().toLowerCase());
@@ -212,7 +221,7 @@ function UploadSection({ accept, endpoint, instructions, hint, onJobStart }) {
         <input
           ref={fileRef}
           type="file"
-          accept={accept}
+          accept={htmlAccept}
           multiple
           className="hidden"
           onChange={(e) => addFiles(e.target.files)}
@@ -351,6 +360,7 @@ export default function Import() {
       {tab !== 'export' && !job && tab === 'spotify' && (
         <UploadSection
           accept=".zip,.csv"
+          mimeTypes={['application/zip', 'application/x-zip-compressed', 'text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel', 'text/plain']}
           endpoint="/api/import/spotify"
           hint={t('import.spotifyHint')}
           onJobStart={setJob}
@@ -370,6 +380,7 @@ export default function Import() {
       {!job && tab === 'youtube' && (
         <UploadSection
           accept=".zip,.json"
+          mimeTypes={['application/zip', 'application/x-zip-compressed', 'application/json', 'text/json']}
           endpoint="/api/import/youtube"
           hint={t('import.youtubeHint')}
           onJobStart={setJob}
