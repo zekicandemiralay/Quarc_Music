@@ -369,8 +369,13 @@ const usePlayerStore = create((set, get) => ({
     if (manualQueue.length > 0) {
       const [nextSong, ...rest] = manualQueue;
       set({ manualQueue: rest });
-      // Keep auto-queue position intact so after manual items the auto-queue continues
-      get().playSong(nextSong, queue, queueIndex, playContext, playContextLabel);
+      // navigating=true — this is just advancing, not starting a new context, so
+      // the shuffled auto-queue position/order must be preserved. Without it,
+      // playSong's shuffle-on-fresh-start logic reshuffles the ENTIRE auto-queue
+      // (including songs already played earlier this session) on every manual
+      // queue item, which is how an already-played song can resurface a few
+      // tracks later.
+      get().playSong(nextSong, queue, queueIndex, playContext, playContextLabel, true);
       return;
     }
 
@@ -432,12 +437,16 @@ const usePlayerStore = create((set, get) => ({
   },
 
   toggleShuffle: () => {
-    const { shuffle, queue, currentSong } = get();
+    const { shuffle, queue, queueIndex, currentSong } = get();
     const newShuffle = !shuffle;
     if (newShuffle && queue.length > 1 && currentSong) {
-      // Keep current song at index 0, smartShuffle everything else
-      const others = queue.filter((s) => s.id !== currentSong.id);
-      set({ shuffle: true, queue: [currentSong, ...smartShuffle(others)], queueIndex: 0 });
+      // Leave everything already played (indices 0..queueIndex) exactly where it
+      // is and shuffle only the not-yet-played remainder — reshuffling the whole
+      // queue would toss songs from earlier this session back into the pool,
+      // letting one resurface just a few tracks after it already played.
+      const played = queue.slice(0, queueIndex + 1);
+      const upcoming = queue.slice(queueIndex + 1);
+      set({ shuffle: true, queue: [...played, ...smartShuffle(upcoming)], queueIndex });
     } else {
       set({ shuffle: newShuffle });
     }
