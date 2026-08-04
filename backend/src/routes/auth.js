@@ -9,12 +9,16 @@ const { requireAuth } = require('../middleware/auth');
 
 const SECRET = () => process.env.JWT_SECRET || 'insecure-default-change-in-production';
 const SECURE_COOKIE = process.env.SECURE_COOKIE === 'true';
+// 90 days — this is a personal, self-hosted app behind its own auth + VPN
+// infrastructure, not a public multi-tenant service, so a short expiry mostly
+// just meant more frequent forced logins rather than meaningful extra safety.
+const SESSION_LIFETIME = '90d';
 const COOKIE_OPTS = {
   httpOnly: true,
   // SameSite=none required when the APK (capacitor://localhost) sends requests to
   // the remote server cross-origin. Requires Secure=true per browser spec.
   sameSite: SECURE_COOKIE ? 'none' : 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
+  maxAge: 90 * 24 * 60 * 60 * 1000,
   secure: SECURE_COOKIE,
 };
 
@@ -30,7 +34,7 @@ router.post('/login', async (req, res) => {
   const token = jwt.sign(
     { id: user.id, username: user.username, role: user.role },
     SECRET(),
-    { expiresIn: '7d' }
+    { expiresIn: SESSION_LIFETIME }
   );
 
   res.cookie('token', token, COOKIE_OPTS);
@@ -53,7 +57,7 @@ router.post('/register', async (req, res) => {
   db.prepare('INSERT INTO users (id, username, password_hash, salt, role) VALUES (?, ?, ?, ?, ?)')
     .run(id, username.trim(), hash, salt, 'user');
 
-  const token = jwt.sign({ id, username: username.trim(), role: 'user' }, SECRET(), { expiresIn: '7d' });
+  const token = jwt.sign({ id, username: username.trim(), role: 'user' }, SECRET(), { expiresIn: SESSION_LIFETIME });
   res.cookie('token', token, COOKIE_OPTS);
   res.json({ id, username: username.trim(), role: 'user' });
 });
