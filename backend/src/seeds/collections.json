@@ -5,18 +5,156 @@
       "description": "Smooth jazz for evening dining",
       "color": "#b45309",
       "songs": [
-        { "query": "Miles Davis So What Kind of Blue" },
-        { "query": "Dave Brubeck Quartet Take Five" },
-        { "query": "John Coltrane My Favorite Things" },
-        { "query": "Chet Baker Almost Blue" },
-        { "query": "Bill Evans Waltz for Debby" },
-        { "query": "Duke Ellington Take the A Train" },
-        { "query": "Thelonious Monk Round Midnight" },
-        { "query": "Oscar Peterson Autumn Leaves jazz" },
-        { "query": "Charles Mingus Goodbye Pork Pie Hat" },
-        { "query": "Nina Simone Feeling Good" },
-        { "query": "Wes Montgomery Road Song" },
-        { "query": "Herbie Hancock Maiden Voyage" }
+        {
+          "query": "Miles Davis So What Kind of Blue"
+        },
+        {
+          "query": "Dave Brubeck Quartet Take Five"
+        },
+        {
+          "query": "John Coltrane My Favorite Things"
+        },
+        {
+          "query": "Chet Baker Almost Blue"
+        },
+        {
+          "query": "Bill Evans Waltz for Debby"
+        },
+        {
+          "query": "Duke Ellington Take the A Train"
+        },
+        {
+          "query": "Thelonious Monk Round Midnight"
+        },
+        {
+          "query": "Oscar Peterson Autumn Leaves jazz"
+        },
+        {
+          "query": "Charles Mingus Goodbye Pork Pie Hat"
+        },
+        {
+          "query": "Nina Simone Feeling Good"
+        },
+        {
+          "query": "Wes Montgomery Road Song"
+        },
+        {
+          "query": "Herbie Hancock Maiden Voyage"
+        },
+        {
+          "query": "Miles Davis Blue in Green"
+        },
+        {
+          "query": "John Coltrane Blue Train"
+        },
+        {
+          "query": "Sarah Vaughan Misty"
+        },
+        {
+          "query": "Ella Fitzgerald Summertime"
+        },
+        {
+          "query": "Louis Armstrong What a Wonderful World"
+        },
+        {
+          "query": "Frank Sinatra Fly Me to the Moon"
+        },
+        {
+          "query": "Billie Holiday Autumn in New York"
+        },
+        {
+          "query": "Stan Getz Desafinado"
+        },
+        {
+          "query": "Cannonball Adderley Mercy Mercy Mercy"
+        },
+        {
+          "query": "Art Blakey Moanin"
+        },
+        {
+          "query": "Sonny Rollins St Thomas"
+        },
+        {
+          "query": "Chet Baker My Funny Valentine"
+        },
+        {
+          "query": "Diana Krall The Look of Love"
+        },
+        {
+          "query": "Norah Jones Don't Know Why"
+        },
+        {
+          "query": "Michael Bublé Feeling Good"
+        },
+        {
+          "query": "Ray Charles Georgia on My Mind"
+        },
+        {
+          "query": "Nat King Cole Unforgettable"
+        },
+        {
+          "query": "Astrud Gilberto The Girl from Ipanema"
+        },
+        {
+          "query": "Keith Jarrett My Song"
+        },
+        {
+          "query": "Pat Metheny Bright Size Life"
+        },
+        {
+          "query": "Grant Green Idle Moments"
+        },
+        {
+          "query": "Wynton Marsalis Cherokee"
+        },
+        {
+          "query": "Ahmad Jamal Poinciana"
+        },
+        {
+          "query": "Vince Guaraldi Cast Your Fate to the Wind"
+        },
+        {
+          "query": "McCoy Tyner Passion Dance"
+        },
+        {
+          "query": "Freddie Hubbard Red Clay"
+        },
+        {
+          "query": "Horace Silver Song for My Father"
+        },
+        {
+          "query": "Lee Morgan The Sidewinder"
+        },
+        {
+          "query": "Julie London Cry Me a River"
+        },
+        {
+          "query": "Peggy Lee Fever"
+        },
+        {
+          "query": "Anita O Day Sweet Georgia Brown"
+        },
+        {
+          "query": "Tony Bennett The Way You Look Tonight"
+        },
+        {
+          "query": "Joe Pass Autumn Leaves guitar"
+        },
+        {
+          "query": "Jim Hall Alone Together"
+        },
+        {
+          "query": "Chick Corea Spain"
+        },
+        {
+          "query": "Weather Report Birdland"
+        },
+        {
+          "query": "Return to Forever La Fiesta"
+        },
+        {
+          "query": "Dexter Gordon Second Balcony Jump"
+        }
       ]
     },
     {
@@ -24,18 +162,156 @@
       "description": "Gentle acoustic songs to start your day",
       "color": "#15803d",
       "songs": [
-        { "query": "Cat Stevens Wild World" },
-        { "query": "Simon and Garfunkel The Sound of Silence" },
-        { "query": "John Denver Take Me Home Country Roads" },
-        { "query": "Jack Johnson Better Together" },
-        { "query": "Bon Iver Skinny Love" },
-        { "query": "Iron and Wine Naked as We Came" },
-        { "query": "James Taylor Fire and Rain" },
-        { "query": "Nick Drake Pink Moon" },
-        { "query": "Damien Rice The Blower's Daughter" },
-        { "query": "Jose Gonzalez Heartbeats" },
-        { "query": "Elliott Smith Between the Bars" },
-        { "query": "Sufjan Stevens Death with Dignity" }
+        {
+          "query": "Cat Stevens Wild World"
+        },
+        {
+          "query": "Simon and Garfunkel The Sound of Silence"
+        },
+        {
+          "query": "John Denver Take Me Home Country Roads"
+        },
+        {
+          "query": "Jack Johnson Better Together"
+        },
+        {
+          "query": "Bon Iver Skinny Love"
+        },
+        {
+          "query": "Iron and Wine Naked as We Came"
+        },
+        {
+          "query": "James Taylor Fire and Rain"
+        },
+        {
+          "query": "Nick Drake Pink Moon"
+        },
+        {
+          "query": "Damien Rice The Blower's Daughter"
+        },
+        {
+          "query": "Jose Gonzalez Heartbeats"
+        },
+        {
+          "query": "Elliott Smith Between the Bars"
+        },
+        {
+          "query": "Sufjan Stevens Death with Dignity"
+        },
+        {
+          "query": "Ed Sheeran Photograph"
+        },
+        {
+          "query": "Ben Howard Keep Your Head Up"
+        },
+        {
+          "query": "City and Colour Comin Home"
+        },
+        {
+          "query": "Vance Joy Riptide"
+        },
+        {
+          "query": "Passenger Let Her Go"
+        },
+        {
+          "query": "Ray LaMontagne Trouble"
+        },
+        {
+          "query": "Newton Faulkner Dream Catch Me"
+        },
+        {
+          "query": "Zach Bryan Something in the Orange"
+        },
+        {
+          "query": "Noah Kahan Stick Season"
+        },
+        {
+          "query": "Gregory Alan Isakov The Stable Song"
+        },
+        {
+          "query": "Jose Gonzalez Crosses"
+        },
+        {
+          "query": "Bon Iver Re Stacks"
+        },
+        {
+          "query": "Damien Jurado Silver Timothy"
+        },
+        {
+          "query": "Iron and Wine Boy with a Coin"
+        },
+        {
+          "query": "Cat Stevens Father and Son"
+        },
+        {
+          "query": "James Taylor Sweet Baby James"
+        },
+        {
+          "query": "Simon and Garfunkel Scarborough Fair"
+        },
+        {
+          "query": "Jack Johnson Banana Pancakes"
+        },
+        {
+          "query": "John Mayer Slow Dancing in a Burning Room"
+        },
+        {
+          "query": "Norah Jones Come Away with Me"
+        },
+        {
+          "query": "Tracy Chapman Fast Car"
+        },
+        {
+          "query": "Colbie Caillat Bubbly"
+        },
+        {
+          "query": "Corinne Bailey Rae Put Your Records On"
+        },
+        {
+          "query": "Feist 1234"
+        },
+        {
+          "query": "Regina Spektor Fidelity"
+        },
+        {
+          "query": "The Paper Kites Bloom"
+        },
+        {
+          "query": "Ben Rector Brand New"
+        },
+        {
+          "query": "Josh Ritter Girl in the War"
+        },
+        {
+          "query": "Ryan Adams When the Stars Go Blue"
+        },
+        {
+          "query": "Willie Nelson Blue Eyes Crying in the Rain"
+        },
+        {
+          "query": "Glen Hansard Falling Slowly"
+        },
+        {
+          "query": "The Civil Wars Poison and Wine"
+        },
+        {
+          "query": "Milky Chance Stolen Dance"
+        },
+        {
+          "query": "Rodrigo y Gabriela Diablo Rojo"
+        },
+        {
+          "query": "Angus and Julia Stone Big Jet Plane"
+        },
+        {
+          "query": "Dave Matthews Band Crash Into Me"
+        },
+        {
+          "query": "City and Colour The Girl"
+        },
+        {
+          "query": "Bright Eyes First Day of My Life"
+        }
       ]
     },
     {
@@ -43,18 +319,156 @@
       "description": "Lo-fi beats for studying, relaxing, or doing nothing",
       "color": "#1d4ed8",
       "songs": [
-        { "query": "Nujabes Feather ft Cise Starr" },
-        { "query": "Nujabes Aruarian Dance" },
-        { "query": "Nujabes Reflection Eternal" },
-        { "query": "J Dilla Donuts 10" },
-        { "query": "tomppabeats harbor lofi" },
-        { "query": "Philanthrope Sunflower lofi" },
-        { "query": "Jinsang Solitude lofi hip hop" },
-        { "query": "potsu i miss you lofi" },
-        { "query": "idealism Daydream lofi" },
-        { "query": "Cloudchord Pillow Talk lofi" },
-        { "query": "arbour Fading Gold lofi beats" },
-        { "query": "Kupla Midday lofi" }
+        {
+          "query": "Nujabes Feather ft Cise Starr"
+        },
+        {
+          "query": "Nujabes Aruarian Dance"
+        },
+        {
+          "query": "Nujabes Reflection Eternal"
+        },
+        {
+          "query": "J Dilla Donuts 10"
+        },
+        {
+          "query": "tomppabeats harbor lofi"
+        },
+        {
+          "query": "Philanthrope Sunflower lofi"
+        },
+        {
+          "query": "Jinsang Solitude lofi hip hop"
+        },
+        {
+          "query": "potsu i miss you lofi"
+        },
+        {
+          "query": "idealism Daydream lofi"
+        },
+        {
+          "query": "Cloudchord Pillow Talk lofi"
+        },
+        {
+          "query": "arbour Fading Gold lofi beats"
+        },
+        {
+          "query": "Kupla Midday lofi"
+        },
+        {
+          "query": "Idealism Yesterday lofi"
+        },
+        {
+          "query": "Tomppabeats Nostalgia lofi"
+        },
+        {
+          "query": "WYS Coffee lofi"
+        },
+        {
+          "query": "Blue Wednesday Meadow lofi"
+        },
+        {
+          "query": "Guillaume Muschalle Coma lofi"
+        },
+        {
+          "query": "FloFilz Wolves lofi"
+        },
+        {
+          "query": "Mondo Loops Everything Will Be Ok"
+        },
+        {
+          "query": "L'Indecis Empty Streets lofi"
+        },
+        {
+          "query": "Emancipator Soon It Will Be Cold Enough"
+        },
+        {
+          "query": "Tycho A Walk"
+        },
+        {
+          "query": "Bonobo Kiara"
+        },
+        {
+          "query": "DJ Krush Kemuri"
+        },
+        {
+          "query": "Blockhead The Music Scene"
+        },
+        {
+          "query": "RJD2 Ghostwriter"
+        },
+        {
+          "query": "Boards of Canada Roygbiv"
+        },
+        {
+          "query": "Nymano Fireflies lofi"
+        },
+        {
+          "query": "Kainbeats City lofi"
+        },
+        {
+          "query": "Barron Late Night Drive lofi"
+        },
+        {
+          "query": "Aviino Lonesome lofi"
+        },
+        {
+          "query": "Sarcastic Sounds September lofi"
+        },
+        {
+          "query": "Steezyxweeby In My Room lofi"
+        },
+        {
+          "query": "Ambulo Umi lofi"
+        },
+        {
+          "query": "Purrple Cat Lofi Sky"
+        },
+        {
+          "query": "Yasper Rain lofi"
+        },
+        {
+          "query": "ta-ku Songs to Make Up Lyrics To"
+        },
+        {
+          "query": "Kidkanevil Karesansui"
+        },
+        {
+          "query": "Yppah Corn Starch"
+        },
+        {
+          "query": "Shlohmo Rained the Whole Time"
+        },
+        {
+          "query": "Kaelin Ellis Bricks"
+        },
+        {
+          "query": "Anno Domini Beats Take Time"
+        },
+        {
+          "query": "Uyama Hiroto Betcover"
+        },
+        {
+          "query": "Fitz Ambrose Lonely lofi"
+        },
+        {
+          "query": "Sleepy Fish Coffee Break lofi"
+        },
+        {
+          "query": "Kupla Aetherless lofi"
+        },
+        {
+          "query": "Chillhop Essentials mix"
+        },
+        {
+          "query": "Aso Yesterdays lofi"
+        },
+        {
+          "query": "Kudasai Missing You lofi"
+        },
+        {
+          "query": "C Fresh Solitude lofi"
+        }
       ]
     },
     {
@@ -62,18 +476,156 @@
       "description": "Classical masterpieces for deep concentration",
       "color": "#4338ca",
       "songs": [
-        { "query": "Bach Cello Suite No 1 Prelude Yo-Yo Ma" },
-        { "query": "Beethoven Moonlight Sonata first movement" },
-        { "query": "Chopin Nocturne Op 9 No 2 piano" },
-        { "query": "Debussy Clair de lune piano" },
-        { "query": "Satie Gymnopédie No 1" },
-        { "query": "Bach Goldberg Variations Glenn Gould 1981" },
-        { "query": "Mozart Piano Sonata No 11 Alla Turca" },
-        { "query": "Ravel Pavane pour une infante défunte" },
-        { "query": "Bach Air on the G String" },
-        { "query": "Schubert Ave Maria" },
-        { "query": "Liszt Liebestraum No 3" },
-        { "query": "Vivaldi Four Seasons Spring Allegro" }
+        {
+          "query": "Bach Cello Suite No 1 Prelude Yo-Yo Ma"
+        },
+        {
+          "query": "Beethoven Moonlight Sonata first movement"
+        },
+        {
+          "query": "Chopin Nocturne Op 9 No 2 piano"
+        },
+        {
+          "query": "Debussy Clair de lune piano"
+        },
+        {
+          "query": "Satie Gymnopédie No 1"
+        },
+        {
+          "query": "Bach Goldberg Variations Glenn Gould 1981"
+        },
+        {
+          "query": "Mozart Piano Sonata No 11 Alla Turca"
+        },
+        {
+          "query": "Ravel Pavane pour une infante défunte"
+        },
+        {
+          "query": "Bach Air on the G String"
+        },
+        {
+          "query": "Schubert Ave Maria"
+        },
+        {
+          "query": "Liszt Liebestraum No 3"
+        },
+        {
+          "query": "Vivaldi Four Seasons Spring Allegro"
+        },
+        {
+          "query": "Bach Brandenburg Concerto No 3"
+        },
+        {
+          "query": "Beethoven Symphony No 5 first movement"
+        },
+        {
+          "query": "Beethoven Für Elise"
+        },
+        {
+          "query": "Mozart Eine kleine Nachtmusik"
+        },
+        {
+          "query": "Mozart Symphony No 40"
+        },
+        {
+          "query": "Chopin Nocturne Op 9 No 1"
+        },
+        {
+          "query": "Chopin Waltz in A minor"
+        },
+        {
+          "query": "Debussy Arabesque No 1"
+        },
+        {
+          "query": "Pachelbel Canon in D"
+        },
+        {
+          "query": "Handel Water Music Suite"
+        },
+        {
+          "query": "Vivaldi Four Seasons Winter"
+        },
+        {
+          "query": "Rachmaninoff Piano Concerto No 2"
+        },
+        {
+          "query": "Tchaikovsky Swan Lake theme"
+        },
+        {
+          "query": "Tchaikovsky Piano Concerto No 1"
+        },
+        {
+          "query": "Grieg Morning Mood Peer Gynt"
+        },
+        {
+          "query": "Holst The Planets Jupiter"
+        },
+        {
+          "query": "Elgar Nimrod Enigma Variations"
+        },
+        {
+          "query": "Barber Adagio for Strings"
+        },
+        {
+          "query": "Saint-Saëns The Swan Carnival of the Animals"
+        },
+        {
+          "query": "Mendelssohn Violin Concerto"
+        },
+        {
+          "query": "Brahms Hungarian Dance No 5"
+        },
+        {
+          "query": "Dvořák Symphony No 9 New World second movement"
+        },
+        {
+          "query": "Schumann Träumerei"
+        },
+        {
+          "query": "Bach Well-Tempered Clavier Prelude No 1"
+        },
+        {
+          "query": "Beethoven Symphony No 7 second movement"
+        },
+        {
+          "query": "Mahler Symphony No 5 Adagietto"
+        },
+        {
+          "query": "Ravel Bolero"
+        },
+        {
+          "query": "Sibelius Finlandia"
+        },
+        {
+          "query": "Shostakovich Waltz No 2"
+        },
+        {
+          "query": "Prokofiev Dance of the Knights"
+        },
+        {
+          "query": "Copland Appalachian Spring"
+        },
+        {
+          "query": "Fauré Pavane"
+        },
+        {
+          "query": "Mascagni Cavalleria Rusticana Intermezzo"
+        },
+        {
+          "query": "Puccini Nessun Dorma"
+        },
+        {
+          "query": "Bach Toccata and Fugue in D minor"
+        },
+        {
+          "query": "Rachmaninoff Vocalise"
+        },
+        {
+          "query": "Ravel Piano Concerto in G Adagio"
+        },
+        {
+          "query": "Chopin Ballade No 1"
+        }
       ]
     },
     {
@@ -81,18 +633,156 @@
       "description": "High-energy tracks to push through any workout",
       "color": "#b91c1c",
       "songs": [
-        { "query": "Eminem Lose Yourself" },
-        { "query": "Survivor Eye of the Tiger" },
-        { "query": "AC DC Thunderstruck" },
-        { "query": "Kanye West Stronger" },
-        { "query": "Queen Don't Stop Me Now" },
-        { "query": "Rage Against the Machine Killing in the Name" },
-        { "query": "Metallica Enter Sandman" },
-        { "query": "The White Stripes Seven Nation Army" },
-        { "query": "Daft Punk Harder Better Faster Stronger" },
-        { "query": "Run DMC Aerosmith Walk This Way" },
-        { "query": "Prodigy Firestarter" },
-        { "query": "Kendrick Lamar HUMBLE" }
+        {
+          "query": "Eminem Lose Yourself"
+        },
+        {
+          "query": "Survivor Eye of the Tiger"
+        },
+        {
+          "query": "AC DC Thunderstruck"
+        },
+        {
+          "query": "Kanye West Stronger"
+        },
+        {
+          "query": "Queen Don't Stop Me Now"
+        },
+        {
+          "query": "Rage Against the Machine Killing in the Name"
+        },
+        {
+          "query": "Metallica Enter Sandman"
+        },
+        {
+          "query": "The White Stripes Seven Nation Army"
+        },
+        {
+          "query": "Daft Punk Harder Better Faster Stronger"
+        },
+        {
+          "query": "Run DMC Aerosmith Walk This Way"
+        },
+        {
+          "query": "Prodigy Firestarter"
+        },
+        {
+          "query": "Kendrick Lamar HUMBLE"
+        },
+        {
+          "query": "Imagine Dragons Believer"
+        },
+        {
+          "query": "Imagine Dragons Thunder"
+        },
+        {
+          "query": "Twenty One Pilots Stressed Out"
+        },
+        {
+          "query": "Fort Minor Remember the Name"
+        },
+        {
+          "query": "Linkin Park Numb"
+        },
+        {
+          "query": "Linkin Park In the End"
+        },
+        {
+          "query": "Foo Fighters The Pretender"
+        },
+        {
+          "query": "Beastie Boys Sabotage"
+        },
+        {
+          "query": "The Prodigy Breathe"
+        },
+        {
+          "query": "Skrillex Bangarang"
+        },
+        {
+          "query": "DMX X Gon Give It to Ya"
+        },
+        {
+          "query": "50 Cent In Da Club"
+        },
+        {
+          "query": "Eminem Till I Collapse"
+        },
+        {
+          "query": "Flo Rida Good Feeling"
+        },
+        {
+          "query": "David Guetta Titanium"
+        },
+        {
+          "query": "Calvin Harris Feel So Close"
+        },
+        {
+          "query": "Avicii Levels"
+        },
+        {
+          "query": "Swedish House Mafia Don't You Worry Child"
+        },
+        {
+          "query": "Zedd Clarity"
+        },
+        {
+          "query": "The Chemical Brothers Block Rockin Beats"
+        },
+        {
+          "query": "Fatboy Slim Right Here Right Now"
+        },
+        {
+          "query": "Basement Jaxx Where's Your Head At"
+        },
+        {
+          "query": "Pendulum Propane Nightmares"
+        },
+        {
+          "query": "Rage Against the Machine Bulls on Parade"
+        },
+        {
+          "query": "System of a Down Chop Suey"
+        },
+        {
+          "query": "Disturbed Down with the Sickness"
+        },
+        {
+          "query": "Godsmack I Stand Alone"
+        },
+        {
+          "query": "Drowning Pool Bodies"
+        },
+        {
+          "query": "Limp Bizkit Break Stuff"
+        },
+        {
+          "query": "Guns N Roses Welcome to the Jungle"
+        },
+        {
+          "query": "Van Halen Jump"
+        },
+        {
+          "query": "Bon Jovi It's My Life"
+        },
+        {
+          "query": "Journey Don't Stop Believin"
+        },
+        {
+          "query": "Twisted Sister We're Not Gonna Take It"
+        },
+        {
+          "query": "Motörhead Ace of Spades"
+        },
+        {
+          "query": "Black Sabbath Iron Man"
+        },
+        {
+          "query": "Foo Fighters Everlong"
+        },
+        {
+          "query": "Cypress Hill Insane in the Membrane"
+        }
       ]
     },
     {
@@ -100,18 +790,156 @@
       "description": "Soulful R&B and neo-soul for late nights",
       "color": "#be185d",
       "songs": [
-        { "query": "Marvin Gaye Let's Get It On" },
-        { "query": "Al Green Let's Stay Together" },
-        { "query": "D'Angelo Brown Sugar" },
-        { "query": "Erykah Badu On and On" },
-        { "query": "Lauryn Hill Ex-Factor" },
-        { "query": "John Legend Ordinary People" },
-        { "query": "Maxwell Ascension" },
-        { "query": "Alicia Keys Fallin" },
-        { "query": "Frank Ocean Thinkin Bout You" },
-        { "query": "H.E.R. Best Part" },
-        { "query": "SZA The Weekend" },
-        { "query": "Daniel Caesar Get You ft Kali Uchis" }
+        {
+          "query": "Marvin Gaye Let's Get It On"
+        },
+        {
+          "query": "Al Green Let's Stay Together"
+        },
+        {
+          "query": "D'Angelo Brown Sugar"
+        },
+        {
+          "query": "Erykah Badu On and On"
+        },
+        {
+          "query": "Lauryn Hill Ex-Factor"
+        },
+        {
+          "query": "John Legend Ordinary People"
+        },
+        {
+          "query": "Maxwell Ascension"
+        },
+        {
+          "query": "Alicia Keys Fallin"
+        },
+        {
+          "query": "Frank Ocean Thinkin Bout You"
+        },
+        {
+          "query": "H.E.R. Best Part"
+        },
+        {
+          "query": "SZA The Weekend"
+        },
+        {
+          "query": "Daniel Caesar Get You ft Kali Uchis"
+        },
+        {
+          "query": "Usher Confessions"
+        },
+        {
+          "query": "Usher Nice and Slow"
+        },
+        {
+          "query": "Beyoncé Halo"
+        },
+        {
+          "query": "Beyoncé Dangerously in Love"
+        },
+        {
+          "query": "Mary J Blige Be Without You"
+        },
+        {
+          "query": "Boyz II Men End of the Road"
+        },
+        {
+          "query": "Toni Braxton Un-Break My Heart"
+        },
+        {
+          "query": "Brandy Have You Ever"
+        },
+        {
+          "query": "Monica Angel of Mine"
+        },
+        {
+          "query": "Jodeci Freek'n You"
+        },
+        {
+          "query": "Aaliyah Are You That Somebody"
+        },
+        {
+          "query": "Ashanti Foolish"
+        },
+        {
+          "query": "Ciara Goodies"
+        },
+        {
+          "query": "Chris Brown With You"
+        },
+        {
+          "query": "Ne-Yo So Sick"
+        },
+        {
+          "query": "Trey Songz Say Aah"
+        },
+        {
+          "query": "Miguel Adorn"
+        },
+        {
+          "query": "The Weeknd Often"
+        },
+        {
+          "query": "The Weeknd Earned It"
+        },
+        {
+          "query": "Jhene Aiko The Worst"
+        },
+        {
+          "query": "Kehlani Distraction"
+        },
+        {
+          "query": "Summer Walker Girls Need Love"
+        },
+        {
+          "query": "Giveon Heartbreak Anniversary"
+        },
+        {
+          "query": "Snoh Aalegra I Want You Around"
+        },
+        {
+          "query": "Ella Mai Boo'd Up"
+        },
+        {
+          "query": "Bryson Tiller Don't"
+        },
+        {
+          "query": "PARTYNEXTDOOR Come and See Me"
+        },
+        {
+          "query": "6LACK Prblms"
+        },
+        {
+          "query": "Musiq Soulchild Just Friends"
+        },
+        {
+          "query": "Anthony Hamilton Charlene"
+        },
+        {
+          "query": "Robin Thicke Lost Without U"
+        },
+        {
+          "query": "Ginuwine Pony"
+        },
+        {
+          "query": "Jagged Edge Let's Get Married"
+        },
+        {
+          "query": "Dru Hill In My Bed"
+        },
+        {
+          "query": "Case Happily Ever After"
+        },
+        {
+          "query": "K-Ci and JoJo All My Life"
+        },
+        {
+          "query": "Blackstreet No Diggity"
+        },
+        {
+          "query": "SWV Weak"
+        }
       ]
     },
     {
@@ -119,18 +947,156 @@
       "description": "Essential blues from the masters",
       "color": "#0f766e",
       "songs": [
-        { "query": "B.B. King The Thrill Is Gone" },
-        { "query": "Stevie Ray Vaughan Pride and Joy" },
-        { "query": "Muddy Waters Hoochie Coochie Man" },
-        { "query": "Robert Johnson Cross Road Blues" },
-        { "query": "John Lee Hooker Boom Boom" },
-        { "query": "Eric Clapton Crossroads Cream" },
-        { "query": "Buddy Guy Damn Right I've Got the Blues" },
-        { "query": "Howlin Wolf Smokestack Lightnin" },
-        { "query": "Etta James I'd Rather Go Blind" },
-        { "query": "Albert King Born Under a Bad Sign" },
-        { "query": "Junior Wells Messin with the Kid" },
-        { "query": "Freddie King Have You Ever Loved a Woman" }
+        {
+          "query": "B.B. King The Thrill Is Gone"
+        },
+        {
+          "query": "Stevie Ray Vaughan Pride and Joy"
+        },
+        {
+          "query": "Muddy Waters Hoochie Coochie Man"
+        },
+        {
+          "query": "Robert Johnson Cross Road Blues"
+        },
+        {
+          "query": "John Lee Hooker Boom Boom"
+        },
+        {
+          "query": "Eric Clapton Crossroads Cream"
+        },
+        {
+          "query": "Buddy Guy Damn Right I've Got the Blues"
+        },
+        {
+          "query": "Howlin Wolf Smokestack Lightnin"
+        },
+        {
+          "query": "Etta James I'd Rather Go Blind"
+        },
+        {
+          "query": "Albert King Born Under a Bad Sign"
+        },
+        {
+          "query": "Junior Wells Messin with the Kid"
+        },
+        {
+          "query": "Freddie King Have You Ever Loved a Woman"
+        },
+        {
+          "query": "T-Bone Walker Stormy Monday"
+        },
+        {
+          "query": "Elmore James Dust My Broom"
+        },
+        {
+          "query": "Willie Dixon Hoochie Coochie Man"
+        },
+        {
+          "query": "Sonny Boy Williamson Help Me"
+        },
+        {
+          "query": "Lightnin Hopkins Mojo Hand"
+        },
+        {
+          "query": "John Mayall Room to Move"
+        },
+        {
+          "query": "Rory Gallagher Bad Penny"
+        },
+        {
+          "query": "Peter Green Black Magic Woman"
+        },
+        {
+          "query": "Otis Rush I Can't Quit You Baby"
+        },
+        {
+          "query": "Albert Collins Frosty"
+        },
+        {
+          "query": "Jimmy Reed Baby What You Want Me to Do"
+        },
+        {
+          "query": "Bo Diddley Who Do You Love"
+        },
+        {
+          "query": "Big Bill Broonzy Key to the Highway"
+        },
+        {
+          "query": "Skip James I'm So Glad"
+        },
+        {
+          "query": "Son House Death Letter"
+        },
+        {
+          "query": "Mississippi John Hurt Candy Man"
+        },
+        {
+          "query": "Blind Willie Johnson Dark Was the Night"
+        },
+        {
+          "query": "Taj Mahal Statesboro Blues"
+        },
+        {
+          "query": "Bonnie Raitt Something to Talk About"
+        },
+        {
+          "query": "Susan Tedeschi It Hurt So Bad"
+        },
+        {
+          "query": "Gary Clark Jr Bright Lights"
+        },
+        {
+          "query": "Joe Bonamassa Sloe Gin"
+        },
+        {
+          "query": "Robert Cray Right Next Door"
+        },
+        {
+          "query": "Keb Mo Every Morning"
+        },
+        {
+          "query": "Shemekia Copeland Ain't Gonna Be Your Tattoo"
+        },
+        {
+          "query": "Charley Patton Pony Blues"
+        },
+        {
+          "query": "Blind Lemon Jefferson See That My Grave Is Kept Clean"
+        },
+        {
+          "query": "Memphis Minnie Bumble Bee"
+        },
+        {
+          "query": "Big Mama Thornton Hound Dog"
+        },
+        {
+          "query": "Koko Taylor Wang Dang Doodle"
+        },
+        {
+          "query": "Bobby Blue Bland Turn On Your Love Light"
+        },
+        {
+          "query": "Little Walter Juke"
+        },
+        {
+          "query": "Magic Sam All Your Love"
+        },
+        {
+          "query": "Luther Allison Bad News Is Coming"
+        },
+        {
+          "query": "Johnny Winter Rock Me Baby"
+        },
+        {
+          "query": "Walter Trout Marie's Mood"
+        },
+        {
+          "query": "Kenny Wayne Shepherd Blue on Black"
+        },
+        {
+          "query": "Tinsley Ellis Kiss Her Once for Me"
+        }
       ]
     },
     {
@@ -138,18 +1104,156 @@
       "description": "Brazilian jazz and bossa nova classics",
       "color": "#0891b2",
       "songs": [
-        { "query": "João Gilberto Garota de Ipanema" },
-        { "query": "Antonio Carlos Jobim Corcovado" },
-        { "query": "Stan Getz Astrud Gilberto Girl from Ipanema" },
-        { "query": "Caetano Veloso Cucurrucucú Paloma" },
-        { "query": "Antônio Carlos Jobim Desafinado" },
-        { "query": "Vinicius de Moraes Samba em Preludio" },
-        { "query": "Elis Regina Aguas de Marco" },
-        { "query": "Nara Leão Manhã de Carnaval" },
-        { "query": "Jorge Ben Jor Mas Que Nada original" },
-        { "query": "Sergio Mendes Mais Que Nada" },
-        { "query": "Ivan Lins Madalena" },
-        { "query": "Chico Buarque Construção" }
+        {
+          "query": "João Gilberto Garota de Ipanema"
+        },
+        {
+          "query": "Antonio Carlos Jobim Corcovado"
+        },
+        {
+          "query": "Stan Getz Astrud Gilberto Girl from Ipanema"
+        },
+        {
+          "query": "Caetano Veloso Cucurrucucú Paloma"
+        },
+        {
+          "query": "Antônio Carlos Jobim Desafinado"
+        },
+        {
+          "query": "Vinicius de Moraes Samba em Preludio"
+        },
+        {
+          "query": "Elis Regina Aguas de Marco"
+        },
+        {
+          "query": "Nara Leão Manhã de Carnaval"
+        },
+        {
+          "query": "Jorge Ben Jor Mas Que Nada original"
+        },
+        {
+          "query": "Sergio Mendes Mais Que Nada"
+        },
+        {
+          "query": "Ivan Lins Madalena"
+        },
+        {
+          "query": "Chico Buarque Construção"
+        },
+        {
+          "query": "João Gilberto Chega de Saudade"
+        },
+        {
+          "query": "João Gilberto Desafinado"
+        },
+        {
+          "query": "Antonio Carlos Jobim Água de Beber"
+        },
+        {
+          "query": "Antonio Carlos Jobim Wave"
+        },
+        {
+          "query": "Antonio Carlos Jobim Meditação"
+        },
+        {
+          "query": "Astrud Gilberto Corcovado"
+        },
+        {
+          "query": "Astrud Gilberto Bim Bom"
+        },
+        {
+          "query": "Elis Regina Como Nossos Pais"
+        },
+        {
+          "query": "Elis Regina O Bêbado e a Equilibrista"
+        },
+        {
+          "query": "Gal Costa Baby"
+        },
+        {
+          "query": "Gilberto Gil Aquele Abraço"
+        },
+        {
+          "query": "Caetano Veloso Sozinho"
+        },
+        {
+          "query": "Toquinho Aquarela"
+        },
+        {
+          "query": "Baden Powell Berimbau"
+        },
+        {
+          "query": "Luiz Bonfá Manhã de Carnaval"
+        },
+        {
+          "query": "Marcos Valle Summer Samba"
+        },
+        {
+          "query": "Sergio Mendes Fool on the Hill"
+        },
+        {
+          "query": "Bebel Gilberto Tanto Tempo"
+        },
+        {
+          "query": "Rosa Passos Dindi"
+        },
+        {
+          "query": "Joyce Moreno Feminina"
+        },
+        {
+          "query": "Nara Leão Se É Tarde Me Perdoa"
+        },
+        {
+          "query": "Roberto Menescal O Barquinho"
+        },
+        {
+          "query": "Carlos Lyra Influência do Jazz"
+        },
+        {
+          "query": "Milton Nascimento Cais"
+        },
+        {
+          "query": "Djavan Flor de Lis"
+        },
+        {
+          "query": "Ivan Lins Novo Tempo"
+        },
+        {
+          "query": "Maria Rita Encontros e Despedidas"
+        },
+        {
+          "query": "Tom Jobim Insensatez"
+        },
+        {
+          "query": "Vinicius de Moraes Chega de Saudade live"
+        },
+        {
+          "query": "Stan Getz João Gilberto Desafinado"
+        },
+        {
+          "query": "Herbie Mann One Note Samba"
+        },
+        {
+          "query": "Chico Buarque A Banda"
+        },
+        {
+          "query": "Walter Wanderley Summer Samba"
+        },
+        {
+          "query": "Eumir Deodato Also Sprach Zarathustra bossa"
+        },
+        {
+          "query": "Flora Purim Bridges"
+        },
+        {
+          "query": "Airto Moreira Tombo in 7/4"
+        },
+        {
+          "query": "Azymuth Jazz Carnival"
+        },
+        {
+          "query": "Céu Malandragem"
+        }
       ]
     },
     {
@@ -157,18 +1261,156 @@
       "description": "The sound of classic soul and Motown",
       "color": "#c2410c",
       "songs": [
-        { "query": "Stevie Wonder Superstition" },
-        { "query": "Otis Redding Dock of the Bay" },
-        { "query": "Aretha Franklin Respect" },
-        { "query": "Marvin Gaye What's Going On" },
-        { "query": "The Temptations My Girl" },
-        { "query": "James Brown I Got You I Feel Good" },
-        { "query": "Sam Cooke A Change Is Gonna Come" },
-        { "query": "Wilson Pickett Mustang Sally" },
-        { "query": "The Four Tops I Can't Help Myself Sugar Pie" },
-        { "query": "Smokey Robinson Tracks of My Tears" },
-        { "query": "Al Green Tired of Being Alone" },
-        { "query": "Curtis Mayfield Move On Up" }
+        {
+          "query": "Stevie Wonder Superstition"
+        },
+        {
+          "query": "Otis Redding Dock of the Bay"
+        },
+        {
+          "query": "Aretha Franklin Respect"
+        },
+        {
+          "query": "Marvin Gaye What's Going On"
+        },
+        {
+          "query": "The Temptations My Girl"
+        },
+        {
+          "query": "James Brown I Got You I Feel Good"
+        },
+        {
+          "query": "Sam Cooke A Change Is Gonna Come"
+        },
+        {
+          "query": "Wilson Pickett Mustang Sally"
+        },
+        {
+          "query": "The Four Tops I Can't Help Myself Sugar Pie"
+        },
+        {
+          "query": "Smokey Robinson Tracks of My Tears"
+        },
+        {
+          "query": "Al Green Tired of Being Alone"
+        },
+        {
+          "query": "Curtis Mayfield Move On Up"
+        },
+        {
+          "query": "Diana Ross Ain't No Mountain High Enough"
+        },
+        {
+          "query": "The Supremes Baby Love"
+        },
+        {
+          "query": "Marvin Gaye Ain't No Mountain High Enough"
+        },
+        {
+          "query": "Gladys Knight Midnight Train to Georgia"
+        },
+        {
+          "query": "The Jackson 5 I Want You Back"
+        },
+        {
+          "query": "Michael Jackson Ben"
+        },
+        {
+          "query": "The Miracles Shop Around"
+        },
+        {
+          "query": "Martha and the Vandellas Dancing in the Street"
+        },
+        {
+          "query": "Junior Walker Shotgun"
+        },
+        {
+          "query": "Edwin Starr War"
+        },
+        {
+          "query": "The Isley Brothers Shout"
+        },
+        {
+          "query": "Percy Sledge When a Man Loves a Woman"
+        },
+        {
+          "query": "Solomon Burke Cry to Me"
+        },
+        {
+          "query": "Sam and Dave Soul Man"
+        },
+        {
+          "query": "Booker T and the MGs Green Onions"
+        },
+        {
+          "query": "The Staple Singers I'll Take You There"
+        },
+        {
+          "query": "Bill Withers Ain't No Sunshine"
+        },
+        {
+          "query": "Bill Withers Lean on Me"
+        },
+        {
+          "query": "Roberta Flack Killing Me Softly"
+        },
+        {
+          "query": "Donny Hathaway A Song for You"
+        },
+        {
+          "query": "Teddy Pendergrass Turn Off the Lights"
+        },
+        {
+          "query": "Luther Vandross Never Too Much"
+        },
+        {
+          "query": "Anita Baker Sweet Love"
+        },
+        {
+          "query": "Whitney Houston Saving All My Love for You"
+        },
+        {
+          "query": "Chaka Khan Ain't Nobody"
+        },
+        {
+          "query": "Rufus Tell Me Something Good"
+        },
+        {
+          "query": "Earth Wind and Fire September"
+        },
+        {
+          "query": "Kool and the Gang Celebration"
+        },
+        {
+          "query": "Commodores Easy"
+        },
+        {
+          "query": "Lionel Richie Hello"
+        },
+        {
+          "query": "The O'Jays Love Train"
+        },
+        {
+          "query": "Harold Melvin Blue Notes If You Don't Know Me by Now"
+        },
+        {
+          "query": "Gladys Knight I Heard It Through the Grapevine"
+        },
+        {
+          "query": "Ben E King Stand By Me"
+        },
+        {
+          "query": "Sam Cooke Cupid"
+        },
+        {
+          "query": "Otis Redding Try a Little Tenderness"
+        },
+        {
+          "query": "The Delfonics Didn't I Blow Your Mind"
+        },
+        {
+          "query": "Spinners I'll Be Around"
+        }
       ]
     },
     {
@@ -176,18 +1418,156 @@
       "description": "Indie folk and alternative acoustic",
       "color": "#65a30d",
       "songs": [
-        { "query": "The Lumineers Ho Hey" },
-        { "query": "Mumford and Sons The Cave" },
-        { "query": "Of Monsters and Men Little Talks" },
-        { "query": "Fleet Foxes White Winter Hymnal" },
-        { "query": "Sufjan Stevens Chicago" },
-        { "query": "Beirut Nantes" },
-        { "query": "Bon Iver Holocene" },
-        { "query": "The Head and the Heart Down in the Valley" },
-        { "query": "Gregory Alan Isakov Big Black Car" },
-        { "query": "First Aid Kit Emmylou" },
-        { "query": "Lord Huron The Night We Met" },
-        { "query": "Phoebe Bridgers Funeral" }
+        {
+          "query": "The Lumineers Ho Hey"
+        },
+        {
+          "query": "Mumford and Sons The Cave"
+        },
+        {
+          "query": "Of Monsters and Men Little Talks"
+        },
+        {
+          "query": "Fleet Foxes White Winter Hymnal"
+        },
+        {
+          "query": "Sufjan Stevens Chicago"
+        },
+        {
+          "query": "Beirut Nantes"
+        },
+        {
+          "query": "Bon Iver Holocene"
+        },
+        {
+          "query": "The Head and the Heart Down in the Valley"
+        },
+        {
+          "query": "Gregory Alan Isakov Big Black Car"
+        },
+        {
+          "query": "First Aid Kit Emmylou"
+        },
+        {
+          "query": "Lord Huron The Night We Met"
+        },
+        {
+          "query": "Phoebe Bridgers Funeral"
+        },
+        {
+          "query": "Iron and Wine Flightless Bird American Mouth"
+        },
+        {
+          "query": "The Tallest Man on Earth The Wild Hunt"
+        },
+        {
+          "query": "Fleet Foxes Mykonos"
+        },
+        {
+          "query": "Local Natives Airplanes"
+        },
+        {
+          "query": "Vampire Weekend Campus"
+        },
+        {
+          "query": "The Avett Brothers I and Love and You"
+        },
+        {
+          "query": "Dawes When My Time Comes"
+        },
+        {
+          "query": "Blind Pilot Three Rounds and a Sound"
+        },
+        {
+          "query": "The Head and the Heart Rivers and Roads"
+        },
+        {
+          "query": "Edward Sharpe Home"
+        },
+        {
+          "query": "Alexi Murdoch Orange Sky"
+        },
+        {
+          "query": "Nathaniel Rateliff SOB"
+        },
+        {
+          "query": "Hozier Take Me to Church"
+        },
+        {
+          "query": "Foy Vance Guiding Light"
+        },
+        {
+          "query": "Ben Howard Only Love"
+        },
+        {
+          "query": "City and Colour Sleeping Sickness"
+        },
+        {
+          "query": "Bright Eyes At the Bottom of Everything"
+        },
+        {
+          "query": "Sufjan Stevens Casimir Pulaski Day"
+        },
+        {
+          "query": "Sufjan Stevens Mystery of Love"
+        },
+        {
+          "query": "Andrew Bird Give It Away"
+        },
+        {
+          "query": "Fionn Regan Be Good or Be Gone"
+        },
+        {
+          "query": "Laura Marling What He Wrote"
+        },
+        {
+          "query": "Marika Hackman My Lover Cindy"
+        },
+        {
+          "query": "Sharon Van Etten Seventeen"
+        },
+        {
+          "query": "Perfume Genius Slip Away"
+        },
+        {
+          "query": "Big Thief Shark Smile"
+        },
+        {
+          "query": "Julien Baker Sprained Ankle"
+        },
+        {
+          "query": "Kevin Morby Beautiful Strangers"
+        },
+        {
+          "query": "Father John Misty Real Love Baby"
+        },
+        {
+          "query": "Fleet Foxes Blue Ridge Mountains"
+        },
+        {
+          "query": "Simon and Garfunkel America"
+        },
+        {
+          "query": "Neutral Milk Hotel In the Aeroplane Over the Sea"
+        },
+        {
+          "query": "The Decemberists Down by the Water"
+        },
+        {
+          "query": "Beirut Postcards from Italy"
+        },
+        {
+          "query": "Belle and Sebastian The Boy with the Arab Strap"
+        },
+        {
+          "query": "Waxahatchee Fire"
+        },
+        {
+          "query": "Julia Jacklin Body"
+        },
+        {
+          "query": "boygenius Not Strong Enough"
+        }
       ]
     },
     {
@@ -195,18 +1575,156 @@
       "description": "Electronic, house and ambient club classics",
       "color": "#7c3aed",
       "songs": [
-        { "query": "Daft Punk Get Lucky ft Pharrell" },
-        { "query": "LCD Soundsystem All My Friends" },
-        { "query": "Justice D.A.N.C.E." },
-        { "query": "Disclosure Latch ft Sam Smith" },
-        { "query": "Chemical Brothers Galvanize" },
-        { "query": "Moderat A New Error" },
-        { "query": "Four Tet Love Cry" },
-        { "query": "Caribou Sun" },
-        { "query": "Massive Attack Teardrop" },
-        { "query": "Portishead Glory Box" },
-        { "query": "Bonobo Kong" },
-        { "query": "Nicolas Jaar Space Is Only Noise If You Can See" }
+        {
+          "query": "Daft Punk Get Lucky ft Pharrell"
+        },
+        {
+          "query": "LCD Soundsystem All My Friends"
+        },
+        {
+          "query": "Justice D.A.N.C.E."
+        },
+        {
+          "query": "Disclosure Latch ft Sam Smith"
+        },
+        {
+          "query": "Chemical Brothers Galvanize"
+        },
+        {
+          "query": "Moderat A New Error"
+        },
+        {
+          "query": "Four Tet Love Cry"
+        },
+        {
+          "query": "Caribou Sun"
+        },
+        {
+          "query": "Massive Attack Teardrop"
+        },
+        {
+          "query": "Portishead Glory Box"
+        },
+        {
+          "query": "Bonobo Kong"
+        },
+        {
+          "query": "Nicolas Jaar Space Is Only Noise If You Can See"
+        },
+        {
+          "query": "Daft Punk One More Time"
+        },
+        {
+          "query": "Daft Punk Around the World"
+        },
+        {
+          "query": "Justice Genesis"
+        },
+        {
+          "query": "MGMT Electric Feel"
+        },
+        {
+          "query": "Fatboy Slim Praise You"
+        },
+        {
+          "query": "Groove Armada Superstylin"
+        },
+        {
+          "query": "Basement Jaxx Red Alert"
+        },
+        {
+          "query": "Röyksopp Remind Me"
+        },
+        {
+          "query": "Cassius Feeling for You"
+        },
+        {
+          "query": "Modjo Lady"
+        },
+        {
+          "query": "Stardust Music Sounds Better with You"
+        },
+        {
+          "query": "Robin S Show Me Love"
+        },
+        {
+          "query": "CeCe Peniston Finally"
+        },
+        {
+          "query": "Crystal Waters Gypsy Woman"
+        },
+        {
+          "query": "Deadmau5 Strobe"
+        },
+        {
+          "query": "Eric Prydz Call on Me"
+        },
+        {
+          "query": "Swedish House Mafia One"
+        },
+        {
+          "query": "Kaskade Angel on My Shoulder"
+        },
+        {
+          "query": "Duke Dumont Need U 100"
+        },
+        {
+          "query": "Disclosure White Noise"
+        },
+        {
+          "query": "Jamie xx Gosh"
+        },
+        {
+          "query": "Bicep Glue"
+        },
+        {
+          "query": "Four Tet Baby"
+        },
+        {
+          "query": "Caribou Odessa"
+        },
+        {
+          "query": "Jon Hopkins Emerald Rush"
+        },
+        {
+          "query": "Aphex Twin Windowlicker"
+        },
+        {
+          "query": "Boards of Canada Dayvan Cowboy"
+        },
+        {
+          "query": "Underworld Born Slippy"
+        },
+        {
+          "query": "The Chemical Brothers Hey Boy Hey Girl"
+        },
+        {
+          "query": "Orbital Halcyon"
+        },
+        {
+          "query": "Fatboy Slim Rockafeller Skank"
+        },
+        {
+          "query": "Groove Armada At the River"
+        },
+        {
+          "query": "Air Sexy Boy"
+        },
+        {
+          "query": "Zero 7 In the Waiting Line"
+        },
+        {
+          "query": "Thievery Corporation Lebanese Blonde"
+        },
+        {
+          "query": "Kruder and Dorfmeister Bugpowder Dust"
+        },
+        {
+          "query": "Röyksopp Poor Leno"
+        },
+        {
+          "query": "Moby Porcelain"
+        }
       ]
     },
     {
@@ -214,18 +1732,156 @@
       "description": "Iconic hits from the greatest decade",
       "color": "#475569",
       "songs": [
-        { "query": "Michael Jackson Billie Jean" },
-        { "query": "Prince Purple Rain" },
-        { "query": "Toto Africa" },
-        { "query": "A-ha Take On Me" },
-        { "query": "Fleetwood Mac Go Your Own Way" },
-        { "query": "Dire Straits Sultans of Swing" },
-        { "query": "Bruce Springsteen Born to Run" },
-        { "query": "Tom Petty Free Fallin" },
-        { "query": "David Bowie Let's Dance" },
-        { "query": "Whitney Houston I Wanna Dance with Somebody" },
-        { "query": "The Police Every Breath You Take" },
-        { "query": "Talking Heads Once in a Lifetime" }
+        {
+          "query": "Michael Jackson Billie Jean"
+        },
+        {
+          "query": "Prince Purple Rain"
+        },
+        {
+          "query": "Toto Africa"
+        },
+        {
+          "query": "A-ha Take On Me"
+        },
+        {
+          "query": "Fleetwood Mac Go Your Own Way"
+        },
+        {
+          "query": "Dire Straits Sultans of Swing"
+        },
+        {
+          "query": "Bruce Springsteen Born to Run"
+        },
+        {
+          "query": "Tom Petty Free Fallin"
+        },
+        {
+          "query": "David Bowie Let's Dance"
+        },
+        {
+          "query": "Whitney Houston I Wanna Dance with Somebody"
+        },
+        {
+          "query": "The Police Every Breath You Take"
+        },
+        {
+          "query": "Talking Heads Once in a Lifetime"
+        },
+        {
+          "query": "Journey Don't Stop Believin"
+        },
+        {
+          "query": "Bonnie Tyler Total Eclipse of the Heart"
+        },
+        {
+          "query": "Cyndi Lauper Girls Just Want to Have Fun"
+        },
+        {
+          "query": "Madonna Like a Prayer"
+        },
+        {
+          "query": "Madonna Material Girl"
+        },
+        {
+          "query": "George Michael Careless Whisper"
+        },
+        {
+          "query": "Wham Wake Me Up Before You Go-Go"
+        },
+        {
+          "query": "Duran Duran Hungry Like the Wolf"
+        },
+        {
+          "query": "Culture Club Karma Chameleon"
+        },
+        {
+          "query": "Eurythmics Sweet Dreams"
+        },
+        {
+          "query": "Human League Don't You Want Me"
+        },
+        {
+          "query": "Simple Minds Don't You Forget About Me"
+        },
+        {
+          "query": "Tears for Fears Everybody Wants to Rule the World"
+        },
+        {
+          "query": "Depeche Mode Enjoy the Silence"
+        },
+        {
+          "query": "New Order Blue Monday"
+        },
+        {
+          "query": "The Cure Just Like Heaven"
+        },
+        {
+          "query": "INXS Never Tear Us Apart"
+        },
+        {
+          "query": "Def Leppard Pour Some Sugar on Me"
+        },
+        {
+          "query": "Bon Jovi Livin on a Prayer"
+        },
+        {
+          "query": "Journey Separate Ways"
+        },
+        {
+          "query": "Foreigner I Want to Know What Love Is"
+        },
+        {
+          "query": "REO Speedwagon Can't Fight This Feeling"
+        },
+        {
+          "query": "Kenny Loggins Danger Zone"
+        },
+        {
+          "query": "Huey Lewis The Power of Love"
+        },
+        {
+          "query": "Phil Collins In the Air Tonight"
+        },
+        {
+          "query": "Peter Gabriel Sledgehammer"
+        },
+        {
+          "query": "Genesis Land of Confusion"
+        },
+        {
+          "query": "ZZ Top Sharp Dressed Man"
+        },
+        {
+          "query": "Van Halen Panama"
+        },
+        {
+          "query": "Billy Idol Rebel Yell"
+        },
+        {
+          "query": "Bryan Adams Summer of 69"
+        },
+        {
+          "query": "Rick Astley Never Gonna Give You Up"
+        },
+        {
+          "query": "Wham Last Christmas"
+        },
+        {
+          "query": "Kim Wilde Kids in America"
+        },
+        {
+          "query": "The Bangles Walk Like an Egyptian"
+        },
+        {
+          "query": "Berlin Take My Breath Away"
+        },
+        {
+          "query": "Starship We Built This City"
+        },
+        {
+          "query": "Chicago Hard to Say I'm Sorry"
+        }
       ]
     },
     {
@@ -233,18 +1889,156 @@
       "description": "The defining rock sound of the 90s",
       "color": "#7f1d1d",
       "songs": [
-        { "query": "Nirvana Smells Like Teen Spirit" },
-        { "query": "Pearl Jam Alive" },
-        { "query": "Soundgarden Black Hole Sun" },
-        { "query": "Red Hot Chili Peppers Under the Bridge" },
-        { "query": "Smashing Pumpkins Tonight Tonight" },
-        { "query": "Radiohead Creep" },
-        { "query": "Beck Loser" },
-        { "query": "Alice in Chains Would" },
-        { "query": "Weezer Buddy Holly" },
-        { "query": "The Breeders Cannonball" },
-        { "query": "Pixies Where Is My Mind" },
-        { "query": "R.E.M. Losing My Religion" }
+        {
+          "query": "Nirvana Smells Like Teen Spirit"
+        },
+        {
+          "query": "Pearl Jam Alive"
+        },
+        {
+          "query": "Soundgarden Black Hole Sun"
+        },
+        {
+          "query": "Red Hot Chili Peppers Under the Bridge"
+        },
+        {
+          "query": "Smashing Pumpkins Tonight Tonight"
+        },
+        {
+          "query": "Radiohead Creep"
+        },
+        {
+          "query": "Beck Loser"
+        },
+        {
+          "query": "Alice in Chains Would"
+        },
+        {
+          "query": "Weezer Buddy Holly"
+        },
+        {
+          "query": "The Breeders Cannonball"
+        },
+        {
+          "query": "Pixies Where Is My Mind"
+        },
+        {
+          "query": "R.E.M. Losing My Religion"
+        },
+        {
+          "query": "Stone Temple Pilots Interstate Love Song"
+        },
+        {
+          "query": "Live Lightning Crashes"
+        },
+        {
+          "query": "Bush Glycerine"
+        },
+        {
+          "query": "Third Eye Blind Semi-Charmed Life"
+        },
+        {
+          "query": "Oasis Wonderwall"
+        },
+        {
+          "query": "Blur Song 2"
+        },
+        {
+          "query": "The Verve Bitter Sweet Symphony"
+        },
+        {
+          "query": "Garbage Only Happy When It Rains"
+        },
+        {
+          "query": "No Doubt Don't Speak"
+        },
+        {
+          "query": "Hole Celebrity Skin"
+        },
+        {
+          "query": "The Cranberries Zombie"
+        },
+        {
+          "query": "The Cranberries Linger"
+        },
+        {
+          "query": "Sublime Santeria"
+        },
+        {
+          "query": "311 Down"
+        },
+        {
+          "query": "Rancid Ruby Soho"
+        },
+        {
+          "query": "Green Day Basket Case"
+        },
+        {
+          "query": "Green Day When I Come Around"
+        },
+        {
+          "query": "The Offspring Self Esteem"
+        },
+        {
+          "query": "Bush Machinehead"
+        },
+        {
+          "query": "Silverchair Tomorrow"
+        },
+        {
+          "query": "Everclear Santa Monica"
+        },
+        {
+          "query": "Semisonic Closing Time"
+        },
+        {
+          "query": "Fastball The Way"
+        },
+        {
+          "query": "Matchbox Twenty Push"
+        },
+        {
+          "query": "Counting Crows Mr Jones"
+        },
+        {
+          "query": "Toad the Wet Sprocket All I Want"
+        },
+        {
+          "query": "Gin Blossoms Hey Jealousy"
+        },
+        {
+          "query": "Better Than Ezra Good"
+        },
+        {
+          "query": "Live I Alone"
+        },
+        {
+          "query": "Collective Soul Shine"
+        },
+        {
+          "query": "Filter Hey Man Nice Shot"
+        },
+        {
+          "query": "Marcy Playground Sex and Candy"
+        },
+        {
+          "query": "Spacehog In the Meantime"
+        },
+        {
+          "query": "Local H Bound for the Floor"
+        },
+        {
+          "query": "Sponge Plowed"
+        },
+        {
+          "query": "Harvey Danger Flagpole Sitta"
+        },
+        {
+          "query": "Everclear I Will Buy You a New Life"
+        },
+        {
+          "query": "Sixpence None the Richer Kiss Me"
+        }
       ]
     },
     {
@@ -252,18 +2046,156 @@
       "description": "Golden era and essential hip hop",
       "color": "#78350f",
       "songs": [
-        { "query": "The Notorious B.I.G. Juicy" },
-        { "query": "2Pac California Love" },
-        { "query": "Jay-Z 99 Problems" },
-        { "query": "Nas N.Y. State of Mind" },
-        { "query": "Wu-Tang Clan C.R.E.A.M." },
-        { "query": "A Tribe Called Quest Can I Kick It" },
-        { "query": "OutKast Ms. Jackson" },
-        { "query": "De La Soul Stakes Is High" },
-        { "query": "Mos Def Mathematics" },
-        { "query": "Public Enemy Fight the Power" },
-        { "query": "Kendrick Lamar Alright" },
-        { "query": "J. Cole No Role Modelz" }
+        {
+          "query": "The Notorious B.I.G. Juicy"
+        },
+        {
+          "query": "2Pac California Love"
+        },
+        {
+          "query": "Jay-Z 99 Problems"
+        },
+        {
+          "query": "Nas N.Y. State of Mind"
+        },
+        {
+          "query": "Wu-Tang Clan C.R.E.A.M."
+        },
+        {
+          "query": "A Tribe Called Quest Can I Kick It"
+        },
+        {
+          "query": "OutKast Ms. Jackson"
+        },
+        {
+          "query": "De La Soul Stakes Is High"
+        },
+        {
+          "query": "Mos Def Mathematics"
+        },
+        {
+          "query": "Public Enemy Fight the Power"
+        },
+        {
+          "query": "Kendrick Lamar Alright"
+        },
+        {
+          "query": "J. Cole No Role Modelz"
+        },
+        {
+          "query": "Run DMC It's Tricky"
+        },
+        {
+          "query": "Grandmaster Flash The Message"
+        },
+        {
+          "query": "Eric B and Rakim Paid in Full"
+        },
+        {
+          "query": "Big Daddy Kane Ain't No Half Steppin"
+        },
+        {
+          "query": "Slick Rick Children's Story"
+        },
+        {
+          "query": "LL Cool J Mama Said Knock You Out"
+        },
+        {
+          "query": "Beastie Boys Paul Revere"
+        },
+        {
+          "query": "Ice Cube It Was a Good Day"
+        },
+        {
+          "query": "Dr Dre Nuthin But a G Thang"
+        },
+        {
+          "query": "Snoop Dogg Gin and Juice"
+        },
+        {
+          "query": "Warren G Regulate"
+        },
+        {
+          "query": "Cypress Hill Insane in the Membrane"
+        },
+        {
+          "query": "Naughty by Nature Hip Hop Hooray"
+        },
+        {
+          "query": "Bone Thugs n Harmony Tha Crossroads"
+        },
+        {
+          "query": "Lauryn Hill Doo Wop That Thing"
+        },
+        {
+          "query": "The Fugees Ready or Not"
+        },
+        {
+          "query": "Common The Light"
+        },
+        {
+          "query": "Talib Kweli Get By"
+        },
+        {
+          "query": "Black Star Definition"
+        },
+        {
+          "query": "GZA Liquid Swords"
+        },
+        {
+          "query": "Method Man Bring the Pain"
+        },
+        {
+          "query": "Raekwon Ice Cream"
+        },
+        {
+          "query": "Big L Ebonics"
+        },
+        {
+          "query": "Big Pun Still Not a Player"
+        },
+        {
+          "query": "Rakim Microphone Fiend"
+        },
+        {
+          "query": "MC Lyte Ruffneck"
+        },
+        {
+          "query": "Queen Latifah UNITY"
+        },
+        {
+          "query": "Salt-N-Pepa Push It"
+        },
+        {
+          "query": "Missy Elliott Get Ur Freak On"
+        },
+        {
+          "query": "Busta Rhymes Woo Hah"
+        },
+        {
+          "query": "Ludacris Move"
+        },
+        {
+          "query": "T.I. What You Know"
+        },
+        {
+          "query": "Lil Wayne A Milli"
+        },
+        {
+          "query": "Kanye West Through the Wire"
+        },
+        {
+          "query": "Common The Corner"
+        },
+        {
+          "query": "The Roots The Seed 2.0"
+        },
+        {
+          "query": "Digable Planets Rebirth of Slick"
+        },
+        {
+          "query": "Slum Village Fall in Love"
+        }
       ]
     },
     {
@@ -271,18 +2203,156 @@
       "description": "Soft ambient music for sleep and deep relaxation",
       "color": "#164e63",
       "songs": [
-        { "query": "Brian Eno Music for Airports 1/1" },
-        { "query": "Aphex Twin Rhubarb Selected Ambient Works" },
-        { "query": "Sigur Rós Ára bátur" },
-        { "query": "Max Richter On the Nature of Daylight" },
-        { "query": "Nils Frahm Says" },
-        { "query": "Ólafur Arnalds Near Light" },
-        { "query": "Johann Johannsson The Sun's Gone Dim" },
-        { "query": "Stars of the Lid Requiem for Dying Mothers Part 1" },
-        { "query": "Boards of Canada Roygbiv" },
-        { "query": "William Basinski dlp 1.1 Disintegration Loops" },
-        { "query": "Grouper Vapor Trails" },
-        { "query": "Tim Hecker Ravedeath in the Dark" }
+        {
+          "query": "Brian Eno Music for Airports 1/1"
+        },
+        {
+          "query": "Aphex Twin Rhubarb Selected Ambient Works"
+        },
+        {
+          "query": "Sigur Rós Ára bátur"
+        },
+        {
+          "query": "Max Richter On the Nature of Daylight"
+        },
+        {
+          "query": "Nils Frahm Says"
+        },
+        {
+          "query": "Ólafur Arnalds Near Light"
+        },
+        {
+          "query": "Johann Johannsson The Sun's Gone Dim"
+        },
+        {
+          "query": "Stars of the Lid Requiem for Dying Mothers Part 1"
+        },
+        {
+          "query": "Boards of Canada Roygbiv"
+        },
+        {
+          "query": "William Basinski dlp 1.1 Disintegration Loops"
+        },
+        {
+          "query": "Grouper Vapor Trails"
+        },
+        {
+          "query": "Tim Hecker Ravedeath in the Dark"
+        },
+        {
+          "query": "Brian Eno Ambient 1 2/2"
+        },
+        {
+          "query": "Harold Budd The Pearl"
+        },
+        {
+          "query": "Steve Roach Structures from Silence"
+        },
+        {
+          "query": "Biosphere Novelty Waves"
+        },
+        {
+          "query": "Stars of the Lid Don't Bother They're Here"
+        },
+        {
+          "query": "Tim Hecker Music for Tundra"
+        },
+        {
+          "query": "William Basinski Watermusic"
+        },
+        {
+          "query": "Jon Hopkins Immunity"
+        },
+        {
+          "query": "Loscil Sea Island"
+        },
+        {
+          "query": "Rafael Anton Irisarri Peralta"
+        },
+        {
+          "query": "Hammock Universalis"
+        },
+        {
+          "query": "Ólafur Arnalds Doria"
+        },
+        {
+          "query": "Max Richter Sleep"
+        },
+        {
+          "query": "Max Richter The Trees"
+        },
+        {
+          "query": "Dustin O'Halloran Opus 23"
+        },
+        {
+          "query": "Peter Broderick Pulling Wires"
+        },
+        {
+          "query": "Balmorhea Winter"
+        },
+        {
+          "query": "Deaf Center Close Forever Watching"
+        },
+        {
+          "query": "Eluvium Radio Ballet"
+        },
+        {
+          "query": "Marconi Union Weightless"
+        },
+        {
+          "query": "A Winged Victory for the Sullen Requiem for the Static King"
+        },
+        {
+          "query": "Grouper Heavy Water"
+        },
+        {
+          "query": "Chihei Hatakeyama Mirrorring"
+        },
+        {
+          "query": "Fennesz Endless Summer"
+        },
+        {
+          "query": "Gas Zauberberg"
+        },
+        {
+          "query": "Biosphere Substrata"
+        },
+        {
+          "query": "Brian Eno Discreet Music"
+        },
+        {
+          "query": "Harold Budd Abandoned Cities"
+        },
+        {
+          "query": "Roedelius Wenn der Südwind weht"
+        },
+        {
+          "query": "Cluster Sowiesoso"
+        },
+        {
+          "query": "Ashra Sunrain"
+        },
+        {
+          "query": "Vangelis Blade Runner Blues"
+        },
+        {
+          "query": "Popol Vuh Aguirre"
+        },
+        {
+          "query": "Klaus Schulze Mindphaser"
+        },
+        {
+          "query": "Tangerine Dream Love on a Real Train"
+        },
+        {
+          "query": "Wolfgang Voigt Gas Pop"
+        },
+        {
+          "query": "Windy and Carl Antarctica"
+        },
+        {
+          "query": "Stars of the Lid The Daughter of Electric Light"
+        }
       ]
     }
   ]
