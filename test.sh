@@ -272,6 +272,17 @@ fi
 hdr "Radio / Last.fm"
 # ════════════════════════════════════════════════════════════
 
+# Internet radio station directory (proxies Radio Browser — see
+# backend/src/routes/radio.js for why this goes through the backend rather
+# than the frontend calling Radio Browser directly)
+STATIONS=$(api --max-time 15 -b "$COOKIE" "${BASE}/api/radio/stations?tag=rock&limit=5")
+if echo "$STATIONS" | grep -q '^\['; then
+  STATION_COUNT=$(echo "$STATIONS" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
+  pass "GET /api/radio/stations → ${STATION_COUNT} station(s)"
+else
+  fail "GET /api/radio/stations → unexpected (all Radio Browser mirrors may be down): ${STATIONS:0:150}"
+fi
+
 if [ -n "${LASTFM_API_KEY:-}" ]; then
   # Verify key is inside the container
   BACKEND_KEY=$(docker exec -i "$(docker ps -q --filter 'label=com.docker.compose.service=backend' | head -1)" \

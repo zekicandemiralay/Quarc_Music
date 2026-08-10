@@ -315,6 +315,7 @@
     "topStations": "Popüler İstasyonlar",
     "noResults": "İstasyon bulunamadı",
     "loading": "İstasyonlar yükleniyor…",
+    "loadMore": "Daha fazla yükle",
     "streamError": "Yayın kullanılamıyor — başka bir istasyon deneyin"
   },
   "updates": {

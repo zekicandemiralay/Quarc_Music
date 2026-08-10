@@ -315,6 +315,7 @@
     "topStations": "Top Stations",
     "noResults": "No stations found",
     "loading": "Loading stations…",
+    "loadMore": "Load more",
     "streamError": "Stream unavailable — try another station"
   },
   "updates": {

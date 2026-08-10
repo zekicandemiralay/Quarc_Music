@@ -1,30 +1,66 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, X, Heart, Play, Pause } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useInternetRadioStore from '../../store/useInternetRadioStore';
 import useUserDataStore from '../../store/userDataStore';
 
-const RADIO_API = 'https://de1.api.radio-browser.info/json';
+const PAGE_SIZE = 60;
 
+// Tag values verified against Radio Browser's real tag counts (not guessed) —
+// e.g. "hiphop" has ~286 stations vs. "hip-hop" at ~224, and "rnb" has ~214
+// vs. essentially none for "r&b" (the API matches tags as free-text, not a
+// fixed taxonomy, so the exact string matters for how populated a page is).
 const GENRES = [
   { id: '', label: 'All' },
   { id: 'pop', label: 'Pop' },
+  { id: 'top 40', label: 'Top 40' },
   { id: 'rock', label: 'Rock' },
-  { id: 'jazz', label: 'Jazz' },
-  { id: 'classical', label: 'Classical' },
-  { id: 'electronic', label: 'Electronic' },
-  { id: 'hip-hop', label: 'Hip-Hop' },
-  { id: 'dance', label: 'Dance' },
-  { id: 'r&b', label: 'R&B' },
-  { id: 'soul', label: 'Soul' },
+  { id: 'classic rock', label: 'Classic Rock' },
+  { id: 'alternative rock', label: 'Alternative Rock' },
+  { id: 'hard rock', label: 'Hard Rock' },
   { id: 'metal', label: 'Metal' },
-  { id: 'reggae', label: 'Reggae' },
-  { id: 'folk', label: 'Folk' },
-  { id: 'country', label: 'Country' },
-  { id: 'ambient', label: 'Ambient' },
+  { id: 'indie', label: 'Indie' },
+  { id: 'alternative', label: 'Alternative' },
+  { id: 'classical', label: 'Classical' },
+  { id: 'jazz', label: 'Jazz' },
+  { id: 'smooth jazz', label: 'Smooth Jazz' },
   { id: 'blues', label: 'Blues' },
+  { id: 'country', label: 'Country' },
+  { id: 'folk', label: 'Folk' },
+  { id: 'soul', label: 'Soul' },
+  { id: 'rnb', label: 'R&B' },
+  { id: 'funk', label: 'Funk' },
+  { id: 'disco', label: 'Disco' },
+  { id: 'gospel', label: 'Gospel' },
+  { id: 'christian', label: 'Christian' },
+  { id: 'reggae', label: 'Reggae' },
+  { id: 'latin pop', label: 'Latin Pop' },
+  { id: 'salsa', label: 'Salsa' },
+  { id: 'cumbia', label: 'Cumbia' },
+  { id: 'reggaeton', label: 'Reggaeton' },
+  { id: 'tropical', label: 'Tropical' },
+  { id: 'electronic', label: 'Electronic' },
+  { id: 'house', label: 'House' },
+  { id: 'deep house', label: 'Deep House' },
+  { id: 'techno', label: 'Techno' },
+  { id: 'trance', label: 'Trance' },
+  { id: 'edm', label: 'EDM' },
+  { id: 'hiphop', label: 'Hip-Hop' },
+  { id: 'rap', label: 'Rap' },
+  { id: 'dance', label: 'Dance' },
+  { id: 'chillout', label: 'Chillout' },
+  { id: 'lounge', label: 'Lounge' },
+  { id: 'ambient', label: 'Ambient' },
+  { id: 'oldies', label: 'Oldies' },
+  { id: '60s', label: '60s' },
+  { id: '70s', label: '70s' },
+  { id: '80s', label: '80s' },
+  { id: '90s', label: '90s' },
+  { id: 'adult contemporary', label: 'Adult Contemporary' },
+  { id: 'world music', label: 'World Music' },
   { id: 'talk', label: 'Talk' },
   { id: 'news', label: 'News' },
+  { id: 'sports', label: 'Sports' },
 ];
 
 const PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'];
@@ -143,33 +179,42 @@ export default function Radio() {
 
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [search, setSearch] = useState('');
   const [genre, setGenre] = useState('');
+  const offsetRef = useRef(0);
 
-  const fetchStations = useCallback(async (tag, name) => {
-    setLoading(true);
+  // Goes through our own backend (see backend/src/routes/radio.js) rather than
+  // calling Radio Browser directly — it retries across several of their
+  // mirrors instead of being pinned to one, sets the descriptive User-Agent
+  // their docs require (browsers won't let client-side JS set that header at
+  // all), and filters out stations that are HTTPS-blocked or failed their
+  // last health check.
+  const fetchStations = useCallback(async (tag, name, append = false) => {
+    if (append) setLoadingMore(true);
+    else { setLoading(true); offsetRef.current = 0; }
     setFetchError(null);
     try {
       const params = new URLSearchParams({
-        limit: '60',
-        order: 'votes',
-        reverse: 'true',
-        hidebroken: 'true',
+        limit: String(PAGE_SIZE),
+        offset: String(offsetRef.current),
       });
       if (tag) params.set('tag', tag);
       if (name) params.set('name', name);
 
-      const res = await fetch(`${RADIO_API}/stations/search?${params}`, {
-        headers: { Accept: 'application/json' },
-      });
-      if (!res.ok) throw new Error(`Radio Browser API error ${res.status}`);
+      const res = await fetch(`/api/radio/stations?${params}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || `Radio directory error ${res.status}`);
       const data = await res.json();
-      setStations(data.filter((s) => s.url_resolved));
+      setStations((prev) => (append ? [...prev, ...data] : data));
+      setHasMore(data.length === PAGE_SIZE);
+      offsetRef.current += data.length;
     } catch (e) {
       setFetchError(e.message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
@@ -181,6 +226,10 @@ export default function Radio() {
   function handleSearch(e) {
     e.preventDefault();
     fetchStations(genre, search.trim());
+  }
+
+  function loadMore() {
+    fetchStations(genre, search.trim(), true);
   }
 
   return (
@@ -306,6 +355,19 @@ export default function Radio() {
                 />
               ))}
             </div>
+
+            {hasMore && (
+              <div className="flex justify-center mt-5">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-full text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {loadingMore && <div className="w-3.5 h-3.5 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin" />}
+                  {loadingMore ? t('radio.loading') : t('radio.loadMore')}
+                </button>
+              </div>
+            )}
           </section>
         )}
 
