@@ -424,7 +424,10 @@ export default function Player() {
   } = usePlayerStore();
   const { likedSongs, toggleLike } = useUserDataStore();
   const { radioMode, toggleRadioMode } = useRadioStore();
-  const { currentStation, isPlaying: radioPlaying, stop: stopRadio } = useInternetRadioStore();
+  const {
+    currentStation, isPlaying: radioPlaying, stop: stopRadio,
+    play: playRadio, volume: radioVolume, setVolume: setRadioVolume,
+  } = useInternetRadioStore();
   const liked = currentSong ? likedSongs.includes(currentSong.id) : false;
 
   const [expanded, setExpanded] = useState(false);
@@ -491,6 +494,9 @@ export default function Player() {
                 <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />LIVE
               </span>
             </div>
+            <button onClick={sp(() => playRadio(currentStation))} className="w-9 h-9 bg-white rounded-full flex items-center justify-center shrink-0 hover:scale-105 transition-transform">
+              {radioPlaying ? <Pause size={16} className="text-black" /> : <Play size={16} className="text-black ml-0.5" />}
+            </button>
             <button onClick={sp(stopRadio)} className="p-2 text-zinc-400 hover:text-white transition-colors">
               <Square size={18} className="fill-current" />
             </button>
@@ -601,30 +607,40 @@ export default function Player() {
           {/* Center controls + seek */}
           <div className="flex flex-col items-center flex-1 gap-2">
             <div className="flex items-center gap-4">
-              <button onClick={sp(toggleShuffle)} className={`p-2 transition-colors ${shuffle ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`} title={shuffle ? t('player.shuffleOn') : t('player.shuffleOff')}>
+              <button onClick={sp(toggleShuffle)} disabled={!!currentStation} className={`p-2 transition-colors disabled:opacity-30 ${shuffle ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`} title={shuffle ? t('player.shuffleOn') : t('player.shuffleOff')}>
                 <Shuffle size={16} />
               </button>
-              <button onClick={sp(toggleRadioMode)} title={radioMode ? 'Radio on' : 'Radio off'} className={`p-2 transition-colors ${radioMode ? 'text-green-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
+              <button onClick={sp(toggleRadioMode)} disabled={!!currentStation} title={radioMode ? 'Radio on' : 'Radio off'} className={`p-2 transition-colors disabled:opacity-30 ${radioMode ? 'text-green-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
                 <Radio size={16} />
               </button>
-              <button onClick={sp(prev)} disabled={!currentSong} className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
+              <button onClick={sp(prev)} disabled={!currentSong || !!currentStation} className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
                 <SkipBack size={20} />
               </button>
               <button
-                onClick={sp(isPlaying ? pause : resume)}
-                disabled={!currentSong}
+                onClick={sp(currentStation ? () => playRadio(currentStation) : (isPlaying ? pause : resume))}
+                disabled={!currentSong && !currentStation}
                 className="w-9 h-9 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-30 shrink-0"
               >
-                {isPlaying ? <Pause size={16} className="text-black" /> : <Play size={16} className="text-black ml-0.5" />}
+                {(currentStation ? radioPlaying : isPlaying)
+                  ? <Pause size={16} className="text-black" />
+                  : <Play size={16} className="text-black ml-0.5" />}
               </button>
-              <button onClick={sp(next)} disabled={!currentSong} className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
+              <button onClick={sp(next)} disabled={!currentSong || !!currentStation} className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30">
                 <SkipForward size={20} />
               </button>
             </div>
             <div className="flex items-center gap-2 w-full max-w-md">
-              <span className="text-zinc-500 text-xs w-10 text-right">{fmt(currentTime)}</span>
-              <TrackBar value={currentTime} max={duration} onChange={seek} />
-              <span className="text-zinc-500 text-xs w-10">{fmt(duration)}</span>
+              {currentStation ? (
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-red-400 bg-red-500/10 px-2 py-1 rounded-full uppercase tracking-wider mx-auto">
+                  <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />LIVE
+                </span>
+              ) : (
+                <>
+                  <span className="text-zinc-500 text-xs w-10 text-right">{fmt(currentTime)}</span>
+                  <TrackBar value={currentTime} max={duration} onChange={seek} />
+                  <span className="text-zinc-500 text-xs w-10">{fmt(duration)}</span>
+                </>
+              )}
             </div>
           </div>
 
@@ -639,7 +655,11 @@ export default function Player() {
               <ListOrdered size={16} />
             </button>
             <Volume2 size={16} className="text-zinc-400 shrink-0" onClick={(e) => e.stopPropagation()} />
-            <TrackBar value={volume} max={1} onChange={setVolume} />
+            <TrackBar
+              value={currentStation ? radioVolume : volume}
+              max={1}
+              onChange={currentStation ? setRadioVolume : setVolume}
+            />
           </div>
         </div>
       </div>

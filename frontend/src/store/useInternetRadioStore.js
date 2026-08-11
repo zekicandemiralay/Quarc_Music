@@ -7,6 +7,7 @@ const useInternetRadioStore = create((set, get) => ({
   currentStation: null,
   isPlaying: false,
   error: null,
+  volume: 1,
 
   play: (station) => {
     const { currentStation, isPlaying } = get();
@@ -28,6 +29,7 @@ const useInternetRadioStore = create((set, get) => ({
     window.dispatchEvent(new Event('quarc-internet-radio-started'));
 
     set({ currentStation: station, isPlaying: true, error: null });
+    radioAudio.volume = get().volume;
     radioAudio.src = station.url_resolved || station.url;
     radioAudio.play().catch(() => set({ isPlaying: false, error: 'Stream unavailable — try another station' }));
 
@@ -61,6 +63,8 @@ const useInternetRadioStore = create((set, get) => ({
       try { navigator.mediaSession.metadata = null; } catch {}
     }
   },
+
+  setVolume: (v) => { radioAudio.volume = v; set({ volume: v }); },
 }));
 
 // Stop radio when the music player starts playing
