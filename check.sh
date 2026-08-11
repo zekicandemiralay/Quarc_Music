@@ -360,6 +360,12 @@ fi
 # (this is exactly what happened: a broken --js-runtimes value passed search
 # checks for a long time before anyone noticed downloads were failing). Run the
 # same -x --audio-format mp3 extraction the app actually performs.
+#
+# Deliberately NOT a viral video (Rick Astley's dQw4w9WgXcQ used to be here) —
+# YouTube serves those from edge caches that skip most of the bot-check/PO-token
+# gauntlet, so it stayed green through a real production outage that affected
+# ordinary videos. This one is a normal official-audio upload, so it actually
+# exercises the same path real downloads take.
 info "Testing actual audio download+extraction via VPN (may take ~20-30s)..."
 DL_ERR=$(dexec backend yt-dlp \
   --proxy http://gluetun:8888 \
@@ -367,7 +373,7 @@ DL_ERR=$(dexec backend yt-dlp \
   --extractor-args "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416" \
   -x --audio-format mp3 --no-warnings \
   -o "/tmp/checksh_test.%(ext)s" \
-  "https://www.youtube.com/watch?v=dQw4w9WgXcQ" 2>&1)
+  "https://www.youtube.com/watch?v=zMaNfqfsMtE" 2>&1)
 DL_OK=$(dexec backend sh -c 'test -s /tmp/checksh_test.mp3 && echo yes || echo no')
 if [ "$DL_OK" = "yes" ]; then
   ok "YouTube download + mp3 extraction OK via VPN"

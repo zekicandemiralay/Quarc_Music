@@ -1,12 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { searchYoutube, downloadAudioWithRetry } = require('../services/ytdlp');
+const { searchYoutube, downloadAudioWithRetry, downloadBySearch } = require('../services/ytdlp');
 const { getDb } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { requireAuth } = require('../middleware/auth');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
+
+// A "sign in to confirm you're not a bot" on one specific video/session isn't
+// necessarily a fleet-wide problem (that's what autoheal.sh's VPN rotation is
+// for) — YouTube can flag one upload/PO-token combo while a different upload
+// of the exact same song is unaffected. searchAndDownload already falls
+// through candidates for CSV imports; do the same here for a manual pick
+// before surfacing a failure to the user.
+const BOT_CHECK_PATTERN = /sign in to confirm|login_required/i;
 
 router.use(requireAuth);
 
@@ -31,27 +39,39 @@ router.post('/download', (req, res) => {
     jobId, videoId, title || 'Unknown', 'pending', req.user.id
   );
 
-  downloadAudioWithRetry(videoId, MUSIC_DIR, (progress) => {
+  const onProgress = (progress) => {
     db.prepare('UPDATE downloads SET progress = ?, status = ? WHERE id = ?').run(
       progress, 'downloading', jobId
     );
-  })
-    .then(async (filepath) => {
-      const song = filepath ? await scanFile(filepath) : null;
-      db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
-        'done', song?.id || null, jobId
-      );
-      // Auto-add to featured playlist if requested
-      if (featuredPlaylistId && song?.id) {
-        const { maxPos } = db.prepare(
-          'SELECT COALESCE(MAX(position), -1) as maxPos FROM featured_playlist_songs WHERE playlist_id = ?'
-        ).get(featuredPlaylistId);
-        db.prepare(
-          'INSERT OR IGNORE INTO featured_playlist_songs (playlist_id, song_id, position) VALUES (?, ?, ?)'
-        ).run(featuredPlaylistId, song.id, maxPos + 1);
+  };
+
+  const finish = async (filepath) => {
+    const song = filepath ? await scanFile(filepath) : null;
+    db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
+      'done', song?.id || null, jobId
+    );
+    // Auto-add to featured playlist if requested
+    if (featuredPlaylistId && song?.id) {
+      const { maxPos } = db.prepare(
+        'SELECT COALESCE(MAX(position), -1) as maxPos FROM featured_playlist_songs WHERE playlist_id = ?'
+      ).get(featuredPlaylistId);
+      db.prepare(
+        'INSERT OR IGNORE INTO featured_playlist_songs (playlist_id, song_id, position) VALUES (?, ?, ?)'
+      ).run(featuredPlaylistId, song.id, maxPos + 1);
+    }
+  };
+
+  downloadAudioWithRetry(videoId, MUSIC_DIR, onProgress)
+    .then(finish)
+    .catch(async (err) => {
+      if (title && BOT_CHECK_PATTERN.test(err.message)) {
+        try {
+          const filepath = await downloadBySearch(title, MUSIC_DIR, onProgress);
+          if (filepath) return await finish(filepath);
+        } catch {
+          // fall through to recording the original error below
+        }
       }
-    })
-    .catch((err) => {
       db.prepare('UPDATE downloads SET status = ?, error = ? WHERE id = ?').run(
         'error', err.message, jobId
       );

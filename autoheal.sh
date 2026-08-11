@@ -47,13 +47,18 @@ fi
 # Same real download+extraction the app performs in production — flat-playlist
 # search doesn't need YouTube's JS challenge, so it can look healthy while
 # actual downloads are silently blocked; this catches that specifically.
+#
+# Deliberately NOT a viral video (Rick Astley's dQw4w9WgXcQ used to be here) —
+# it's served from YouTube's edge caches and skips most of the bot-check/
+# PO-token gauntlet, so this canary stayed green through hours of real
+# production failures on ordinary videos. Matches the video check.sh now uses.
 docker exec "$BACKEND_CID" sh -c '
   rm -f /tmp/autoheal_test.mp3 /tmp/autoheal_err.log
   yt-dlp --proxy http://gluetun:8888 --js-runtimes node \
     --extractor-args "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416" \
     -x --audio-format mp3 --no-warnings \
     -o "/tmp/autoheal_test.%(ext)s" \
-    "https://www.youtube.com/watch?v=dQw4w9WgXcQ" \
+    "https://www.youtube.com/watch?v=zMaNfqfsMtE" \
     > /tmp/autoheal_err.log 2>&1
 '
 DL_OK=$(docker exec "$BACKEND_CID" sh -c 'test -s /tmp/autoheal_test.mp3 && echo yes || echo no')
