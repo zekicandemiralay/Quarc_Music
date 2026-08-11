@@ -15,8 +15,17 @@ RUN apk add --no-cache ffmpeg python3 py3-pip && \
 
 WORKDIR /app
 
+# better-sqlite3 has no prebuilt binary for Node 22 on this musl/arch combo,
+# so npm install falls back to compiling its native addon from source — which
+# needs a real toolchain (make/g++/etc., not just python3). build-base is
+# alpine's bundle for that. Removed after the build so it doesn't bloat the
+# final image or runtime attack surface.
+RUN apk add --no-cache --virtual .build-deps build-base
+
 COPY package*.json ./
 RUN npm install --omit=dev
+
+RUN apk del .build-deps
 
 COPY src ./src
 
