@@ -472,6 +472,32 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════════
+hdr "Lyrics (lrclib.net)"
+# ════════════════════════════════════════════════════════════════════════
+
+# No API key/proxy needed — lrclib is a free, keyless service reached directly
+# (not through the VPN), so this just confirms basic outbound connectivity
+# from the backend container plus the endpoint's own caching round-trip.
+LRCLIB_CHECK=$(dexec backend sh -c 'wget -qO- --timeout=8 "https://lrclib.net/api/get?track_name=Never+Gonna+Give+You+Up&artist_name=Rick+Astley" 2>&1; echo "EXIT_CODE:$?"')
+LRCLIB_EXIT=$(echo "$LRCLIB_CHECK" | grep -oP 'EXIT_CODE:\K[0-9]+' || echo "")
+if [ "$LRCLIB_EXIT" = "0" ]; then
+  ok "lrclib.net reachable from backend container"
+else
+  fail "lrclib.net unreachable from backend — lyrics lookups will fail (exit code ${LRCLIB_EXIT:-?})"
+fi
+
+LYRICS_TEST_ID=$(echo "${SONGS_RESP:-}" | python3 -c "import sys,json; a=json.load(sys.stdin); print(a[0]['id'] if a else '')" 2>/dev/null || echo "")
+if $AUTHED && [ -n "$LYRICS_TEST_ID" ]; then
+  LYRICS_RESP=$(curl -sk --max-time 15 -b "$COOKIE" "${BASE}/api/music/${LYRICS_TEST_ID}/lyrics" 2>/dev/null || echo "")
+  LYRICS_STATUS=$(echo "$LYRICS_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+  if [ "$LYRICS_STATUS" = "found" ] || [ "$LYRICS_STATUS" = "not_found" ] || [ "$LYRICS_STATUS" = "instrumental" ]; then
+    ok "GET /api/music/:id/lyrics → status=${LYRICS_STATUS}"
+  else
+    fail "GET /api/music/:id/lyrics → unexpected response: ${LYRICS_RESP:0:120}"
+  fi
+fi
+
+# ════════════════════════════════════════════════════════════════════════
 hdr "Tailscale"
 # ════════════════════════════════════════════════════════════════════════
 

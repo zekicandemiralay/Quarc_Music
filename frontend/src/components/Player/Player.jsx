@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered, Share2, Square } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music, Shuffle, ChevronDown, Heart, ListPlus, Radio, ListOrdered, Share2, Square, Mic2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useRadioStore from '../../store/useRadioStore';
 import useInternetRadioStore from '../../store/useInternetRadioStore';
 import QueuePanel from './QueuePanel';
+import LyricsPanel from './LyricsPanel';
 import { coverUrl } from '../../lib/apiUrl';
 
 function fmt(s) {
@@ -173,7 +174,7 @@ function SongActionsMenu({ songId, song, onClose, upward = false }) {
   );
 }
 
-function NowPlayingExpanded({ onClose, onOpenQueue }) {
+function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
   const { t } = useTranslation();
   const {
     currentSong, isPlaying, currentTime, duration, shuffle, volume,
@@ -393,6 +394,14 @@ function NowPlayingExpanded({ onClose, onOpenQueue }) {
           </button>
           <div className="flex items-center gap-1">
             <button
+              onClick={() => { onClose(); onOpenLyrics(); }}
+              disabled={!currentSong}
+              className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors disabled:opacity-30"
+              title={t('lyrics.title')}
+            >
+              <Mic2 size={20} />
+            </button>
+            <button
               onClick={() => { onClose(); onOpenQueue(); }}
               className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors"
               title={t('player.queue')}
@@ -433,11 +442,14 @@ export default function Player() {
   const [expanded, setExpanded] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
 
   const openExpanded = () => { if (currentSong) setExpanded(true); };
   const closeExpanded = () => setExpanded(false);
   const openQueue = () => setShowQueue(true);
   const closeQueue = () => setShowQueue(false);
+  const openLyrics = () => setShowLyrics(true);
+  const closeLyrics = () => setShowLyrics(false);
 
   useEffect(() => {
     if (!expanded) return;
@@ -464,8 +476,9 @@ export default function Player() {
 
   return (
     <>
-      {expanded && createPortal(<NowPlayingExpanded onClose={closeExpanded} onOpenQueue={openQueue} />, document.body)}
+      {expanded && createPortal(<NowPlayingExpanded onClose={closeExpanded} onOpenQueue={openQueue} onOpenLyrics={openLyrics} />, document.body)}
       {showQueue && <QueuePanel onClose={closeQueue} />}
+      {showLyrics && <LyricsPanel onClose={closeLyrics} />}
 
       <div
         className={`bg-zinc-900 border-t border-zinc-800 shrink-0 ${currentSong ? 'cursor-pointer' : ''}`}
@@ -644,8 +657,16 @@ export default function Player() {
             </div>
           </div>
 
-          {/* Volume + Queue */}
-          <div className="flex items-center gap-2 w-36 shrink-0">
+          {/* Volume + Lyrics + Queue */}
+          <div className="flex items-center gap-2 w-44 shrink-0">
+            <button
+              onClick={sp(openLyrics)}
+              disabled={!currentSong || !!currentStation}
+              className={`p-2 transition-colors disabled:opacity-30 shrink-0 ${showLyrics ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
+              title={t('lyrics.title')}
+            >
+              <Mic2 size={16} />
+            </button>
             <button
               onClick={sp(openQueue)}
               disabled={!currentSong}

@@ -87,6 +87,18 @@ function initDb() {
     database.exec('ALTER TABLE songs ADD COLUMN genre TEXT');
   }
 
+  // Add lyrics cache columns if missing (migration). lyrics_status is NULL
+  // for songs never checked yet; 'found' | 'not_found' | 'instrumental' once
+  // checked — the route/backfill script use that to avoid re-querying lrclib
+  // on every request.
+  if (!songCols.includes('lyrics_status')) {
+    database.exec(`
+      ALTER TABLE songs ADD COLUMN lyrics_status TEXT;
+      ALTER TABLE songs ADD COLUMN lyrics_plain TEXT;
+      ALTER TABLE songs ADD COLUMN lyrics_synced TEXT;
+    `);
+  }
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS featured_playlists (
       id TEXT PRIMARY KEY,

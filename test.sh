@@ -120,6 +120,14 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
     else
       info "GET /api/music/:id/cover → skipped (first song has no cover)"
     fi
+
+    LYRICS_RESP=$(api -b "$COOKIE" "${BASE}/api/music/${FIRST_ID}/lyrics")
+    LYRICS_STATUS=$(echo "$LYRICS_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+    if [ "$LYRICS_STATUS" = "found" ] || [ "$LYRICS_STATUS" = "not_found" ] || [ "$LYRICS_STATUS" = "instrumental" ]; then
+      pass "GET /api/music/:id/lyrics → status=${LYRICS_STATUS}"
+    else
+      fail "GET /api/music/:id/lyrics → unexpected response: ${LYRICS_RESP:0:120}"
+    fi
   fi
 
   # Search

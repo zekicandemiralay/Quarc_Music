@@ -5,6 +5,7 @@ const path = require('path');
 const mm = require('music-metadata');
 const { getDb } = require('../db');
 const { scanMusicDir } = require('../services/scanner');
+const { fetchLyrics } = require('../services/lyrics');
 const { requireAuth } = require('../middleware/auth');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
@@ -130,6 +131,28 @@ router.get('/:id/cover', async (req, res) => {
   } catch {
     res.status(500).end();
   }
+});
+
+// Lazily fetched and cached in the songs table on first request — 'found' |
+// 'not_found' | 'instrumental' short-circuits every request after the first
+// so a song with no lyrics doesn't re-query lrclib forever. ?refresh=1
+// forces a re-check (e.g. lyrics got added to lrclib since we last looked).
+router.get('/:id/lyrics', async (req, res) => {
+  const db = getDb();
+  const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id);
+  if (!song) return res.status(404).json({ error: 'Song not found' });
+
+  const force = req.query.refresh === '1';
+  if (!force && song.lyrics_status) {
+    return res.json({ status: song.lyrics_status, plain: song.lyrics_plain, synced: song.lyrics_synced });
+  }
+
+  const result = await fetchLyrics(song.artist, song.title, song.album, song.duration);
+  const status = result?.status || 'not_found';
+  db.prepare('UPDATE songs SET lyrics_status = ?, lyrics_plain = ?, lyrics_synced = ? WHERE id = ?')
+    .run(status, result?.plain || null, result?.synced || null, song.id);
+
+  res.json({ status, plain: result?.plain || null, synced: result?.synced || null });
 });
 
 module.exports = router;

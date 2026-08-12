@@ -43,6 +43,14 @@
     "addToPlaylist": "Çalma listesine ekle",
     "share": "Paylaş"
   },
+  "lyrics": {
+    "title": "Şarkı Sözleri",
+    "nothingPlaying": "Hiçbir şey çalmıyor",
+    "instrumental": "Bu parça enstrümantal",
+    "notSynced": "Bu şarkı için zamanlı söz yok — düz metin gösteriliyor.",
+    "notFound": "Söz bulunamadı",
+    "notFoundHint": "Bu şarkı henüz söz veritabanında yok"
+  },
   "queue": {
     "title": "Sıra",
     "clearQueue": "Sırayı temizle",
