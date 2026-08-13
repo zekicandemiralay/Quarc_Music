@@ -102,6 +102,18 @@ restart_same_country() {
 # ── Fast path: gluetun's own healthcheck ────────────────────────────────
 HEALTH=$(docker inspect --format '{{.State.Health.Status}}' "$GLUETUN_CID" 2>/dev/null || echo "none")
 if [ "$HEALTH" = "unhealthy" ]; then
+  # AUTH_FAILED means Surfshark is rejecting the OpenVPN credentials
+  # themselves — every one of their servers shares the same account
+  # credentials, so rotating VPN_COUNTRY hits a different server but the
+  # exact same rejection every time. Confirmed in production (Aug 2026):
+  # this is NOT the "blocked/unhealthy tunnel" scenario rotation exists for.
+  # Nothing this script can do fixes a wrong password — just say so clearly
+  # and stop, instead of burning cooldown cycles on a rotation that can't help.
+  if docker logs "$GLUETUN_CID" --since 10m 2>&1 | grep -q 'AUTH_FAILED'; then
+    echo "[$(ts)] FAIL — gluetun unhealthy: AUTH_FAILED (bad Surfshark credentials, not a blocked server)."
+    echo "[$(ts)] Rotating VPN_COUNTRY will NOT fix this — update SURFSHARK_USER/SURFSHARK_PASSWORD in .env from Surfshark's dashboard, then: docker compose up -d gluetun"
+    exit 1
+  fi
   echo "[$(ts)] FAIL — gluetun reports unhealthy (tunnel down)"
   cooldown_ok && rotate_country
   exit 0

@@ -90,7 +90,20 @@ for svc in gluetun backend frontend; do
   STATE=$(docker inspect --format '{{.State.Status}}' "$CID" 2>/dev/null || echo "unknown")
   HEALTH=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$CID" 2>/dev/null || echo "none")
   if [ "$STATE" = "running" ]; then
-    if   [ "$HEALTH" = "unhealthy" ]; then fail "$svc: running but UNHEALTHY"
+    if [ "$HEALTH" = "unhealthy" ]; then
+      # Don't just say "unhealthy" — gluetun going unhealthy has (at least)
+      # two completely different causes needing completely different fixes:
+      # a dead/blocked tunnel (autoheal.sh can fix this by rotating
+      # VPN_COUNTRY) vs bad OpenVPN credentials (rotating countries is
+      # pointless — every Surfshark server rejects the same wrong
+      # credentials identically, so autoheal would just burn cycles).
+      # Distinguish them from gluetun's own recent logs instead of leaving
+      # that diagnosis to a manual `docker compose logs` dig every time.
+      if [ "$svc" = "gluetun" ] && docker logs "$CID" --since 10m 2>&1 | grep -q 'AUTH_FAILED'; then
+        fail "$svc: running but UNHEALTHY — AUTH_FAILED in logs. This is a credentials problem, NOT a blocked server — rotating VPN_COUNTRY will NOT fix it. Check SURFSHARK_USER/SURFSHARK_PASSWORD in .env against Surfshark's dashboard (Manual/OpenVPN credentials, not account login)."
+      else
+        fail "$svc: running but UNHEALTHY"
+      fi
     elif [ "$HEALTH" = "starting"  ]; then warn "$svc: running — health check still starting"
     else ok "$svc: running [health: ${HEALTH}]"; fi
   else
