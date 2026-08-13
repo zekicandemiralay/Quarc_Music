@@ -367,10 +367,15 @@ fi
 # ordinary videos. This one is a normal official-audio upload, so it actually
 # exercises the same path real downloads take.
 info "Testing actual audio download+extraction via VPN (may take ~20-30s)..."
-DL_ERR=$(dexec backend yt-dlp \
+# `timeout` runs INSIDE the container so it kills the actual yt-dlp process on
+# a stall, not just this script's local wait — a dead-but-still-accepting-
+# connections VPN proxy can hang yt-dlp forever with no error otherwise,
+# which used to mean check.sh itself would hang right along with it.
+DL_ERR=$(dexec backend timeout 75 yt-dlp \
   --proxy http://gluetun:8888 \
   --js-runtimes node \
   --extractor-args "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416" \
+  --socket-timeout 30 \
   -x --audio-format mp3 --no-warnings \
   -o "/tmp/checksh_test.%(ext)s" \
   "https://www.youtube.com/watch?v=zMaNfqfsMtE" 2>&1)
