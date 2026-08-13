@@ -4,6 +4,12 @@ const PROXY_ARGS = process.env.YTDLP_PROXY ? ['--proxy', process.env.YTDLP_PROXY
 const RATE_ARGS = process.env.YTDLP_RATE_LIMIT ? ['--limit-rate', process.env.YTDLP_RATE_LIMIT] : [];
 const JS_ARGS = ['--js-runtimes', 'node'];
 const FRAG_ARGS = ['--concurrent-fragments', process.env.YTDLP_CONCURRENT_FRAGMENTS || '4'];
+// Makes yt-dlp itself give up on a stalled connection instead of blocking
+// forever — a dead VPN tunnel (proxy port still open, but no traffic actually
+// gets through) doesn't error, it just hangs. This is belt-and-suspenders
+// with the stall-kill watchdog below, which catches it regardless even if
+// yt-dlp's own socket-timeout doesn't apply to the stage that's stuck.
+const SOCKET_TIMEOUT_ARGS = ['--socket-timeout', '30'];
 
 // Points yt-dlp at the bgutil-ytdlp-pot-provider sidecar so it can fetch the
 // proof-of-origin token YouTube now requires — without it, requests from a
@@ -112,6 +118,18 @@ function searchYoutube(query, limit = 10) {
   });
 }
 
+// How long downloadAudio/downloadBySearch tolerate complete silence from the
+// yt-dlp process (no stdout, no stderr) before concluding it's stalled and
+// killing it. Confirmed in production: a gluetun tunnel that dies AFTER the
+// proxy port is already accepting connections doesn't make yt-dlp error out —
+// it just hangs indefinitely with zero output, leaving the job stuck at 0%
+// forever and the process itself running as an orphan (the old code's outer
+// Promise.race timeout gave up on the *promise* but never killed the actual
+// child process). Reset on every chunk of output, so a real download that's
+// just slow (large file, throttled connection) is never penalized — only
+// true silence trips this.
+const STALL_MS = 45_000;
+
 function downloadAudio(videoId, outputDir, onProgress) {
   return new Promise((resolve, reject) => {
     const proc = spawn('yt-dlp', [
@@ -131,12 +149,31 @@ function downloadAudio(videoId, outputDir, onProgress) {
       ...JS_ARGS,
       ...POT_ARGS,
       ...FRAG_ARGS,
+      ...SOCKET_TIMEOUT_ARGS,
     ]);
 
     let lastFile = '';
     let errorOut = '';
+    let settled = false;
+
+    function finish(fn) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(stallTimer);
+      fn();
+    }
+
+    function onStall() {
+      finish(() => {
+        proc.kill('SIGKILL');
+        reject(new Error(`Download stalled — no response for ${STALL_MS / 1000}s (VPN/proxy likely down)`));
+      });
+    }
+    let stallTimer = setTimeout(onStall, STALL_MS);
+    const bumpStallTimer = () => { clearTimeout(stallTimer); stallTimer = setTimeout(onStall, STALL_MS); };
 
     proc.stdout.on('data', (chunk) => {
+      bumpStallTimer();
       for (const line of chunk.toString().split('\n')) {
         const pct = line.match(/\[download\]\s+([\d.]+)%/);
         if (pct) onProgress(parseFloat(pct[1]));
@@ -152,14 +189,16 @@ function downloadAudio(videoId, outputDir, onProgress) {
       }
     });
 
-    proc.stderr.on('data', (c) => { errorOut += c.toString(); });
+    proc.stderr.on('data', (c) => { bumpStallTimer(); errorOut += c.toString(); });
 
     proc.on('close', (code) => {
-      if (code !== 0) reject(new Error(`Download failed: ${summarizeError(errorOut)}`));
-      else resolve(lastFile);
+      finish(() => {
+        if (code !== 0) reject(new Error(`Download failed: ${summarizeError(errorOut)}`));
+        else resolve(lastFile);
+      });
     });
 
-    proc.on('error', reject);
+    proc.on('error', (err) => finish(() => reject(err)));
   });
 }
 
@@ -182,12 +221,31 @@ function downloadBySearch(query, outputDir, onProgress) {
       ...JS_ARGS,
       ...POT_ARGS,
       ...FRAG_ARGS,
+      ...SOCKET_TIMEOUT_ARGS,
     ]);
 
     let lastFile = '';
     let errorOut = '';
+    let settled = false;
+
+    function finish(fn) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(stallTimer);
+      fn();
+    }
+
+    function onStall() {
+      finish(() => {
+        proc.kill('SIGKILL');
+        reject(new Error(`Download stalled — no response for ${STALL_MS / 1000}s (VPN/proxy likely down)`));
+      });
+    }
+    let stallTimer = setTimeout(onStall, STALL_MS);
+    const bumpStallTimer = () => { clearTimeout(stallTimer); stallTimer = setTimeout(onStall, STALL_MS); };
 
     proc.stdout.on('data', (chunk) => {
+      bumpStallTimer();
       for (const line of chunk.toString().split('\n')) {
         const pct = line.match(/\[download\]\s+([\d.]+)%/);
         if (pct) onProgress(parseFloat(pct[1]));
@@ -203,14 +261,16 @@ function downloadBySearch(query, outputDir, onProgress) {
       }
     });
 
-    proc.stderr.on('data', (c) => { errorOut += c.toString(); });
+    proc.stderr.on('data', (c) => { bumpStallTimer(); errorOut += c.toString(); });
 
     proc.on('close', (code) => {
-      if (code !== 0) reject(new Error(`Download failed: ${summarizeError(errorOut)}`));
-      else resolve(lastFile || null);
+      finish(() => {
+        if (code !== 0) reject(new Error(`Download failed: ${summarizeError(errorOut)}`));
+        else resolve(lastFile || null);
+      });
     });
 
-    proc.on('error', reject);
+    proc.on('error', (err) => finish(() => reject(err)));
   });
 }
 

@@ -498,6 +498,42 @@ if $AUTHED && [ -n "$LYRICS_TEST_ID" ]; then
 fi
 
 # ════════════════════════════════════════════════════════════════════════
+hdr "Auto-Heal"
+# ════════════════════════════════════════════════════════════════════════
+
+# The whole point of autoheal.sh is that a bad VPN/download state fixes
+# itself without anyone noticing — but that only works if it's actually
+# scheduled. It living in the repo unused is indistinguishable from "working
+# fine" until the exact moment it's needed, so check for real instead of
+# assuming.
+CRON_LIST=$(crontab -l 2>/dev/null || echo "")
+if echo "$CRON_LIST" | grep -q 'autoheal\.sh'; then
+  ok "autoheal.sh is scheduled in crontab"
+else
+  fail "autoheal.sh is NOT in crontab — VPN/download failures will NOT self-heal. Add: */5 * * * * cd $(pwd) && bash autoheal.sh >> autoheal.log 2>&1"
+fi
+if echo "$CRON_LIST" | grep -q 'gluetun-watchdog\.sh'; then
+  warn "gluetun-watchdog.sh is still in crontab — it's deprecated (merged into autoheal.sh). Remove its crontab line to avoid the two racing each other."
+fi
+
+if [ -f autoheal.log ]; then
+  LAST_LINE=$(tail -1 autoheal.log 2>/dev/null)
+  LAST_TS=$(echo "$LAST_LINE" | grep -oP '^\[\K[0-9-]+ [0-9:]+' || echo "")
+  if [ -n "$LAST_TS" ]; then
+    LAST_EPOCH=$(date -d "$LAST_TS" +%s 2>/dev/null || echo 0)
+    NOW_EPOCH=$(date +%s)
+    AGE=$(( (NOW_EPOCH - LAST_EPOCH) / 60 ))
+    if [ "$LAST_EPOCH" -gt 0 ] && [ "$AGE" -lt 20 ]; then
+      ok "autoheal.sh last ran ${AGE}m ago: ${LAST_LINE#*] }"
+    else
+      warn "autoheal.sh's last logged run was ${AGE}m ago (expected every ~5m if cron is active) — cron may not actually be firing"
+    fi
+  fi
+else
+  info "No autoheal.log yet — hasn't run, or logging to a different path"
+fi
+
+# ════════════════════════════════════════════════════════════════════════
 hdr "Tailscale"
 # ════════════════════════════════════════════════════════════════════════
 

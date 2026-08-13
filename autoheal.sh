@@ -1,34 +1,48 @@
 #!/usr/bin/env bash
 # ============================================================
-#  Quarc Music — YouTube Download Auto-Heal
+#  Quarc Music — YouTube/VPN Auto-Heal (unified)
 #
-#  Periodically verifies yt-dlp downloads actually work through the VPN
-#  (not just search — see check.sh for why that distinction matters).
+#  Single self-healing loop. Used to be split across this script (rotates
+#  VPN_COUNTRY on a failed real-download test) and a separate
+#  gluetun-watchdog.sh (rotates on gluetun's own unhealthy status) running
+#  on different cron cadences with different cooldowns — two independent
+#  loops mutating the same VPN_COUNTRY value with no shared state let them
+#  race each other, which is itself a source of instability rather than a
+#  fix. Merged into one script, one state file, one cooldown.
 #
-#  Two distinct failure modes get two distinct remedies:
-#   - A YouTube bot-check ("Sign in to confirm you're not a bot", 429 Too
-#     Many Requests, LOGIN_REQUIRED) means the tunnel itself is fine but
-#     the current VPN_COUNTRY's exit IP pool is blocklisted — confirmed in
-#     production: Netherlands got broadly blocked while Germany worked
-#     immediately with nothing else changed. Restarting gluetun on the SAME
-#     country doesn't fix this; rotating VPN_COUNTRY does (same list
-#     gluetun-watchdog.sh uses for its own, different trigger — that script
-#     reacts to the tunnel/healthcheck itself failing, which this scenario
-#     doesn't: gluetun stays perfectly healthy throughout).
-#   - Anything else (timeout, connection reset, etc.) is treated as a
-#     transient hiccup — a plain gluetun restart (same country) is the
-#     less disruptive fix and was the previously-approved behavior.
+#  Two failure signals, checked in order:
+#   1. FAST: gluetun's own Docker healthcheck reports unhealthy — the
+#      tunnel itself is down. Caught almost instantly (one docker inspect),
+#      without waiting for a full download test.
+#   2. DEEP: gluetun reports healthy, but a real download+extraction still
+#      fails — catches "tunnel is up but YouTube is blocking us anyway"
+#      (bot-check, region block, etc.), which the healthcheck can't see
+#      since it only pings 1.1.1.1, not YouTube. This is the check that
+#      caught the Aug 2026 outage the healthcheck alone stayed green
+#      through for hours.
 #
-#  Both share one cooldown/state file so they can't fire back-to-back.
-#  Never touches backend/frontend — only ever gluetun.
+#  A YouTube bot-check error rotates VPN_COUNTRY (a same-region restart
+#  doesn't fix it — confirmed in production: Netherlands got broadly
+#  blocked while Germany worked immediately with nothing else changed). An
+#  unhealthy tunnel or a generic/transient download failure just restarts
+#  gluetun on the same country.
 #
-#  Run via cron, e.g. every 15 minutes:
-#    */15 * * * * cd /path/to/Quarc_Music && bash autoheal.sh >> autoheal.log 2>&1
+#  The deep check itself is wrapped in `timeout` (inside the container, so
+#  it reliably kills the actual yt-dlp process, not just this script's
+#  local wait) — a stalled VPN proxy can hang a raw yt-dlp call forever
+#  with no error, which used to mean autoheal could miss every cron cycle
+#  indefinitely instead of ever detecting anything.
+#
+#  Run via cron every 5 minutes:
+#    */5 * * * * cd /path/to/Quarc_Music && bash autoheal.sh >> autoheal.log 2>&1
+#
+#  gluetun-watchdog.sh is retired — do not also cron that one, it would
+#  reintroduce the exact race this merge fixes.
 # ============================================================
 
 cd "$(dirname "$0")" || exit 1
 
-COOLDOWN_SECONDS=3600   # don't act more than once per hour
+COOLDOWN_SECONDS=1800   # don't act more than once per 30 min
 STATE_FILE=".autoheal_last_restart"
 ENV_FILE=".env"
 COUNTRIES=(Germany Sweden Switzerland Finland)
@@ -38,12 +52,62 @@ PROJECT=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/
 BACKEND_CID=$(docker ps -q \
   --filter "label=com.docker.compose.project=${PROJECT}" \
   --filter "label=com.docker.compose.service=backend" | head -1)
+GLUETUN_CID=$(docker ps -q \
+  --filter "label=com.docker.compose.project=${PROJECT}" \
+  --filter "label=com.docker.compose.service=gluetun" | head -1)
 
-if [ -z "$BACKEND_CID" ]; then
-  echo "[$(ts)] backend container not found — skipping check"
+if [ -z "$BACKEND_CID" ] || [ -z "$GLUETUN_CID" ]; then
+  echo "[$(ts)] backend/gluetun container not found — skipping check"
   exit 0
 fi
 
+cooldown_ok() {
+  local last=0
+  [ -f "$STATE_FILE" ] && last=$(cat "$STATE_FILE" 2>/dev/null)
+  [ -z "$last" ] && last=0
+  local elapsed=$(( $(date +%s) - last ))
+  if [ "$elapsed" -lt "$COOLDOWN_SECONDS" ]; then
+    echo "[$(ts)] Skipping recovery action — last one was ${elapsed}s ago (cooldown ${COOLDOWN_SECONDS}s)"
+    return 1
+  fi
+  return 0
+}
+mark_acted() { date +%s > "$STATE_FILE"; }
+
+rotate_country() {
+  local current next
+  current=$(grep '^VPN_COUNTRY=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
+  next=""
+  for i in "${!COUNTRIES[@]}"; do
+    if [ "${COUNTRIES[$i]}" = "$current" ]; then
+      next="${COUNTRIES[$(( (i + 1) % ${#COUNTRIES[@]} ))]}"
+      break
+    fi
+  done
+  [ -z "$next" ] && next="${COUNTRIES[0]}"
+  echo "[$(ts)] Rotating VPN_COUNTRY ${current:-unknown} → ${next}..."
+  sed -i "s/^VPN_COUNTRY=.*/VPN_COUNTRY=${next}/" "$ENV_FILE"
+  docker compose up -d gluetun
+  mark_acted
+  echo "[$(ts)] gluetun restarted on ${next} — will re-verify next run"
+}
+
+restart_same_country() {
+  echo "[$(ts)] Restarting gluetun (same region)..."
+  docker compose restart gluetun
+  mark_acted
+  echo "[$(ts)] gluetun restarted — will re-verify next run"
+}
+
+# ── Fast path: gluetun's own healthcheck ────────────────────────────────
+HEALTH=$(docker inspect --format '{{.State.Health.Status}}' "$GLUETUN_CID" 2>/dev/null || echo "none")
+if [ "$HEALTH" = "unhealthy" ]; then
+  echo "[$(ts)] FAIL — gluetun reports unhealthy (tunnel down)"
+  cooldown_ok && rotate_country
+  exit 0
+fi
+
+# ── Deep path: does a real download actually work? ──────────────────────
 # Same real download+extraction the app performs in production — flat-playlist
 # search doesn't need YouTube's JS challenge, so it can look healthy while
 # actual downloads are silently blocked; this catches that specifically.
@@ -51,17 +115,23 @@ fi
 # Deliberately NOT a viral video (Rick Astley's dQw4w9WgXcQ used to be here) —
 # it's served from YouTube's edge caches and skips most of the bot-check/
 # PO-token gauntlet, so this canary stayed green through hours of real
-# production failures on ordinary videos. Matches the video check.sh now uses.
+# production failures on ordinary videos. Matches the video check.sh uses.
+#
+# `timeout 75` runs INSIDE the container so it kills the actual yt-dlp
+# process on a stall — a dead-but-still-accepting-connections proxy can hang
+# yt-dlp forever with no error otherwise, which used to mean this whole
+# script (and every cron cycle after it) could hang along with it.
 docker exec "$BACKEND_CID" sh -c '
   rm -f /tmp/autoheal_test.mp3 /tmp/autoheal_err.log
-  yt-dlp --proxy http://gluetun:8888 --js-runtimes node \
+  timeout 75 yt-dlp --proxy http://gluetun:8888 --js-runtimes node \
     --extractor-args "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416" \
+    --socket-timeout 30 \
     -x --audio-format mp3 --no-warnings \
     -o "/tmp/autoheal_test.%(ext)s" \
     "https://www.youtube.com/watch?v=zMaNfqfsMtE" \
     > /tmp/autoheal_err.log 2>&1
 '
-DL_OK=$(docker exec "$BACKEND_CID" sh -c 'test -s /tmp/autoheal_test.mp3 && echo yes || echo no')
+DL_OK=$(docker exec "$BACKEND_CID" sh -c 'test -s /tmp/autoheal_test.mp3 && echo yes || echo no' 2>/dev/null || echo no)
 docker exec "$BACKEND_CID" rm -f /tmp/autoheal_test.mp3 2>/dev/null
 
 if [ "$DL_OK" = "yes" ]; then
@@ -73,38 +143,10 @@ ERR_LOG=$(docker exec "$BACKEND_CID" cat /tmp/autoheal_err.log 2>/dev/null)
 echo "[$(ts)] FAIL — download test failed:"
 echo "$ERR_LOG" | tail -5
 
-LAST=0
-if [ -f "$STATE_FILE" ]; then
-  LAST=$(cat "$STATE_FILE" 2>/dev/null)
-  [ -z "$LAST" ] && LAST=0
-fi
-NOW=$(date +%s)
-ELAPSED=$((NOW - LAST))
-
-if [ "$ELAPSED" -lt "$COOLDOWN_SECONDS" ]; then
-  echo "[$(ts)] Skipping recovery action — last one was ${ELAPSED}s ago (cooldown ${COOLDOWN_SECONDS}s)"
-  exit 1
-fi
+cooldown_ok || exit 1
 
 if echo "$ERR_LOG" | grep -qiE "sign in to confirm|429 Too Many Requests|LOGIN_REQUIRED"; then
-  CURRENT=$(grep '^VPN_COUNTRY=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
-  NEXT=""
-  for i in "${!COUNTRIES[@]}"; do
-    if [ "${COUNTRIES[$i]}" = "$CURRENT" ]; then
-      NEXT="${COUNTRIES[$(( (i + 1) % ${#COUNTRIES[@]} ))]}"
-      break
-    fi
-  done
-  [ -z "$NEXT" ] && NEXT="${COUNTRIES[0]}"
-
-  echo "[$(ts)] YouTube bot-check detected — rotating VPN_COUNTRY ${CURRENT:-unknown} → ${NEXT}..."
-  sed -i "s/^VPN_COUNTRY=.*/VPN_COUNTRY=${NEXT}/" "$ENV_FILE"
-  docker compose up -d gluetun
-  echo "$NOW" > "$STATE_FILE"
-  echo "[$(ts)] gluetun restarted on ${NEXT} — will re-verify next run"
+  rotate_country
 else
-  echo "[$(ts)] Restarting gluetun (same region)..."
-  docker compose restart gluetun
-  echo "$NOW" > "$STATE_FILE"
-  echo "[$(ts)] gluetun restarted — will re-verify next run"
+  restart_same_country
 fi
