@@ -163,7 +163,15 @@ jobs:
         working-directory: mobile/android
         run: |
           TAG=${GITHUB_REF#refs/tags/v}
-          CODE=$(echo $TAG | tr -d '.')
+          # MAJOR*10000 + MINOR*100 + PATCH — NOT `tr -d '.'` (was here before,
+          # and would silently regress versionCode: e.g. tag 1.0.36 -> "1036",
+          # which is LOWER than 1.0.35's actual shipped versionCode 10035,
+          # since that one was produced by this same MAJOR*10000+... formula
+          # historically. A lower versionCode makes Android refuse to install
+          # the new APK as an "update" over the currently-installed one.
+          # Requires MINOR and PATCH to each stay under 100.
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$TAG"
+          CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
           sed -i "s/versionCode [0-9]*/versionCode $CODE/" app/build.gradle
           sed -i "s/versionName \"[^\"]*\"/versionName \"$TAG\"/" app/build.gradle
 
