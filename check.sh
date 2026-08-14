@@ -184,7 +184,12 @@ if [ -n "${ADMIN_PASSWORD:-}" ]; then
     -H "Content-Type: application/json" \
     -d "$LOGIN_BODY" \
     -c "$COOKIE" 2>/dev/null || echo "")
-  if echo "$LOGIN_RESP" | grep -qE '"user"|"token"'; then
+  # The actual response shape is {"id":...,"username":...,"role":...} — no
+  # "user" or "token" field ever existed. '"user"' as a literal substring
+  # never matches inside '"username"' (next char is 'n', not a closing
+  # quote), so this reported false failures on every single run regardless
+  # of whether login actually succeeded. Matches test.sh's (correct) pattern.
+  if echo "$LOGIN_RESP" | grep -qE '"username"|"token"'; then
     ok "POST /api/auth/login → authenticated as '${ADMIN_USERNAME}'"
     AUTHED=true
   else
