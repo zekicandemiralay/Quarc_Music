@@ -45,7 +45,15 @@ cd "$(dirname "$0")" || exit 1
 COOLDOWN_SECONDS=1800   # don't act more than once per 30 min
 STATE_FILE=".autoheal_last_restart"
 ENV_FILE=".env"
-COUNTRIES=(Germany Sweden Switzerland Finland)
+# Must be countries the current VPN plan can actually reach. ProtonVPN's
+# FREE tier only has servers in 10 countries total (Canada, Japan, Mexico,
+# Netherlands, Norway, Poland, Romania, Singapore, Switzerland, US) —
+# picked 4 of those, skipping Netherlands (Surfshark's NL pool got broadly
+# YouTube-blocklisted earlier — different provider/IPs, but no reason to
+# tempt it) and US (the most commonly VPN-abused exit pool). On a paid
+# Proton plan (FREE_ONLY removed from docker-compose.yml), this can widen
+# to any of Proton's 145+ countries.
+COUNTRIES=(Switzerland Norway Poland Romania)
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 
 PROJECT=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
@@ -102,16 +110,17 @@ restart_same_country() {
 # ── Fast path: gluetun's own healthcheck ────────────────────────────────
 HEALTH=$(docker inspect --format '{{.State.Health.Status}}' "$GLUETUN_CID" 2>/dev/null || echo "none")
 if [ "$HEALTH" = "unhealthy" ]; then
-  # AUTH_FAILED means Surfshark is rejecting the OpenVPN credentials
-  # themselves — every one of their servers shares the same account
-  # credentials, so rotating VPN_COUNTRY hits a different server but the
-  # exact same rejection every time. Confirmed in production (Aug 2026):
-  # this is NOT the "blocked/unhealthy tunnel" scenario rotation exists for.
-  # Nothing this script can do fixes a wrong password — just say so clearly
-  # and stop, instead of burning cooldown cycles on a rotation that can't help.
+  # AUTH_FAILED means the VPN provider is rejecting the OpenVPN credentials
+  # themselves — every server on the account shares the same credentials, so
+  # rotating VPN_COUNTRY hits a different server but the exact same rejection
+  # every time (confirmed in production, Aug 2026, with Surfshark — the same
+  # logic applies to any provider). This is NOT the "blocked/unhealthy
+  # tunnel" scenario rotation exists for. Nothing this script can do fixes a
+  # wrong password or an expired subscription — just say so clearly and
+  # stop, instead of burning cooldown cycles on a rotation that can't help.
   if docker logs "$GLUETUN_CID" --since 10m 2>&1 | grep -q 'AUTH_FAILED'; then
-    echo "[$(ts)] FAIL — gluetun unhealthy: AUTH_FAILED (bad Surfshark credentials, not a blocked server)."
-    echo "[$(ts)] Rotating VPN_COUNTRY will NOT fix this — update SURFSHARK_USER/SURFSHARK_PASSWORD in .env from Surfshark's dashboard, then: docker compose up -d gluetun"
+    echo "[$(ts)] FAIL — gluetun unhealthy: AUTH_FAILED (bad VPN credentials or expired subscription, not a blocked server)."
+    echo "[$(ts)] Rotating VPN_COUNTRY will NOT fix this — update VPN_USER/VPN_PASSWORD in .env from your VPN provider's dashboard (and check the subscription is active), then: docker compose up -d gluetun"
     exit 1
   fi
   echo "[$(ts)] FAIL — gluetun reports unhealthy (tunnel down)"

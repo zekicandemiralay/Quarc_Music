@@ -6,11 +6,16 @@ services:
     devices:
       - /dev/net/tun:/dev/net/tun
     environment:
-      - VPN_SERVICE_PROVIDER=surfshark
+      - VPN_SERVICE_PROVIDER=protonvpn
       - VPN_TYPE=openvpn
-      - OPENVPN_USER=${SURFSHARK_USER}
-      - OPENVPN_PASSWORD=${SURFSHARK_PASSWORD}
-      - SERVER_COUNTRIES=${VPN_COUNTRY:-Germany}
+      - OPENVPN_USER=${VPN_USER}
+      - OPENVPN_PASSWORD=${VPN_PASSWORD}
+      - SERVER_COUNTRIES=${VPN_COUNTRY:-Switzerland}
+      # Free-tier Proton accounts can only actually connect to free-tier
+      # servers — without this, gluetun might pick a paid-only server the
+      # account has no access to and fail auth. Remove this line (or set to
+      # off) if/when upgrading to a paid Proton plan.
+      - FREE_ONLY=on
       - OPENVPN_PROTOCOL=tcp
       - HTTPPROXY=on
     healthcheck:

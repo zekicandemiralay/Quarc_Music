@@ -95,12 +95,12 @@ for svc in gluetun backend frontend; do
       # two completely different causes needing completely different fixes:
       # a dead/blocked tunnel (autoheal.sh can fix this by rotating
       # VPN_COUNTRY) vs bad OpenVPN credentials (rotating countries is
-      # pointless — every Surfshark server rejects the same wrong
+      # pointless — every server on the account rejects the same wrong
       # credentials identically, so autoheal would just burn cycles).
       # Distinguish them from gluetun's own recent logs instead of leaving
       # that diagnosis to a manual `docker compose logs` dig every time.
       if [ "$svc" = "gluetun" ] && docker logs "$CID" --since 10m 2>&1 | grep -q 'AUTH_FAILED'; then
-        fail "$svc: running but UNHEALTHY — AUTH_FAILED in logs. This is a credentials problem, NOT a blocked server — rotating VPN_COUNTRY will NOT fix it. Check SURFSHARK_USER/SURFSHARK_PASSWORD in .env against Surfshark's dashboard (Manual/OpenVPN credentials, not account login)."
+        fail "$svc: running but UNHEALTHY — AUTH_FAILED in logs. This is a credentials problem, NOT a blocked server — rotating VPN_COUNTRY will NOT fix it. Check VPN_USER/VPN_PASSWORD in .env against your VPN provider's dashboard (Manual/OpenVPN service credentials, not account login) and that the subscription is active."
       else
         fail "$svc: running but UNHEALTHY"
       fi

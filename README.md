@@ -171,9 +171,9 @@ The database is stored in a Docker volume and survives rebuilds.
 | `SECURE_COOKIE` | `true` | Keep true — required for HTTPS cookie handling |
 | `YTDLP_RATE_LIMIT` | `2M` | Max download speed for yt-dlp |
 | `LASTFM_API_KEY` | *(empty)* | Last.fm API key for the Radio feature |
-| `SURFSHARK_USER` | *(empty)* | Surfshark OpenVPN service credential username |
-| `SURFSHARK_PASSWORD` | *(empty)* | Surfshark OpenVPN service credential password |
-| `VPN_COUNTRY` | `Netherlands` | VPN server country for downloads |
+| `VPN_USER` | *(empty)* | VPN provider's OpenVPN service credential username (currently ProtonVPN — account.proton.me → VPN → OpenVPN/IKEv2 username, NOT your account login) |
+| `VPN_PASSWORD` | *(empty)* | VPN provider's OpenVPN service credential password |
+| `VPN_COUNTRY` | `Switzerland` | VPN server country for downloads — must be one the provider/plan has (ProtonVPN free tier: Canada, Japan, Mexico, Netherlands, Norway, Poland, Romania, Singapore, Switzerland, US) |
 
 ---
 
