@@ -128,6 +128,27 @@ if [ "$HEALTH" = "unhealthy" ]; then
   exit 0
 fi
 
+# The deep check below does a real download + ffmpeg mp3 extraction — real
+# CPU/bandwidth, not free. Cadence was dropped to */5 in cron so the fast
+# health check above (one cheap docker inspect) responds quicker, but that
+# also meant the heavy deep check started running 3x more often than before
+# (every 5 min instead of every 15), which is a plausible contributor to
+# playback hiccups if it lands while someone's actively listening. Throttle
+# it back to its original ~15 min spacing independently of the fast check's
+# cadence, using its own state file so it doesn't share (and get starved by)
+# the rotation cooldown above.
+DEEP_STATE_FILE=".autoheal_last_deep_check"
+DEEP_INTERVAL_SECONDS=900   # ~15 min
+DEEP_LAST=0
+[ -f "$DEEP_STATE_FILE" ] && DEEP_LAST=$(cat "$DEEP_STATE_FILE" 2>/dev/null)
+[ -z "$DEEP_LAST" ] && DEEP_LAST=0
+DEEP_ELAPSED=$(( $(date +%s) - DEEP_LAST ))
+if [ "$DEEP_ELAPSED" -lt "$DEEP_INTERVAL_SECONDS" ]; then
+  echo "[$(ts)] OK — gluetun healthy (deep download test skipped, last ran ${DEEP_ELAPSED}s ago)"
+  exit 0
+fi
+date +%s > "$DEEP_STATE_FILE"
+
 # ── Deep path: does a real download actually work? ──────────────────────
 # Same real download+extraction the app performs in production — flat-playlist
 # search doesn't need YouTube's JS challenge, so it can look healthy while
