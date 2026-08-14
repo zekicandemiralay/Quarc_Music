@@ -174,10 +174,15 @@ fi
 # Auth
 AUTHED=false
 if [ -n "${ADMIN_PASSWORD:-}" ]; then
+  # Built via python3's json.dumps, not raw string interpolation — a password
+  # containing a `"` or `\` (likely, for a strong one) would otherwise produce
+  # malformed JSON that the server correctly rejects, which looked identical
+  # to "wrong password" and was impossible to tell apart from the outside.
+  LOGIN_BODY=$(python3 -c "import json,sys; print(json.dumps({'username': sys.argv[1], 'password': sys.argv[2]}))" "$ADMIN_USERNAME" "$ADMIN_PASSWORD" 2>/dev/null)
   LOGIN_RESP=$(curl -sk --max-time 10 \
     -X POST "${BASE}/api/auth/login" \
     -H "Content-Type: application/json" \
-    -d "{\"username\":\"${ADMIN_USERNAME}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
+    -d "$LOGIN_BODY" \
     -c "$COOKIE" 2>/dev/null || echo "")
   if echo "$LOGIN_RESP" | grep -qE '"user"|"token"'; then
     ok "POST /api/auth/login → authenticated as '${ADMIN_USERNAME}'"

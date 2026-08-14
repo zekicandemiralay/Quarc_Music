@@ -51,9 +51,13 @@ info "Connectivity OK (health check → HTTP ${CONN_ERR})"
 hdr "Auth"
 # ════════════════════════════════════════════════════════════
 
+# Built via python3's json.dumps, not raw string interpolation — a password
+# containing a `"` or `\` would otherwise produce malformed JSON that the
+# server correctly rejects, indistinguishable from "wrong password" from here.
+LOGIN_BODY=$(python3 -c "import json,sys; print(json.dumps({'username': sys.argv[1], 'password': sys.argv[2]}))" "$ADMIN_USERNAME" "$ADMIN_PASSWORD" 2>/dev/null)
 LOGIN=$(api -X POST "${BASE}/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"${ADMIN_USERNAME}\",\"password\":\"${ADMIN_PASSWORD}\"}" \
+  -d "$LOGIN_BODY" \
   -c "$COOKIE")
 if echo "$LOGIN" | grep -qE '"username"|"token"'; then
   pass "POST /api/auth/login → authenticated"
