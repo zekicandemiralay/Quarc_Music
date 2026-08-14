@@ -166,7 +166,16 @@ echo "$ERR_LOG" | tail -5
 
 cooldown_ok || exit 1
 
-if echo "$ERR_LOG" | grep -qiE "sign in to confirm|429 Too Many Requests|LOGIN_REQUIRED"; then
+# "Sign in to confirm"/429/LOGIN_REQUIRED = YouTube's bot-check/auth gate
+# rejecting the exit IP. "HTTP Error 403" on the actual video-data request
+# (googlevideo.com, after search/player-API/PO-token all succeeded) is a
+# DIFFERENT rejection — the CDN itself blocking the IP, seen in production
+# on ProtonVPN's free tier (its small, heavily-shared-by-other-free-users
+# server pool makes an already-flagged exit IP more likely than on a paid
+# plan with more/less-congested IPs). Both need the same fix — a different
+# exit IP — so both trigger rotation; only a truly generic/transient error
+# (timeout, connection reset) falls back to a same-country restart.
+if echo "$ERR_LOG" | grep -qiE "sign in to confirm|429 Too Many Requests|LOGIN_REQUIRED|HTTP Error 403|unable to download video data"; then
   rotate_country
 else
   restart_same_country
