@@ -1,8 +1,9 @@
 # Quarc Music — User Guide
 
-You need two things from the server admin:
+You need one thing from the server admin:
 - The **server address:** `https://quarcnet0.tail84500c.ts.net:4000`
-- Your **username and password**
+
+Then create your own account on the login screen — tap **Create Account**, pick a username and password. No invite code needed.
 
 The app uses a trusted Tailscale HTTPS certificate — no certificate installation needed on any device.
 
