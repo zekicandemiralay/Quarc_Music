@@ -112,6 +112,14 @@ Tracks that can't be found are skipped and listed at the end. You can navigate a
 
 ---
 
+## Lyrics
+
+1. Play any song
+2. Tap the microphone icon (desktop: player bar · mobile: Now Playing screen)
+3. Lyrics scroll and highlight in time with the song when available
+
+---
+
 ## Troubleshooting
 
 **Can't reach the app**
