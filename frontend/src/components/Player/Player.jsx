@@ -455,9 +455,11 @@ export default function Player() {
   // Without this, Android's back gesture/button navigates whatever page is
   // underneath these overlays instead of closing them — they're component
   // state, not a route, so the browser/WebView has no idea they exist.
-  useBackableOverlay(expanded, closeExpanded);
-  useBackableOverlay(showQueue, closeQueue);
-  useBackableOverlay(showLyrics, closeLyrics);
+  useBackableOverlay([
+    { isOpen: expanded, onClose: closeExpanded },
+    { isOpen: showQueue, onClose: closeQueue },
+    { isOpen: showLyrics, onClose: closeLyrics },
+  ]);
 
   useEffect(() => {
     if (!expanded) return;

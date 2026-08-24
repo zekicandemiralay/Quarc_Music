@@ -83,6 +83,11 @@ export default function QueuePanel({ onClose }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Deliberately only on the handle+header (see JSX below), not the whole
+  // panel — the song list is scrollable, and "scroll back up toward the
+  // top" is, gesture-wise, indistinguishable from "swipe down to dismiss".
+  // With this on the whole panel, scrolling back up through a long queue
+  // got treated as a dismiss attempt instead of a scroll.
   const onTouchStart = (e) => {
     if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
     startY.current = e.touches[0].clientY;
@@ -135,29 +140,29 @@ export default function QueuePanel({ onClose }) {
       className="fixed inset-0 bg-zinc-950 flex flex-col"
       style={panelStyle}
       onAnimationEnd={() => { entered.current = true; }}
-      onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {/* Drag handle */}
-      <div className="flex justify-center pt-3 pb-1 shrink-0">
-        <div className="w-10 h-1 rounded-full bg-zinc-700" />
-      </div>
+      {/* Drag handle + header — only zone a dismiss-drag can START from */}
+      <div onTouchStart={onTouchStart}>
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-zinc-700" />
+        </div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-3 pb-4 border-b border-zinc-800 shrink-0">
-        <h2 className="text-white font-bold text-lg">{t('queue.title')}</h2>
-        <div className="flex items-center gap-4">
-          {manualQueue.length > 0 && (
-            <button
-              onClick={clearManualQueue}
-              className="text-zinc-400 hover:text-white text-sm transition-colors"
-            >
-              {t('queue.clearQueue')}
+        <div className="flex items-center justify-between px-5 pt-3 pb-4 border-b border-zinc-800 shrink-0">
+          <h2 className="text-white font-bold text-lg">{t('queue.title')}</h2>
+          <div className="flex items-center gap-4">
+            {manualQueue.length > 0 && (
+              <button
+                onClick={clearManualQueue}
+                className="text-zinc-400 hover:text-white text-sm transition-colors"
+              >
+                {t('queue.clearQueue')}
+              </button>
+            )}
+            <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white transition-colors">
+              <X size={20} />
             </button>
-          )}
-          <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
+          </div>
         </div>
       </div>
 

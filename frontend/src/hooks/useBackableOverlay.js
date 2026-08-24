@@ -1,53 +1,58 @@
 import { useEffect, useRef } from 'react';
 
-// Makes a full-screen overlay (Now Playing, Queue, Lyrics — anything rendered
-// via createPortal on top of the routed page) respond to the back gesture/
-// button instead of the page underneath it.
+// Makes a group of full-screen overlays (Now Playing, Queue, Lyrics —
+// anything rendered via createPortal on top of the routed page) respond to
+// the back gesture/button instead of the page underneath them.
 //
-// These overlays are plain component state (a boolean), not a route — so as
+// These overlays are plain component state (booleans), not routes — so as
 // far as the browser/WebView is concerned, the "current page" while one is
 // open is still whatever page is underneath. Android's back gesture (and the
 // hardware back button) triggers the WebView's default history.back(), which
 // happens to the underlying router with zero awareness the overlay exists —
 // so swiping back navigates the page *behind* the overlay while the overlay
-// stays visually open on top of it, fully interactive and now showing stale
-// content next to whatever the background page navigated to. Confirmed to
-// reproduce on Android; the same bug is latent on any platform that maps a
-// back action to history.back() (iOS Safari's edge-swipel, browser Back).
+// stays visually open on top of it. Not actually Android-specific in cause;
+// any platform that maps a back action to history.back() has the same
+// latent bug (desktop browser back button, iOS Safari edge-swipe).
 //
-// Fix: push a no-op history entry while the overlay is open, and treat a
-// 'popstate' (any back action) as "close the overlay", not "let the router
-// navigate" — the URL never actually changes, so there's nothing for the
-// router to navigate to. Closing the overlay through its own UI (the X
-// button, swipe-to-dismiss) consumes that pushed entry via history.back()
-// in cleanup, so the history stack stays exactly as if the overlay had
-// never touched it.
-export default function useBackableOverlay(isOpen, onClose) {
+// Takes the WHOLE group at once (not one hook per overlay) and reacts to
+// "is ANY of them open" as a single aggregate signal — this matters because
+// switching directly from one overlay to another (e.g. tapping Lyrics from
+// inside the expanded player, which does onClose() then onOpenLyrics() in
+// the same instant) must NOT pop then push a history entry: history.back()'s
+// effects aren't synchronous, so a push landing before the pop actually
+// resolves makes the pop consume the WRONG (newly pushed) entry, firing a
+// spurious popstate that immediately closes whatever had just opened.
+// Confirmed reproducing on iPhone from exactly that transition. Tracking
+// "any open" instead means switching between overlays changes nothing about
+// that aggregate (still true throughout), so no history operation happens
+// at all mid-transition — only a genuine none-open <-> something-open edge
+// pushes or pops.
+export default function useBackableOverlay(overlays) {
   const pushedRef = useRef(false);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  const overlaysRef = useRef(overlays);
+  overlaysRef.current = overlays;
+
+  const anyOpen = overlays.some((o) => o.isOpen);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (anyOpen && !pushedRef.current) {
+      window.history.pushState({ quarcOverlay: true }, '');
+      pushedRef.current = true;
+    } else if (!anyOpen && pushedRef.current) {
+      pushedRef.current = false;
+      window.history.back();
+    }
+  }, [anyOpen]);
 
-    window.history.pushState({ quarcOverlay: true }, '');
-    pushedRef.current = true;
-
+  useEffect(() => {
     const onPopState = () => {
-      pushedRef.current = false; // already consumed by the browser/OS itself
-      onCloseRef.current();
-    };
-    window.addEventListener('popstate', onPopState);
-
-    return () => {
-      window.removeEventListener('popstate', onPopState);
-      // Closed via the overlay's own UI, not the back gesture — pop the
-      // entry we pushed so back-button behavior is correct for whatever
-      // comes next, without leaving an extra no-op back-press behind.
-      if (pushedRef.current) {
-        pushedRef.current = false;
-        window.history.back();
+      if (!pushedRef.current) return; // this popstate wasn't ours to handle
+      pushedRef.current = false;
+      for (const o of overlaysRef.current) {
+        if (o.isOpen) o.onClose();
       }
     };
-  }, [isOpen]);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 }

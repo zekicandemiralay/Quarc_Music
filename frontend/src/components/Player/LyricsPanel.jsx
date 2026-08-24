@@ -67,8 +67,16 @@ export default function LyricsPanel({ onClose }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Deliberately only on the handle+header (see JSX below), not the whole
+  // panel — the content is scrollable, and "scroll back up toward the top"
+  // is, gesture-wise, indistinguishable from "swipe down to dismiss". With
+  // this on the whole panel, every downward swipe inside the lyrics text
+  // got treated as a dismiss attempt instead of a scroll. Worst on plain-
+  // text/approximate lyrics specifically, since that view has no protected
+  // zones at all (synced lyrics at least exclude touches starting directly
+  // on a line).
   const onTouchStart = (e) => {
-    if (e.target.closest('button') || e.target.closest('[data-lyric-line]')) return;
+    if (e.target.closest('button')) return;
     startY.current = e.touches[0].clientY;
     dragging.current = true;
     setSnapping(false);
@@ -115,7 +123,6 @@ export default function LyricsPanel({ onClose }) {
       className="fixed inset-0 bg-zinc-950 flex flex-col overflow-hidden"
       style={panelStyle}
       onAnimationEnd={() => { entered.current = true; }}
-      onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
       {/* Blurred cover-art backdrop, matching Spotify's lyrics-view treatment */}
@@ -127,13 +134,13 @@ export default function LyricsPanel({ onClose }) {
       )}
       <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/40 via-zinc-950/80 to-zinc-950 pointer-events-none" />
 
-      {/* Drag handle */}
-      <div className="relative flex justify-center pt-3 pb-1 shrink-0">
-        <div className="w-10 h-1 rounded-full bg-zinc-700" />
-      </div>
+      {/* Drag handle + header — only zone a dismiss-drag can START from */}
+      <div onTouchStart={onTouchStart}>
+        <div className="relative flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-zinc-700" />
+        </div>
 
-      {/* Header */}
-      <div className="relative flex items-center justify-between px-5 pt-3 pb-4 shrink-0">
+        <div className="relative flex items-center justify-between px-5 pt-3 pb-4 shrink-0">
         <div className="min-w-0">
           <h2 className="text-white font-bold text-lg">{t('lyrics.title')}</h2>
           {currentSong && (
@@ -143,6 +150,7 @@ export default function LyricsPanel({ onClose }) {
         <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white transition-colors shrink-0">
           <X size={20} />
         </button>
+        </div>
       </div>
 
       {/* Content */}

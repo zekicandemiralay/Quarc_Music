@@ -209,6 +209,9 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
   const [snapping, setSnapping] = useState(false);
   const entered = useRef(false);
 
+  // Deliberately only on the handle+header (see JSX below), not the whole
+  // sheet — the actions/playlist list is scrollable, and "scroll back up"
+  // is, gesture-wise, indistinguishable from "swipe down to dismiss".
   const onDragStart = (e) => {
     if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
     dragStartY.current = e.touches[0].clientY;
@@ -272,24 +275,24 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
         style={sheetStyle}
         onAnimationEnd={() => { entered.current = true; }}
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={onDragStart}
         onTouchEnd={onDragEnd}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 shrink-0">
-          <div className="w-10 h-1 rounded-full bg-zinc-700" />
-        </div>
-
-        {/* Song info header */}
-        <div className="flex items-center gap-3 px-4 pt-3 pb-4 border-b border-zinc-800 shrink-0">
-          <div className="w-11 h-11 rounded bg-zinc-800 overflow-hidden shrink-0">
-            {song.has_cover
-              ? <img src={coverUrl(song.id)} alt="" loading="lazy" className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={14} /></div>}
+        {/* Drag handle + song info header — only zone a dismiss-drag can START from */}
+        <div onTouchStart={onDragStart}>
+          <div className="flex justify-center pt-3 pb-1 shrink-0">
+            <div className="w-10 h-1 rounded-full bg-zinc-700" />
           </div>
-          <div className="min-w-0">
-            <p className="text-white font-semibold text-sm truncate">{song.title}</p>
-            <p className="text-zinc-400 text-xs truncate">{song.artist || 'Unknown'}</p>
+
+          <div className="flex items-center gap-3 px-4 pt-3 pb-4 border-b border-zinc-800 shrink-0">
+            <div className="w-11 h-11 rounded bg-zinc-800 overflow-hidden shrink-0">
+              {song.has_cover
+                ? <img src={coverUrl(song.id)} alt="" loading="lazy" className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Music size={14} /></div>}
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-semibold text-sm truncate">{song.title}</p>
+              <p className="text-zinc-400 text-xs truncate">{song.artist || 'Unknown'}</p>
+            </div>
           </div>
         </div>
 
@@ -476,7 +479,7 @@ export default function Library({ view = 'all' }) {
   // library page entirely instead of just closing the sheet — it's a
   // fixed inset-0 overlay covering the whole screen, not a route, so the
   // browser/WebView has no idea it's open.
-  useBackableOverlay(!!actionSheet, () => setActionSheet(null));
+  useBackableOverlay([{ isOpen: !!actionSheet, onClose: () => setActionSheet(null) }]);
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 150);
     return () => clearTimeout(t);
