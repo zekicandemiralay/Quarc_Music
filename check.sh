@@ -518,7 +518,7 @@ LYRICS_TEST_ID=$(echo "${SONGS_RESP:-}" | python3 -c "import sys,json; a=json.lo
 if $AUTHED && [ -n "$LYRICS_TEST_ID" ]; then
   LYRICS_RESP=$(curl -sk --max-time 15 -b "$COOKIE" "${BASE}/api/music/${LYRICS_TEST_ID}/lyrics" 2>/dev/null || echo "")
   LYRICS_STATUS=$(echo "$LYRICS_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
-  if [ "$LYRICS_STATUS" = "found" ] || [ "$LYRICS_STATUS" = "not_found" ] || [ "$LYRICS_STATUS" = "instrumental" ]; then
+  if [ "$LYRICS_STATUS" = "found" ] || [ "$LYRICS_STATUS" = "not_found" ] || [ "$LYRICS_STATUS" = "instrumental" ] || [ "$LYRICS_STATUS" = "approximate" ]; then
     ok "GET /api/music/:id/lyrics → status=${LYRICS_STATUS}"
   else
     fail "GET /api/music/:id/lyrics → unexpected response: ${LYRICS_RESP:0:120}"

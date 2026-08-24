@@ -48,6 +48,7 @@
     "nothingPlaying": "Nothing playing",
     "instrumental": "This track is instrumental",
     "notSynced": "Lyrics aren't time-synced for this song — showing plain text.",
+    "approximate": "This recording isn't in the lyrics database — showing lyrics for the original song instead, which may not match this version exactly.",
     "notFound": "No lyrics found",
     "notFoundHint": "This song isn't in the lyrics database yet"
   },

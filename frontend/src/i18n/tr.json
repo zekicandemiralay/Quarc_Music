@@ -48,6 +48,7 @@
     "nothingPlaying": "Hiçbir şey çalmıyor",
     "instrumental": "Bu parça enstrümantal",
     "notSynced": "Bu şarkı için zamanlı söz yok — düz metin gösteriliyor.",
+    "approximate": "Bu kayıt söz veritabanında yok — bunun yerine orijinal şarkının sözleri gösteriliyor, bu versiyonla tam eşleşmeyebilir.",
     "notFound": "Söz bulunamadı",
     "notFoundHint": "Bu şarkı henüz söz veritabanında yok"
   },

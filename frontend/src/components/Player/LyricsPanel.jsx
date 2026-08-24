@@ -176,7 +176,9 @@ export default function LyricsPanel({ onClose }) {
         ) : lyrics.plain ? (
           <div className="max-w-xl mx-auto py-10">
             <p className="text-zinc-300 text-xl font-semibold leading-relaxed whitespace-pre-line">{lyrics.plain}</p>
-            <p className="text-zinc-600 text-xs mt-8">{t('lyrics.notSynced')}</p>
+            <p className="text-zinc-600 text-xs mt-8">
+              {lyrics.status === 'approximate' ? t('lyrics.approximate') : t('lyrics.notSynced')}
+            </p>
           </div>
         ) : (
           <EmptyState icon={<Music2 size={40} className="text-zinc-700 mb-3" />} title={t('lyrics.notFound')} hint={t('lyrics.notFoundHint')} />

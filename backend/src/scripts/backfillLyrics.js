@@ -30,7 +30,7 @@ async function main() {
 
   console.log(`Backfilling lyrics for ${songs.length} song(s)${RETRY_NOT_FOUND ? ' (including past misses)' : ''}...`);
 
-  let found = 0, notFound = 0, instrumental = 0, failed = 0;
+  let found = 0, approximate = 0, notFound = 0, instrumental = 0, failed = 0;
   const update = db.prepare('UPDATE songs SET lyrics_status = ?, lyrics_plain = ?, lyrics_synced = ? WHERE id = ?');
 
   for (let i = 0; i < songs.length; i++) {
@@ -40,6 +40,7 @@ async function main() {
       const status = result?.status || 'not_found';
       update.run(status, result?.plain || null, result?.synced || null, song.id);
       if (status === 'found') found++;
+      else if (status === 'approximate') approximate++; // matched via the broad title-only fallback — plain text from the original song, not this exact recording
       else if (status === 'instrumental') instrumental++;
       else notFound++;
     } catch (err) {
@@ -48,12 +49,12 @@ async function main() {
     }
 
     if ((i + 1) % 25 === 0 || i === songs.length - 1) {
-      console.log(`[${i + 1}/${songs.length}] found=${found} not_found=${notFound} instrumental=${instrumental} failed=${failed}`);
+      console.log(`[${i + 1}/${songs.length}] found=${found} approximate=${approximate} not_found=${notFound} instrumental=${instrumental} failed=${failed}`);
     }
     await sleep(DELAY_MS);
   }
 
-  console.log(`\nDone. found=${found} not_found=${notFound} instrumental=${instrumental} failed=${failed}`);
+  console.log(`\nDone. found=${found} approximate=${approximate} not_found=${notFound} instrumental=${instrumental} failed=${failed}`);
   process.exit(0);
 }
 

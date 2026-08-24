@@ -21,6 +21,64 @@ async function getJson(path, params) {
   return res.json();
 }
 
+// Lightweight word-overlap scorer for the broad fallback below — not the
+// full candidate-scoring machinery ytdlp.js uses for picking a download
+// (duration gating, version-keyword penalties, etc.), because none of that
+// applies here: lrclib candidates carry no duration to compare against, and
+// "acoustic"/"live"/etc. in a title is actually fine to ignore for lyrics
+// purposes (the words are usually the same across versions of a song).
+function normalizeWords(s) {
+  return (s || '')
+    .replace(/[İIı]/g, 'i')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+function wordOverlap(wordsA, wordsB) {
+  if (!wordsA.length) return 0;
+  const setB = new Set(wordsB);
+  return wordsA.filter((w) => setB.has(w)).length / wordsA.length;
+}
+
+// Broad fallback: a title-only search across every artist/version lrclib
+// has, scored to find the closest real match. Used when the recording
+// itself — a cover, remix, or otherwise non-original YouTube upload, often
+// tagged with a wrong or generic artist — isn't in lrclib's database under
+// its own attribution, but the ORIGINAL song's lyrics (same words,
+// whichever performance) almost certainly are. Deliberately PLAIN TEXT
+// ONLY: a different recording's synced timing (different tempo, intro
+// length, etc.) won't line up with this audio, so synced lines are dropped
+// even if the matched candidate has them — showing wrongly-timed karaoke
+// highlighting would be worse than no highlighting at all.
+async function fetchLyricsBroad(artist, title) {
+  let results;
+  try {
+    results = await getJson('/search', { track_name: title });
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(results) || !results.length) return null;
+
+  const titleWords = normalizeWords(title);
+  const artistWords = normalizeWords(artist);
+  let best = null;
+  for (const r of results) {
+    if (!r.plainLyrics) continue; // nothing usable without at least plain text
+    const score = wordOverlap(titleWords, normalizeWords(r.trackName)) * 0.75
+      + wordOverlap(artistWords, normalizeWords(r.artistName)) * 0.25;
+    if (!best || score > best.score) best = { ...r, score };
+  }
+  // Require real confidence in the title match — this is "a different
+  // recording of the same song", not "a vaguely similar title".
+  if (!best || best.score < 0.6) return null;
+  return { status: 'approximate', plain: best.plainLyrics, synced: null };
+}
+
 // artist/title/album come from the song's own tags; durationSecs (if known)
 // lets lrclib's exact-match endpoint confirm it's the same recording, not
 // just the same title — falls back to fuzzy search (no duration check) when
@@ -47,10 +105,11 @@ async function fetchLyrics(artist, title, album, durationSecs) {
       if (result) return result;
     }
   } catch {
-    // no lyrics available — caller records 'not_found'
+    // fall through to the broad fallback
   }
 
-  return null;
+  // Last resort — see fetchLyricsBroad for why this is plain-text-only.
+  return fetchLyricsBroad(artist, title);
 }
 
 module.exports = { fetchLyrics };
