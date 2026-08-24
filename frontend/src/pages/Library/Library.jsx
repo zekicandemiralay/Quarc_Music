@@ -407,6 +407,11 @@ export default function Library({ view = 'all' }) {
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState(null); // brief feedback after scan
   const [search, setSearch] = useState('');
+  // Filtering runs norm() (regex + unicode normalize) across every song's
+  // title/artist/album — real work at library-size scale, so debounce it
+  // slightly rather than recomputing on every single keystroke. The input
+  // itself still uses `search` directly so typing feels instant either way.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [hovered, setHovered] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null); // song ID with open playlist menu
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
@@ -465,6 +470,10 @@ export default function Library({ view = 'all' }) {
 
   useEffect(() => { if (view !== 'mix' && view !== 'featured') load(); }, []);
   useEffect(() => { setVisibleCount(50); }, [search]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 150);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // "Show in library" from the download page — jump to and briefly highlight
   // a specific song. Only meaningful on the main (unfiltered, sorted) view;
@@ -555,14 +564,14 @@ export default function Library({ view = 'all' }) {
   if (view === 'mix') visibleSongs = mixData ? mixData.songs : [];
   if (view === 'featured') visibleSongs = featuredData ? featuredData.songs : [];
 
-  const normSearch = norm(search);
+  const normSearch = norm(debouncedSearch);
   const filtered = visibleSongs.filter(
-    (s) => !search || [s.title, s.artist, s.album].some((f) => norm(f).includes(normSearch))
+    (s) => !debouncedSearch || [s.title, s.artist, s.album].some((f) => norm(f).includes(normSearch))
   );
 
   // Paginate only on the main library view; search results and other views show all
   const PAGE = 50;
-  const paginated = view === 'all' && !search ? filtered.slice(0, visibleCount) : filtered;
+  const paginated = view === 'all' && !debouncedSearch ? filtered.slice(0, visibleCount) : filtered;
 
   const heading =
     view === 'liked' ? t('library.likedSongs') :
@@ -698,8 +707,6 @@ export default function Library({ view = 'all' }) {
             const liked = likedSongs.includes(song.id);
             const isHov = hovered === song.id;
             const justHighlighted = highlightId === song.id;
-            // Clicked song goes first, rest of view follows — avoids running out if song is near end
-            const songQueue = [song, ...visibleSongs.filter((s) => s.id !== song.id)];
             return (
               <div
                 key={song.id}
@@ -718,7 +725,15 @@ export default function Library({ view = 'all' }) {
                 className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_2fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group ${
                   active ? 'bg-zinc-700/40' : 'bg-[#121212] md:bg-transparent hover:bg-zinc-700/20'
                 } ${justHighlighted ? 'ring-2 ring-green-400/70' : ''}`}
-                onClick={() => playSong(song, isPlaylist ? visibleSongs : songQueue, isPlaylist ? visibleSongs.indexOf(song) : 0, isPlaylist ? 'playlist' : 'single', heading)}
+                onClick={() => {
+                  // Built lazily, only for the row actually clicked — was previously
+                  // built eagerly for every rendered row on every render (a full
+                  // library-sized filter() per row), which turned typing in the
+                  // search box into real O(n²) main-thread work as results re-rendered
+                  // on each keystroke, causing brief freezes.
+                  const queue = isPlaylist ? visibleSongs : [song, ...visibleSongs.filter((s) => s.id !== song.id)];
+                  playSong(song, queue, isPlaylist ? visibleSongs.indexOf(song) : 0, isPlaylist ? 'playlist' : 'single', heading);
+                }}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}
                 onTouchStart={(e) => {
