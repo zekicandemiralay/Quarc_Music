@@ -145,6 +145,39 @@ function prefetchBlob(songId) {
   return p;
 }
 
+// Runs `fn` once real audible playback begins (the 'playing' event fires
+// whether that's via quickStart's blob swap or the native stream buffering
+// on its own), instead of immediately — kicking off startPrebuffering/
+// schedulePreload's heavy full-file fetches in the same instant as
+// quickStart's small "first few seconds" chunk request made them compete
+// for the same bandwidth right when startup latency matters most. A longer
+// current song makes this worse: its own full-file prefetch (deduped with
+// quickStart's eventual full-blob fetch) stays open longer, extending
+// exactly how long that contention lasts. A timeout fallback still runs it
+// even if 'playing' never fires (autoplay blocked, playback failed, etc.),
+// so prebuffering/gapless-next never silently stops working.
+// Superseding token so a rapid string of skips (before any of them actually
+// reaches 'playing') doesn't leave several stale calls all firing their
+// prebuffering for songs that aren't current anymore — only the most recent
+// deferUntilPlaying call's fn ever actually runs; earlier ones just clean up.
+let deferToken = 0;
+function deferUntilPlaying(fn) {
+  const myToken = ++deferToken;
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    audio.removeEventListener('playing', run);
+    clearTimeout(fallback);
+  };
+  const run = () => {
+    cleanup();
+    if (myToken === deferToken) fn();
+  };
+  audio.addEventListener('playing', run);
+  const fallback = setTimeout(run, 4000);
+}
+
 function startPrebuffering(queue, currentIndex) {
   // Include current song so its blob is ready if Tailscale drops mid-stream.
   const upcoming = new Set(
@@ -336,8 +369,10 @@ const usePlayerStore = create((set, get) => ({
     audio.src = preBuffered ? blobCache.get(song.id) : streamUrl(song.id);
     audio.play().catch(() => set({ isPlaying: false }));
     if (!preBuffered) quickStart(song.id);
-    schedulePreload(finalQueue, finalIndex);
-    startPrebuffering(finalQueue, finalIndex);
+    deferUntilPlaying(() => {
+      schedulePreload(finalQueue, finalIndex);
+      startPrebuffering(finalQueue, finalIndex);
+    });
 
     // Background: if this song is cached, load the blob and swap in only when
     // offline (stream would fail anyway) or before audio has started buffering.
@@ -411,8 +446,10 @@ const usePlayerStore = create((set, get) => ({
       applyMediaSessionMeta(queue[idx]);
       audio.src = blobCache.has(queue[idx].id) ? blobCache.get(queue[idx].id) : nextSrc;
       audio.play().catch(() => {});
-      schedulePreload(queue, idx);
-      startPrebuffering(queue, idx);
+      deferUntilPlaying(() => {
+        schedulePreload(queue, idx);
+        startPrebuffering(queue, idx);
+      });
     } else {
       get().playSong(queue[idx], queue, idx, playContext, playContextLabel, true);
     }
