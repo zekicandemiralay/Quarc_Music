@@ -107,6 +107,13 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
   HAS_COVER=$(echo "$SONGS" | python3 -c "import sys,json; a=json.load(sys.stdin); print(a[0].get('has_cover','false'))" 2>/dev/null || echo "false")
 
   if [ -n "$FIRST_ID" ]; then
+    SONG_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music/${FIRST_ID}")
+    if [ "$SONG_CODE" = "200" ]; then
+      pass "GET /api/music/:id → HTTP 200"
+    else
+      fail "GET /api/music/:id → HTTP ${SONG_CODE}"
+    fi
+
     STREAM_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music/${FIRST_ID}/stream")
     if [ "$STREAM_CODE" = "200" ] || [ "$STREAM_CODE" = "206" ]; then
       pass "GET /api/music/:id/stream → HTTP ${STREAM_CODE}"

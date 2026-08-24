@@ -67,6 +67,15 @@ router.get('/', (req, res) => {
   res.json(songs);
 });
 
+// Single-song lookup — used by "Play now" straight from the download page,
+// which only has a song ID at that point, not the full record playSong()
+// needs (title/artist/has_cover/duration/etc.).
+router.get('/:id', (req, res) => {
+  const song = getDb().prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id);
+  if (!song) return res.status(404).json({ error: 'Song not found' });
+  res.json(song);
+});
+
 router.post('/scan', async (_req, res) => {
   try {
     const count = await scanMusicDir(MUSIC_DIR);

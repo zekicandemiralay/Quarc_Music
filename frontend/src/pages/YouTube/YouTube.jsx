@@ -1,9 +1,10 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useSearchParams } from 'react-router-dom';
-import { Search, X, Download, CheckCircle, AlertCircle, Play, ListPlus } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Search, X, Download, CheckCircle, AlertCircle, Play, ListPlus, Library } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useUserDataStore from '../../store/userDataStore';
+import usePlayerStore from '../../store/playerStore';
 
 function fmtDur(s) {
   if (!s) return '';
@@ -84,12 +85,25 @@ function PlaylistPicker({ songId, onClose, anchorRef }) {
 
 function DownloadBtn({ videoId, title }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [status, setStatus] = useState(null);
   const [progress, setProgress] = useState(0);
   const [jobId, setJobId] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [songId, setSongId] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
+  const [playing, setPlaying] = useState(false);
+
+  async function playNow() {
+    if (!songId || playing) return;
+    setPlaying(true);
+    try {
+      const r = await fetch(`/api/music/${songId}`);
+      if (r.ok) usePlayerStore.getState().playSong(await r.json());
+    } finally {
+      setPlaying(false);
+    }
+  }
 
   useEffect(() => {
     if (!jobId || status === 'done' || status === 'error') return;
@@ -137,6 +151,21 @@ function DownloadBtn({ videoId, title }) {
         </span>
         {songId && (
           <>
+            <button
+              onClick={playNow}
+              disabled={playing}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white rounded-full text-xs font-medium transition-colors disabled:opacity-50"
+            >
+              <Play size={12} className="fill-current" />
+              {t('youtube.playNow')}
+            </button>
+            <button
+              onClick={() => navigate(`/library?highlight=${songId}`)}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white rounded-full text-xs font-medium transition-colors"
+            >
+              <Library size={13} />
+              {t('youtube.showInLibrary')}
+            </button>
             <button
               ref={pickerBtnRef}
               onClick={() => setShowPicker((v) => !v)}

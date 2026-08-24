@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Play, Search, RefreshCw, Music, Youtube, Heart, ListPlus, X, Shuffle, Download, WifiOff, Sparkles, Clock, Mic2, ListOrdered, MoreHorizontal, ListMusic, Share2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import usePlayerStore from '../../store/playerStore';
@@ -413,6 +413,8 @@ export default function Library({ view = 'all' }) {
   const [queueToast, setQueueToast] = useState(null); // brief "Added to queue" feedback
   const [actionSheet, setActionSheet] = useState(null); // song object for mobile action sheet
   const [visibleCount, setVisibleCount] = useState(50);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightId, setHighlightId] = useState(null); // "Show in library" from the download page
   const queueToastTimer = useRef(null);
   const swipeRef = useRef({ startX: 0, startY: 0, song: null, el: null, isH: false, lastDx: 0 });
   const songListRef = useRef(null);
@@ -463,6 +465,28 @@ export default function Library({ view = 'all' }) {
 
   useEffect(() => { if (view !== 'mix' && view !== 'featured') load(); }, []);
   useEffect(() => { setVisibleCount(50); }, [search]);
+
+  // "Show in library" from the download page — jump to and briefly highlight
+  // a specific song. Only meaningful on the main (unfiltered, sorted) view;
+  // a fresh download is never inside a specific playlist/mix/collection.
+  useEffect(() => {
+    if (view !== 'all') return;
+    const hl = searchParams.get('highlight');
+    if (!hl || !songs.length) return;
+    const idx = songs.findIndex((s) => s.id === hl);
+    if (idx === -1) return;
+    setVisibleCount((v) => Math.max(v, idx + 10)); // make sure it's actually rendered, past the 50-item cap
+    setHighlightId(hl);
+    setSearchParams({}, { replace: true }); // don't repeat this on refresh/back-nav
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        songListRef.current?.querySelector(`[data-song-id="${hl}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+    });
+    const clearTimer = setTimeout(() => setHighlightId(null), 2500);
+    return () => clearTimeout(clearTimer);
+  }, [songs, view]);
 
   // Track recently accessed playlists for home page quick access
   useEffect(() => {
@@ -673,10 +697,15 @@ export default function Library({ view = 'all' }) {
             const active = currentSong?.id === song.id;
             const liked = likedSongs.includes(song.id);
             const isHov = hovered === song.id;
+            const justHighlighted = highlightId === song.id;
             // Clicked song goes first, rest of view follows — avoids running out if song is near end
             const songQueue = [song, ...visibleSongs.filter((s) => s.id !== song.id)];
             return (
-              <div key={song.id} className="relative overflow-hidden md:overflow-visible border-b border-zinc-800/50 md:border-0 last:border-0 rounded-md md:rounded-none">
+              <div
+                key={song.id}
+                data-song-id={song.id}
+                className="relative overflow-hidden md:overflow-visible border-b border-zinc-800/50 md:border-0 last:border-0 rounded-md md:rounded-none"
+              >
                 {/* Swipe-right reveal layer — mobile only */}
                 <div
                   className="md:hidden absolute inset-0 flex items-center gap-2 px-5 pointer-events-none rounded-md"
@@ -688,7 +717,7 @@ export default function Library({ view = 'all' }) {
               <div
                 className={`relative grid grid-cols-[1fr_3rem_3.5rem] md:grid-cols-[2rem_2fr_1fr_1fr_4rem_3rem] gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-2 rounded-md cursor-pointer transition-colors items-center group ${
                   active ? 'bg-zinc-700/40' : 'bg-[#121212] md:bg-transparent hover:bg-zinc-700/20'
-                }`}
+                } ${justHighlighted ? 'ring-2 ring-green-400/70' : ''}`}
                 onClick={() => playSong(song, isPlaylist ? visibleSongs : songQueue, isPlaylist ? visibleSongs.indexOf(song) : 0, isPlaylist ? 'playlist' : 'single', heading)}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}

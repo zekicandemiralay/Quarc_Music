@@ -139,6 +139,8 @@
     "downloadMp3": "Download MP3",
     "savedToLibrary": "Saved to library",
     "processing": "Processing…",
+    "playNow": "Play now",
+    "showInLibrary": "Show in library",
     "failed": "Failed",
     "openInYoutube": "Open in YouTube ↗"
   },
