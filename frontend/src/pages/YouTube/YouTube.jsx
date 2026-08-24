@@ -157,15 +157,25 @@ function DownloadBtn({ videoId, title }) {
         {errorMsg && <span className="text-xs text-zinc-500 max-w-xs truncate" title={errorMsg}>{errorMsg}</span>}
       </div>
     );
-  if (status === 'downloading' || status === 'pending')
+  if (status === 'downloading' || status === 'pending') {
+    // The download itself only accounts for part of the work — yt-dlp still
+    // has to transcode to mp3, embed cover art + tags, then the backend
+    // re-scans the finished file to record accurate metadata. None of that
+    // moves the progress number, so without this it looked frozen/stuck at
+    // 100% for several real seconds instead of looking like it's still going.
+    const stillProcessing = progress >= 100;
     return (
       <div className="flex items-center gap-2 text-zinc-400 text-sm">
         <div className="w-28 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-          <div className="h-full bg-red-500 transition-all" style={{ width: `${progress}%` }} />
+          <div
+            className={`h-full bg-red-500 transition-all ${stillProcessing ? 'animate-pulse' : ''}`}
+            style={{ width: `${progress}%` }}
+          />
         </div>
-        <span>{Math.round(progress)}%</span>
+        <span>{stillProcessing ? t('youtube.processing') : `${Math.round(progress)}%`}</span>
       </div>
     );
+  }
 
   return (
     <button

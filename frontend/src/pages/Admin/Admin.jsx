@@ -211,15 +211,23 @@ function CollectionDownloadBtn({ videoId, title, featuredPlaylistId, onDone }) {
 
   if (status === 'done') return <span className="flex items-center gap-1 text-green-400 text-xs"><CheckCircle size={12} />{t('admin.collections.added')}</span>;
   if (status === 'error') return <span className="text-red-400 text-xs">{t('admin.collections.downloadFailed')}</span>;
-  if (status === 'downloading' || status === 'pending')
+  if (status === 'downloading' || status === 'pending') {
+    // See YouTube.jsx's DownloadBtn — progress caps at 100 while yt-dlp is
+    // still transcoding/embedding tags and the backend re-scans the file,
+    // so without this it looks frozen at 100% for several real seconds.
+    const stillProcessing = progress >= 100;
     return (
       <div className="flex items-center gap-1.5 text-zinc-400 text-xs">
         <div className="w-16 h-1 bg-zinc-700 rounded-full overflow-hidden">
-          <div className="h-full bg-violet-500 transition-all" style={{ width: `${progress}%` }} />
+          <div
+            className={`h-full bg-violet-500 transition-all ${stillProcessing ? 'animate-pulse' : ''}`}
+            style={{ width: `${progress}%` }}
+          />
         </div>
-        {Math.round(progress)}%
+        {stillProcessing ? t('youtube.processing') : `${Math.round(progress)}%`}
       </div>
     );
+  }
 
   return (
     <button onClick={start} className="flex items-center gap-1 px-2.5 py-1 bg-violet-700 hover:bg-violet-600 text-white rounded-full text-xs font-medium transition-colors">
