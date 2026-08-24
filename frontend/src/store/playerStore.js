@@ -214,6 +214,10 @@ async function quickStart(songId) {
     const chunkBlob = await res.blob();
     if (usePlayerStore.getState().currentSong?.id !== songId || audio.readyState >= 2) return;
 
+    // Skip the chunk swap entirely if a deep seek is already in flight —
+    // that means the user asked for a position this tiny chunk doesn't even
+    // cover, so swapping to it here would just get immediately swapped away.
+    if (pendingDeepSeek) return;
     chunkUrl = URL.createObjectURL(chunkBlob);
     const t = audio.currentTime;
     const wasPlaying = !audio.paused;
@@ -226,7 +230,7 @@ async function quickStart(songId) {
     // than stalling. Fires at most once — after that, either the fallback
     // stream or the full-blob handoff below is in control.
     const onRunDry = () => {
-      if (usePlayerStore.getState().currentSong?.id !== songId || blobCache.has(songId)) return;
+      if (usePlayerStore.getState().currentSong?.id !== songId || blobCache.has(songId) || pendingDeepSeek) return;
       const tt = audio.currentTime;
       audio.src = streamUrl(songId);
       if (tt > 0) audio.currentTime = tt;
@@ -238,6 +242,11 @@ async function quickStart(songId) {
     audio.removeEventListener('waiting', onRunDry);
     if (!fullUrl || usePlayerStore.getState().currentSong?.id !== songId) return;
 
+    // Don't reapply a captured currentTime if a deep seek is currently
+    // waiting on its own source swap to reach 'canplay' — that seek's target
+    // is the authoritative position the user actually asked for; this one
+    // is just wherever playback happened to be a moment ago.
+    if (pendingDeepSeek) { if (audio.src !== fullUrl) audio.src = fullUrl; return; }
     const t2 = audio.currentTime;
     const wasPlaying2 = !audio.paused;
     audio.src = fullUrl;
@@ -249,6 +258,20 @@ async function quickStart(songId) {
   } finally {
     if (chunkUrl) URL.revokeObjectURL(chunkUrl);
   }
+}
+
+// A deep seek past what's currently loaded (see seek() below) swaps audio.src
+// and waits for 'canplay' before applying the target position. Tracked here
+// (rather than just a local closure) so: (a) a rapid second seek before the
+// first's 'canplay' fires cancels the stale one instead of both firing, and
+// (b) starting a genuinely different song cancels it too — otherwise a
+// pending listener could fire on the NEW song's audio element once ITS
+// source reaches 'canplay', seeking it to the OLD song's target position.
+let pendingDeepSeek = null;
+function cancelPendingDeepSeek() {
+  if (!pendingDeepSeek) return;
+  audio.removeEventListener('canplay', pendingDeepSeek);
+  pendingDeepSeek = null;
 }
 
 // Seek buttons on iOS appear when seekforward/seekbackward handlers are registered,
@@ -321,6 +344,7 @@ const usePlayerStore = create((set, get) => ({
       set({ currentTime: 0 });
       return;
     }
+    cancelPendingDeepSeek(); // starting a different song — don't let a stale seek target leak into it
     // Manual play clears the forward stack — user started a new context.
     if (!navigating && !goingBack) forwardStack.length = 0;
 
@@ -381,6 +405,7 @@ const usePlayerStore = create((set, get) => ({
       getAudioBlob(song.id).then((blob) => {
         if (!blob || usePlayerStore.getState().currentSong?.id !== song.id) return;
         if (navigator.onLine && audio.readyState >= 2) return; // stream already buffering — don't disrupt
+        if (pendingDeepSeek) return; // a deep seek's own source swap is already in flight — don't fight it
         const blobUrl = URL.createObjectURL(blob);
         const t = audio.currentTime;
         const wasPlaying = !audio.paused;
@@ -432,6 +457,7 @@ const usePlayerStore = create((set, get) => ({
     // If preloader already buffered this song, swap it in directly for instant start
     const nextSrc = streamUrl(queue[idx].id);
     if (preloader.src === nextSrc && !preloader.error) {
+      cancelPendingDeepSeek(); // starting a different song — don't let a stale seek target leak into it
       // Save current song to history (playSong normally does this but is bypassed here)
       if (!goingBack) {
         const cur = get();
@@ -489,7 +515,46 @@ const usePlayerStore = create((set, get) => ({
     }
   },
 
-  seek: (time) => { audio.currentTime = time; set({ currentTime: time }); },
+  seek: (time) => {
+    const { currentSong } = get();
+    // Cancel unconditionally, before the branch below — otherwise a second
+    // seek arriving while audio.duration is momentarily unavailable (NaN,
+    // right after a source swap, before 'canplay') would skip the branch
+    // entirely and leave the FIRST seek's pending listener as the one that
+    // ends up firing, applying the wrong (earlier) target position.
+    cancelPendingDeepSeek();
+    // Early in playback, audio.src is often a truncated source — the
+    // quick-start chunk (~15-20s) or a network stream that hasn't buffered
+    // this far yet — so audio.duration only reflects what's actually
+    // loaded. Seeking past it silently CLAMPS currentTime to the end of
+    // that small range instead of reaching the target, with no error. Worse,
+    // the background full-file handoff (quickStart) captures currentTime
+    // *at swap time* and reapplies it to the new source — reapplying that
+    // clamped value, which looks like the song randomly jumped back /
+    // "restarted" right as the source swapped. Confirmed in production.
+    if (currentSong && audio.duration && time > audio.duration + 0.5) {
+      // Prefer the fully-cached blob if we already have it (instant, no
+      // network); otherwise the plain network stream — the backend serves
+      // it with Range support, so the browser can jump straight to roughly
+      // the right byte offset instead of needing to download everything up
+      // to that point first.
+      const full = blobCache.has(currentSong.id) ? blobCache.get(currentSong.id) : streamUrl(currentSong.id);
+      if (audio.src !== full) {
+        const wasPlaying = !audio.paused;
+        audio.src = full;
+        pendingDeepSeek = () => {
+          audio.currentTime = time;
+          if (wasPlaying) audio.play().catch(() => {});
+          pendingDeepSeek = null;
+        };
+        audio.addEventListener('canplay', pendingDeepSeek, { once: true });
+        set({ currentTime: time });
+        return;
+      }
+    }
+    audio.currentTime = time;
+    set({ currentTime: time });
+  },
   setVolume: (v) => { audio.volume = v; set({ volume: v }); },
 
   // ── Manual queue management ──────────────────────────────────────────────
