@@ -10,6 +10,7 @@ import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
 import useRadioStore from '../../store/useRadioStore';
 import { coverUrl } from '../../lib/apiUrl';
+import useBackableOverlay from '../../hooks/useBackableOverlay';
 
 // Normalize for search: strips diacritics (ş→s, ü→u, é→e, etc.) and lowercases.
 // ı (Turkish dotless-i, U+0131) has no NFD decomposition so we replace it explicitly.
@@ -470,6 +471,12 @@ export default function Library({ view = 'all' }) {
 
   useEffect(() => { if (view !== 'mix' && view !== 'featured') load(); }, []);
   useEffect(() => { setVisibleCount(50); }, [search]);
+
+  // Without this, Android's back gesture/button navigates away from the
+  // library page entirely instead of just closing the sheet — it's a
+  // fixed inset-0 overlay covering the whole screen, not a route, so the
+  // browser/WebView has no idea it's open.
+  useBackableOverlay(!!actionSheet, () => setActionSheet(null));
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 150);
     return () => clearTimeout(t);

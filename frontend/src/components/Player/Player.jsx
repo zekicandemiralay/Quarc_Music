@@ -9,6 +9,7 @@ import useInternetRadioStore from '../../store/useInternetRadioStore';
 import QueuePanel from './QueuePanel';
 import LyricsPanel from './LyricsPanel';
 import { coverUrl } from '../../lib/apiUrl';
+import useBackableOverlay from '../../hooks/useBackableOverlay';
 
 function fmt(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -450,6 +451,13 @@ export default function Player() {
   const closeQueue = () => setShowQueue(false);
   const openLyrics = () => setShowLyrics(true);
   const closeLyrics = () => setShowLyrics(false);
+
+  // Without this, Android's back gesture/button navigates whatever page is
+  // underneath these overlays instead of closing them — they're component
+  // state, not a route, so the browser/WebView has no idea they exist.
+  useBackableOverlay(expanded, closeExpanded);
+  useBackableOverlay(showQueue, closeQueue);
+  useBackableOverlay(showLyrics, closeLyrics);
 
   useEffect(() => {
     if (!expanded) return;
