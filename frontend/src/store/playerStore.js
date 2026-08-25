@@ -281,6 +281,13 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 // Tracks accumulated real-time seconds for the current song
 let playTrack = { songId: null, accumulated: 0, resumeAt: null };
 
+// The pre-shuffle (natural) order of the queue, remembered whenever shuffling
+// actually happens (playSong's own shuffle-on-start branch, shufflePlay, or
+// toggleShuffle turning on) — so turning shuffle back OFF mid-playback can
+// restore the remaining songs to their real order instead of just flipping
+// the flag and leaving the queue shuffled forever (the previous behavior).
+let originalQueue = null;
+
 // Play history for the back button — stores snapshots of previous songs
 const playHistory = [];
 // Forward stack: when the user presses Back, the current snapshot is pushed here
@@ -368,6 +375,7 @@ const usePlayerStore = create((set, get) => ({
     let finalQueue = queue || [song];
     let finalIndex = queueIndex;
     if (state.shuffle && finalQueue.length > 1 && !navigating) {
+      originalQueue = finalQueue; // natural order, before shuffling — see toggleShuffle
       const others = finalQueue.filter((s) => s.id !== song.id);
       finalQueue = [song, ...smartShuffle(others)];
       finalIndex = 0;
@@ -494,9 +502,16 @@ const usePlayerStore = create((set, get) => ({
 
   shufflePlay: (songs, context = 'single', contextLabel = '') => {
     if (!songs.length) return;
+    originalQueue = songs; // natural order, before shuffling — see toggleShuffle
+    forwardStack.length = 0; // fresh play context, same as a normal (non-navigating) playSong call
     const shuffled = smartShuffle(songs);
     set({ shuffle: true });
-    get().playSong(shuffled[0], shuffled, 0, context, contextLabel);
+    // navigating=true so playSong treats `shuffled` as already-final and
+    // doesn't reshuffle it again on top (it otherwise would, now that
+    // shuffle is true — harmless before, but would also stomp the
+    // originalQueue this just set with the already-shuffled array instead
+    // of the real natural order).
+    get().playSong(shuffled[0], shuffled, 0, context, contextLabel, true);
   },
 
   toggleShuffle: () => {
@@ -507,9 +522,22 @@ const usePlayerStore = create((set, get) => ({
       // is and shuffle only the not-yet-played remainder — reshuffling the whole
       // queue would toss songs from earlier this session back into the pool,
       // letting one resurface just a few tracks after it already played.
+      originalQueue = queue; // natural order, before shuffling — restored below if shuffle turns back off
       const played = queue.slice(0, queueIndex + 1);
       const upcoming = queue.slice(queueIndex + 1);
       set({ shuffle: true, queue: [...played, ...smartShuffle(upcoming)], queueIndex });
+    } else if (!newShuffle && originalQueue && currentSong) {
+      // Turning shuffle back OFF — previously this branch only flipped the
+      // flag, leaving the queue shuffled forever with no way back. Restore
+      // the not-yet-played songs to their natural order; already-played
+      // songs are left alone (same philosophy as turning shuffle on above).
+      // Whatever the shuffled order already played is filtered out of the
+      // restored natural list so it doesn't play a second time.
+      const played = queue.slice(0, queueIndex + 1);
+      const playedIds = new Set(played.map((s) => s.id));
+      const upcomingNatural = originalQueue.filter((s) => !playedIds.has(s.id));
+      set({ shuffle: false, queue: [...played, ...upcomingNatural], queueIndex });
+      originalQueue = null;
     } else {
       set({ shuffle: newShuffle });
     }
