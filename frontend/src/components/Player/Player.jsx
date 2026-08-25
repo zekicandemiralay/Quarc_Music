@@ -395,7 +395,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
           </button>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => { onClose(); onOpenLyrics(); }}
+              onClick={onOpenLyrics}
               disabled={!currentSong}
               className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors disabled:opacity-30"
               title={t('lyrics.title')}
@@ -403,7 +403,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
               <Mic2 size={20} />
             </button>
             <button
-              onClick={() => { onClose(); onOpenQueue(); }}
+              onClick={onOpenQueue}
               className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors"
               title={t('player.queue')}
             >

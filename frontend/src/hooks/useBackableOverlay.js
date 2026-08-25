@@ -14,42 +14,51 @@ import { useEffect, useRef } from 'react';
 // any platform that maps a back action to history.back() has the same
 // latent bug (desktop browser back button, iOS Safari edge-swipe).
 //
-// Takes the WHOLE group at once (not one hook per overlay) and reacts to
-// "is ANY of them open" as a single aggregate signal — this matters because
-// switching directly from one overlay to another (e.g. tapping Lyrics from
-// inside the expanded player, which does onClose() then onOpenLyrics() in
-// the same instant) must NOT pop then push a history entry: history.back()'s
-// effects aren't synchronous, so a push landing before the pop actually
-// resolves makes the pop consume the WRONG (newly pushed) entry, firing a
-// spurious popstate that immediately closes whatever had just opened.
-// Confirmed reproducing on iPhone from exactly that transition. Tracking
-// "any open" instead means switching between overlays changes nothing about
-// that aggregate (still true throughout), so no history operation happens
-// at all mid-transition — only a genuine none-open <-> something-open edge
-// pushes or pops.
+// Pass the WHOLE group at once, in base-to-top order (e.g. [expanded,
+// queue, lyrics] — Lyrics/Queue can be opened while Now Playing stays open
+// underneath them, layering on top of it). Tracks the NUMBER of currently-
+// open overlays (not just whether any are open) and keeps that many history
+// entries pushed, so:
+//  - opening a second overlay on top of an already-open one pushes one more
+//    entry, and a single back-press only closes the topmost one, revealing
+//    the one underneath — not both at once.
+//  - switching directly between overlays (closing one, opening a different
+//    one, in the same instant) leaves the open-count unchanged, so no
+//    history operation happens for that transition at all. This matters:
+//    history.back()'s effects aren't synchronous, so if that transition
+//    *did* pop-then-push, a push landing before the pop resolves makes the
+//    pop consume the wrong (newly-pushed) entry — a spurious popstate that
+//    immediately closes whatever had just opened. Confirmed reproducing on
+//    iPhone from exactly that transition; WebKit's timing apparently hits
+//    this race where Chromium (Android) didn't.
 export default function useBackableOverlay(overlays) {
-  const pushedRef = useRef(false);
+  const pushedCountRef = useRef(0);
   const overlaysRef = useRef(overlays);
   overlaysRef.current = overlays;
 
-  const anyOpen = overlays.some((o) => o.isOpen);
+  const openCount = overlays.filter((o) => o.isOpen).length;
 
   useEffect(() => {
-    if (anyOpen && !pushedRef.current) {
+    while (pushedCountRef.current < openCount) {
       window.history.pushState({ quarcOverlay: true }, '');
-      pushedRef.current = true;
-    } else if (!anyOpen && pushedRef.current) {
-      pushedRef.current = false;
+      pushedCountRef.current++;
+    }
+    while (pushedCountRef.current > openCount) {
+      pushedCountRef.current--;
       window.history.back();
     }
-  }, [anyOpen]);
+  }, [openCount]);
 
   useEffect(() => {
     const onPopState = () => {
-      if (!pushedRef.current) return; // this popstate wasn't ours to handle
-      pushedRef.current = false;
-      for (const o of overlaysRef.current) {
-        if (o.isOpen) o.onClose();
+      if (pushedCountRef.current <= 0) return; // not ours to handle
+      pushedCountRef.current--;
+      // Close only the topmost currently-open overlay — the LAST one in
+      // the array that's open, since the array is given in base-to-top
+      // order and only the top layer should close on one back-press.
+      const list = overlaysRef.current;
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i].isOpen) { list[i].onClose(); break; }
       }
     };
     window.addEventListener('popstate', onPopState);
