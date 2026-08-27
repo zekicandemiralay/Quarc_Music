@@ -527,16 +527,18 @@ const usePlayerStore = create((set, get) => ({
       const upcoming = queue.slice(queueIndex + 1);
       set({ shuffle: true, queue: [...played, ...smartShuffle(upcoming)], queueIndex });
     } else if (!newShuffle && originalQueue && currentSong) {
-      // Turning shuffle back OFF — previously this branch only flipped the
-      // flag, leaving the queue shuffled forever with no way back. Restore
-      // the not-yet-played songs to their natural order; already-played
-      // songs are left alone (same philosophy as turning shuffle on above).
-      // Whatever the shuffled order already played is filtered out of the
-      // restored natural list so it doesn't play a second time.
-      const played = queue.slice(0, queueIndex + 1);
-      const playedIds = new Set(played.map((s) => s.id));
-      const upcomingNatural = originalQueue.filter((s) => !playedIds.has(s.id));
-      set({ shuffle: false, queue: [...played, ...upcomingNatural], queueIndex });
+      // Turning shuffle back OFF — continue forward from the CURRENT song's
+      // position in natural order (5th song -> upcoming becomes 6th, 7th,
+      // 8th...), not "whatever the shuffle hasn't happened to play yet".
+      // That was the previous (still wrong) version of this fix: filtering
+      // out only already-played songs incorrectly pulled earlier-in-
+      // natural-order songs back into the upcoming queue just because the
+      // shuffle hadn't reached them yet, instead of genuinely continuing on.
+      const idx = originalQueue.findIndex((s) => s.id === currentSong.id);
+      const upcomingNatural = idx >= 0
+        ? originalQueue.slice(idx + 1)
+        : originalQueue.filter((s) => s.id !== currentSong.id); // fallback: song not found in the remembered natural order
+      set({ shuffle: false, queue: [currentSong, ...upcomingNatural], queueIndex: 0 });
       originalQueue = null;
     } else {
       set({ shuffle: newShuffle });
