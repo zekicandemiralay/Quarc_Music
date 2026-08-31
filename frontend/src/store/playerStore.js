@@ -426,7 +426,16 @@ const usePlayerStore = create((set, get) => ({
 
   pause: () => { pausedByUser = true; audio.pause(); set({ isPlaying: false }); },
   resume: () => {
-    set({ isPlaying: true }); // optimistic — reverted below if play() rejects
+    // Clears a stale "waiting for radio" flag — otherwise, if the queue had
+    // run out and the user just resumes/replays the same (already-ended)
+    // song instead of picking something new, a radio-fill download that was
+    // silently kicked off in the background when the queue first ran out
+    // can finish later and force-jump to that unrelated song, yanking
+    // playback away mid-listen. Confirmed reported in production: user
+    // rewound to replay the last song in a playlist, then got abruptly
+    // switched to a song never in that playlist once the background
+    // download completed. See seek() below for the same fix.
+    set({ isPlaying: true, waitingForRadio: false }); // optimistic — reverted below if play() rejects
     audio.play().catch(() => set({ isPlaying: false }));
   },
 
@@ -553,6 +562,11 @@ const usePlayerStore = create((set, get) => ({
     // entirely and leave the FIRST seek's pending listener as the one that
     // ends up firing, applying the wrong (earlier) target position.
     cancelPendingDeepSeek();
+    // Clears a stale "waiting for radio" flag — see resume() above for why:
+    // seeking on the current song (e.g. rewinding to replay it after it
+    // ended) means the user is actively taking control back, not waiting
+    // for the queue to be auto-filled.
+    if (get().waitingForRadio) set({ waitingForRadio: false });
     // Early in playback, audio.src is often a truncated source — the
     // quick-start chunk (~15-20s) or a network stream that hasn't buffered
     // this far yet — so audio.duration only reflects what's actually
