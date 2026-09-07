@@ -8,6 +8,11 @@
 // Usage (run inside the backend container):
 //   node src/scripts/backfillLyrics.js
 //   node src/scripts/backfillLyrics.js --retry-not-found   # also retries past misses
+//   node src/scripts/backfillLyrics.js --recheck-weak      # also re-checks every
+//       result that isn't a confident synced match (not_found / approximate /
+//       instrumental). Worth running after a matching improvement: an
+//       'approximate' song (plain text from a different recording) may now
+//       resolve to a proper time-synced match.
 //
 // Idempotent and resumable — safe to re-run or Ctrl+C and continue later,
 // since already-checked songs (status set) are skipped by default.
@@ -15,6 +20,7 @@ const { getDb, initDb } = require('../db');
 const { fetchLyrics } = require('../services/lyrics');
 
 const RETRY_NOT_FOUND = process.argv.includes('--retry-not-found');
+const RECHECK_WEAK = process.argv.includes('--recheck-weak');
 const DELAY_MS = 300; // courtesy throttle — lrclib is a free community service
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
@@ -23,12 +29,16 @@ async function main() {
   initDb();
   const db = getDb();
 
-  const statusFilter = RETRY_NOT_FOUND
-    ? `lyrics_status IS NULL OR lyrics_status = 'not_found'`
-    : `lyrics_status IS NULL`;
+  const statusFilter = RECHECK_WEAK
+    ? `lyrics_status IS NULL OR lyrics_status IN ('not_found', 'approximate', 'instrumental')`
+    : RETRY_NOT_FOUND
+      ? `lyrics_status IS NULL OR lyrics_status = 'not_found'`
+      : `lyrics_status IS NULL`;
   const songs = db.prepare(`SELECT * FROM songs WHERE ${statusFilter} ORDER BY artist, album, track`).all();
 
-  console.log(`Backfilling lyrics for ${songs.length} song(s)${RETRY_NOT_FOUND ? ' (including past misses)' : ''}...`);
+  const scope = RECHECK_WEAK ? ' (re-checking everything but confident matches)'
+    : RETRY_NOT_FOUND ? ' (including past misses)' : '';
+  console.log(`Backfilling lyrics for ${songs.length} song(s)${scope}...`);
 
   let found = 0, approximate = 0, notFound = 0, instrumental = 0, failed = 0;
   const update = db.prepare('UPDATE songs SET lyrics_status = ?, lyrics_plain = ?, lyrics_synced = ? WHERE id = ?');

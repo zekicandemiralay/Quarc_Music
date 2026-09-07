@@ -5,6 +5,46 @@
 const LRCLIB_BASE = 'https://lrclib.net/api';
 const USER_AGENT = 'QuarcMusic/1.0 (+https://github.com/zekicandemiralay/Quarc_Music)';
 
+// YouTube-sourced downloads carry the video's title, which usually trails
+// noise no lyrics database has: "(Official Video)", "[Lyrics]", "(Remastered
+// 2011)", channel suffixes like VEVO or "- Topic". Left in, that noise both
+// breaks exact lookups AND drags the broad-match score down — every junk word
+// is one the real track name can't match — which is why radio-downloaded
+// songs (grabbed via a plain "first YouTube hit" search, so almost always
+// titled that way) practically never resolved lyrics. Used for MATCHING ONLY;
+// the song's stored title/artist are left exactly as they are.
+const NOISE_WORD = /^(official|officiel|video|videoclip|audio|music|lyric|lyrics|visualizer|mv|hd|hq|4k|8k|remaster|remastered|clip|explicit|sub|subtitulado|legendado|\d{4})$/i;
+
+// Drops (...) / [...] groups whose contents are ENTIRELY noise, so
+// "(Official Video)" goes but "(feat. Dre)" or "(Acoustic)" stay.
+function stripNoiseGroups(text) {
+  return text.replace(/[([{][^)\]}]*[)\]}]/g, (group) => {
+    const inner = group.slice(1, -1).split(/[\s,\-|/]+/).filter(Boolean);
+    if (!inner.length) return '';
+    return inner.every((w) => NOISE_WORD.test(w.replace(/[^\w]/g, ''))) ? '' : group;
+  });
+}
+
+function cleanTitle(title) {
+  const cleaned = stripNoiseGroups(title || '')
+    // trailing "| Official Video" / "- Lyrics" style tails
+    .replace(/\s*[|·–—-]\s*(official\s*)?(music\s*)?(video|audio|lyrics?|visualizer|mv)\b.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || (title || ''); // never clean a title away entirely
+}
+
+function cleanArtist(artist) {
+  const cleaned = (artist || '')
+    .replace(/\s*-\s*topic\s*$/i, '') // YouTube's auto-generated artist channels
+    .replace(/(official|vevo)\s*$/i, '') // glued-on channel suffix: "QueenVEVO"
+    .replace(/\b(official|vevo)\b/ig, '') // separate word: "Queen Official\"
+    .replace(/\s*[-–|]\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || (artist || '');
+}
+
 function normalizeResult(data) {
   if (!data) return null;
   if (data.instrumental) return { status: 'instrumental', plain: null, synced: null };
@@ -86,22 +126,35 @@ async function fetchLyricsBroad(artist, title) {
 // well-curated lyrics DB expects (feat. credits, "(Official Audio)", etc.).
 async function fetchLyrics(artist, title, album, durationSecs) {
   if (!title) return null;
+  const cleanT = cleanTitle(title);
+  const cleanA = cleanArtist(artist);
+
+  // An "instrumental" verdict from a loose match isn't trustworthy: a
+  // same-titled instrumental entry easily shadows the real vocal track when
+  // the artist tag is vague ("Various", a YouTube channel name), and
+  // returning it immediately ends the search with "this track is
+  // instrumental" on a song that plainly has words. Hold it aside and keep
+  // looking; only settle for it if nothing better turns up.
+  let instrumental = null;
+  const keep = (result) => {
+    if (result?.status === 'instrumental') { instrumental = instrumental || result; return null; }
+    return result;
+  };
 
   try {
-    const params = { track_name: title, artist_name: artist || '' };
+    const params = { track_name: cleanT, artist_name: cleanA || '' };
     if (album) params.album_name = album;
     if (durationSecs) params.duration = Math.round(durationSecs);
-    const exact = await getJson('/get', params);
-    const result = normalizeResult(exact);
+    const result = keep(normalizeResult(await getJson('/get', params)));
     if (result) return result;
   } catch {
     // fall through to fuzzy search
   }
 
   try {
-    const results = await getJson('/search', { track_name: title, artist_name: artist || '' });
+    const results = await getJson('/search', { track_name: cleanT, artist_name: cleanA || '' });
     if (Array.isArray(results) && results.length) {
-      const result = normalizeResult(results[0]);
+      const result = keep(normalizeResult(results[0]));
       if (result) return result;
     }
   } catch {
@@ -109,7 +162,7 @@ async function fetchLyrics(artist, title, album, durationSecs) {
   }
 
   // Last resort — see fetchLyricsBroad for why this is plain-text-only.
-  return fetchLyricsBroad(artist, title);
+  return (await fetchLyricsBroad(cleanA, cleanT)) || instrumental;
 }
 
 module.exports = { fetchLyrics };
