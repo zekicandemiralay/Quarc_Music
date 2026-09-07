@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand';
 import usePlayerStore, { schedulePreload } from './playerStore';
+import { contextGroup, getRadio, setRadio } from '../lib/playbackPrefs';
 
 // Module-level: not reactive, just dedup guards
 const seenKeys = new Set();
@@ -9,19 +10,37 @@ let songCountSinceLastFill = 0;
 // Insert a radio song every RADIO_INTERVAL library songs
 const RADIO_INTERVAL = 3;
 
+// Radio is "seed-anchored" while browsing the library with it on: the queue
+// is nothing but suggestions based on the one song the listen started from.
+// In a curated list (playlist / Liked / Mix / Collection) radio instead just
+// interleaves the occasional suggestion into the list, as before.
+function isSeedAnchored() {
+  return useRadioStore.getState().radioMode
+    && contextGroup(usePlayerStore.getState().playContext) === 'library';
+}
+
 const useRadioStore = create((set, get) => ({
-  radioMode: JSON.parse(localStorage.getItem('quarc_radio') || 'true'),
+  radioMode: getRadio(contextGroup(usePlayerStore.getState().playContext)),
   pendingDownloads: [], // [{ id, title, artist, progress }]
 
   toggleRadioMode() {
     const next = !get().radioMode;
+    const { currentSong, playContext } = usePlayerStore.getState();
+    const group = contextGroup(playContext);
     set({ radioMode: next });
-    localStorage.setItem('quarc_radio', JSON.stringify(next));
+    setRadio(group, next); // remembered per context group, across sessions
     if (next) {
       seenKeys.clear();
       songCountSinceLastFill = 0;
-      const { currentSong } = usePlayerStore.getState();
-      if (currentSong) get().fillQueue(currentSong);
+      if (currentSong) {
+        // Turning radio on while browsing the library switches to a
+        // seed-anchored stream from whatever is playing now — drop the rest
+        // of the queued library and let suggestions take it from here.
+        if (group === 'library') {
+          usePlayerStore.setState({ queue: [currentSong], queueIndex: 0, seedSong: currentSong });
+        }
+        get().fillQueue(currentSong);
+      }
     }
   },
 
@@ -31,9 +50,14 @@ const useRadioStore = create((set, get) => ({
 
     filling = true;
     try {
+      // Anchor suggestions to the song the listen STARTED from, not whatever
+      // is playing right now — otherwise each suggestion seeds the next and
+      // the stream drifts steadily away from what the user actually picked.
+      const { seedSong } = usePlayerStore.getState();
+      const basis = (isSeedAnchored() && seedSong) ? seedSong : song;
       const params = new URLSearchParams({
-        artist: song.artist || '',
-        title: song.title || '',
+        artist: basis.artist || '',
+        title: basis.title || '',
       });
       const res = await fetch(`/api/radio/suggestions?${params}`);
       if (!res.ok) throw new Error('suggestions unavailable');
@@ -155,15 +179,24 @@ async function addLibrarySongToQueue() {
 usePlayerStore.subscribe((state, prev) => {
   if (state.currentSong?.id !== prev.currentSong?.id && state.currentSong) {
     if (state.playContext !== prev.playContext) {
-      const on = state.playContext !== 'playlist';
-      useRadioStore.setState({ radioMode: on });
-      localStorage.setItem('quarc_radio', JSON.stringify(on));
+      // Adopt this context group's REMEMBERED radio setting. This used to
+      // force radio on/off purely from the context ("not a playlist? on"),
+      // silently overwriting the user's own choice every time they moved
+      // between the library and a playlist — which is why turning radio off
+      // never stuck. See lib/playbackPrefs.js.
+      useRadioStore.setState({ radioMode: getRadio(contextGroup(state.playContext)) });
+      seenKeys.clear();
       songCountSinceLastFill = 0;
-      if (on) useRadioStore.getState().fillQueue(state.currentSong);
     }
-    // Trigger every RADIO_INTERVAL songs so radio is interleaved, not dumped at the end
     songCountSinceLastFill++;
-    if (songCountSinceLastFill >= RADIO_INTERVAL) {
+    // A seed-anchored stream is the whole queue, so keep a couple of songs
+    // buffered ahead or playback stalls waiting on each download. In a
+    // curated list, interleave one suggestion every RADIO_INTERVAL songs.
+    const upcoming = state.queue.length - state.queueIndex - 1;
+    const needsFill = isSeedAnchored()
+      ? upcoming < 2
+      : songCountSinceLastFill >= RADIO_INTERVAL;
+    if (needsFill) {
       songCountSinceLastFill = 0;
       useRadioStore.getState().fillQueue(state.currentSong);
     }

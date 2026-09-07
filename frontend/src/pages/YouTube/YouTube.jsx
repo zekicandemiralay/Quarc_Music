@@ -99,7 +99,11 @@ function DownloadBtn({ videoId, title }) {
     setPlaying(true);
     try {
       const r = await fetch(`/api/music/${songId}`);
-      if (r.ok) usePlayerStore.getState().playSong(await r.json());
+      // Explicit 'single' context: playing straight after downloading is a
+      // free library play, so it seeds radio (and uses the library group's
+      // remembered Shuffle/Radio) rather than inheriting whatever context
+      // happened to be active before.
+      if (r.ok) usePlayerStore.getState().playSong(await r.json(), null, 0, 'single', 'Your Library');
     } finally {
       setPlaying(false);
     }

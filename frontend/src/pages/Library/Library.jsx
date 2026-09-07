@@ -432,6 +432,11 @@ export default function Library({ view = 'all' }) {
   const { likedSongs, playlists, toggleLike, removeFromPlaylist } = useUserDataStore();
   const radioMode = useRadioStore((s) => s.radioMode);
   const isPlaylist = view === 'playlist' || view === 'liked';
+  // Which group's remembered Shuffle/Radio settings this view plays under.
+  // Mixes and Collections are curated lists too, so they share the playlist
+  // group — only free library browsing counts as 'library'. Kept separate
+  // from isPlaylist above, which controls queue ORDER and must not change.
+  const listContext = (isPlaylist || view === 'mix' || view === 'featured') ? 'playlist' : 'single';
   const loadMixes = useMixStore((s) => s.loadMixes);
   const navigate = useNavigate();
 
@@ -619,7 +624,7 @@ export default function Library({ view = 'all' }) {
           {filtered.length > 0 && (
             <>
               <button
-                onClick={() => shufflePlay(filtered, isPlaylist ? 'playlist' : 'single')}
+                onClick={() => shufflePlay(filtered, listContext)}
                 className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200 transition-colors"
               >
                 <Shuffle size={15} />
@@ -742,7 +747,7 @@ export default function Library({ view = 'all' }) {
                   // search box into real O(n²) main-thread work as results re-rendered
                   // on each keystroke, causing brief freezes.
                   const queue = isPlaylist ? visibleSongs : [song, ...visibleSongs.filter((s) => s.id !== song.id)];
-                  playSong(song, queue, isPlaylist ? visibleSongs.indexOf(song) : 0, isPlaylist ? 'playlist' : 'single', heading);
+                  playSong(song, queue, isPlaylist ? visibleSongs.indexOf(song) : 0, listContext, heading);
                 }}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}

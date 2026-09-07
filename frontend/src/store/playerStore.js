@@ -2,6 +2,10 @@
 import { getAudioBlob } from '../lib/offlineLib';
 import useOfflineStore from './useOfflineStore';
 import { coverUrl, streamUrl } from '../lib/apiUrl';
+import {
+  contextGroup, getVolume, setVolume as persistVolume,
+  getRadio, getShuffle, setShuffle as persistShuffle,
+} from '../lib/playbackPrefs';
 
 function weightedShuffle(songs) {
   const arr = [...songs];
@@ -41,6 +45,7 @@ function smartShuffle(songs) {
 
 const audio = new Audio();
 audio.preload = 'metadata';
+audio.volume = getVolume(); // remembered across sessions — see lib/playbackPrefs.js
 // iOS requires the audio element to be attached to the document for the
 // lock screen media session to activate (Apple's MediaSession API spec).
 document.body.appendChild(audio);
@@ -349,14 +354,18 @@ const usePlayerStore = create((set, get) => ({
   isPlaying: false,
   currentTime: 0,
   duration: 0,
-  volume: 1,
+  volume: getVolume(),
   queue: [],
   queueIndex: -1,
-  shuffle: false,
+  shuffle: getShuffle('library'),
   playContext: 'single',
   playContextLabel: '',
   manualQueue: [],
   waitingForRadio: false,
+  // The song a seed-anchored radio stream is based on — radio keeps
+  // suggesting songs similar to THIS one rather than drifting song to song.
+  // Set on every deliberate play; preserved while advancing through a queue.
+  seedSong: null,
 
   playSong: async (song, queue = null, queueIndex = 0, context, contextLabel, navigating = false) => {
     const state = get();
@@ -390,11 +399,26 @@ const usePlayerStore = create((set, get) => ({
     const newContext = context !== undefined ? context : get().playContext;
     const newContextLabel = contextLabel !== undefined ? contextLabel : get().playContextLabel;
 
+    // Radio and shuffle are remembered separately for library browsing vs
+    // curated lists, so adopt THIS context's remembered settings instead of
+    // carrying the other group's over. Read radio from prefs rather than
+    // useRadioStore: that store imports this one, so importing it back would
+    // be a circular import. See lib/playbackPrefs.js.
+    const group = contextGroup(newContext);
+    const effectiveShuffle = navigating ? state.shuffle : getShuffle(group);
+
+    // Seed-anchored radio: deliberately starting a free library / search /
+    // play-after-download listen with radio on means "keep playing songs like
+    // THIS one" — so the queue starts as just the seed and radio streams
+    // suggestions in behind it, instead of queueing the rest of the library.
+    // Shuffle is irrelevant in this mode: there's no fixed list to shuffle.
+    const seedAnchored = !navigating && group === 'library' && getRadio(group);
+
     // Shuffle the queue only when the user explicitly starts a new play context.
     // When navigating prev/next the existing queue order must be preserved.
-    let finalQueue = queue || [song];
-    let finalIndex = queueIndex;
-    if (state.shuffle && finalQueue.length > 1 && !navigating) {
+    let finalQueue = seedAnchored ? [song] : (queue || [song]);
+    let finalIndex = seedAnchored ? 0 : queueIndex;
+    if (!seedAnchored && effectiveShuffle && finalQueue.length > 1 && !navigating) {
       originalQueue = finalQueue; // natural order, before shuffling — see toggleShuffle
       const others = finalQueue.filter((s) => s.id !== song.id);
       finalQueue = [song, ...smartShuffle(others)];
@@ -411,6 +435,9 @@ const usePlayerStore = create((set, get) => ({
       playContext: newContext,
       playContextLabel: newContextLabel,
       waitingForRadio: false,
+      shuffle: effectiveShuffle,
+      // A deliberate play (re)seeds radio; advancing through a queue keeps it.
+      seedSong: navigating ? state.seedSong : song,
     });
     applyMediaSessionMeta(song);
 
@@ -535,7 +562,14 @@ const usePlayerStore = create((set, get) => ({
     originalQueue = songs; // natural order, before shuffling — see toggleShuffle
     forwardStack.length = 0; // fresh play context, same as a normal (non-navigating) playSong call
     const shuffled = smartShuffle(songs);
-    set({ shuffle: true });
+    // Deliberately shuffling this context turns its remembered shuffle on, so
+    // the toggle reflects reality and the choice survives the session.
+    persistShuffle(contextGroup(context), true);
+    // Re-seed radio too: this is a fresh deliberate play, but it reaches
+    // playSong with navigating=true (so the already-shuffled queue isn't
+    // reshuffled), which would otherwise leave the seed pointing at whatever
+    // was played before — anchoring suggestions to a stale song.
+    set({ shuffle: true, seedSong: shuffled[0] });
     // navigating=true so playSong treats `shuffled` as already-final and
     // doesn't reshuffle it again on top (it otherwise would, now that
     // shuffle is true — harmless before, but would also stomp the
@@ -545,8 +579,11 @@ const usePlayerStore = create((set, get) => ({
   },
 
   toggleShuffle: () => {
-    const { shuffle, queue, queueIndex, currentSong } = get();
+    const { shuffle, queue, queueIndex, currentSong, playContext } = get();
     const newShuffle = !shuffle;
+    // Remembered per context group, so shuffling your library doesn't also
+    // shuffle your playlists (and it survives to the next session).
+    persistShuffle(contextGroup(playContext), newShuffle);
     if (newShuffle && queue.length > 1 && currentSong) {
       // Leave everything already played (indices 0..queueIndex) exactly where it
       // is and shuffle only the not-yet-played remainder — reshuffling the whole
@@ -620,7 +657,7 @@ const usePlayerStore = create((set, get) => ({
     audio.currentTime = time;
     set({ currentTime: time });
   },
-  setVolume: (v) => { audio.volume = v; set({ volume: v }); },
+  setVolume: (v) => { audio.volume = v; persistVolume(v); set({ volume: v }); },
 
   // ── Manual queue management ──────────────────────────────────────────────
   addToQueue: (song) => set((s) => ({ manualQueue: [...s.manualQueue, song] })),
@@ -878,7 +915,7 @@ document.addEventListener('visibilitychange', () => {
 // ── Persist / restore last-played song ───────────────────────────────────────
 
 function saveState() {
-  const { currentSong, currentTime, queue, queueIndex, shuffle, playContext, playContextLabel, manualQueue } =
+  const { currentSong, currentTime, queue, queueIndex, playContext, playContextLabel, manualQueue } =
     usePlayerStore.getState();
   if (!currentSong) return;
   try {
@@ -890,7 +927,8 @@ function saveState() {
       time: Math.floor(currentTime),
       queue: savedQueue,
       queueIndex: savedIndex,
-      shuffle,
+      // shuffle intentionally not saved here — it's remembered per context
+      // group in playbackPrefs, which outlives any single queue snapshot.
       playContext,
       playContextLabel: playContextLabel || '',
       manualQueue: manualQueue.slice(0, 20), // cap at 20 manual items
@@ -919,7 +957,7 @@ try {
       currentSong: saved.song,
       queue: saved.queue?.length ? saved.queue : [saved.song],
       queueIndex: saved.queueIndex ?? 0,
-      shuffle: saved.shuffle ?? false,
+      shuffle: getShuffle(contextGroup(saved.playContext || 'single')),
       playContext: saved.playContext || 'single',
       playContextLabel: saved.playContextLabel || '',
       manualQueue: saved.manualQueue || [],
