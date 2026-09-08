@@ -3,9 +3,20 @@ import usePlayerStore, { schedulePreload } from './playerStore';
 import { contextGroup, getRadio, setRadio } from '../lib/playbackPrefs';
 
 // Module-level: not reactive, just dedup guards
-const seenKeys = new Set();
+const seenKeys = new Set();   // artist+title of everything this stream has used
+const playedIds = new Set();  // library ids, for the random fallback
 let filling = false;
 let songCountSinceLastFill = 0;
+
+// Bumped every time the stream restarts (a manual play, a context switch, a
+// radio toggle). Everything async carries the generation it started under and
+// bails if it no longer matches, so a suggestion requested for the OLD seed
+// can't land in the new stream — which is what made a manually-picked song
+// still be followed by the previous seed's leftovers. The download itself is
+// already server-side and still finishes into the library permanently; it
+// just doesn't get queued here.
+let streamId = 0;
+
 // How far along the "anchor chain" a seed-anchored stream has walked. Last.fm
 // returns a limited set of similar tracks (20), so once every one of them has
 // played, the seed is used up. Rather than dropping to random library songs at
@@ -14,6 +25,44 @@ let songCountSinceLastFill = 0;
 // keeps going and widens naturally instead of dead-ending. Reset whenever a
 // new stream starts.
 let anchorIndex = 0;
+
+// Match keys loosely — Last.fm's spelling of an artist rarely matches a
+// downloaded file's tags character for character ("Zeki Müren" / "zeki
+// muren"), and an exact-string set would happily let the same song through
+// twice under two spellings.
+function trackKey(artist, title) {
+  const norm = (v) => (v || '')
+    .replace(/[İIı]/g, 'i')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `${norm(artist)}::${norm(title)}`;
+}
+
+// A stream is "one uninterrupted listen": until the user manually starts
+// something else, no song repeats — not across the 20 suggestions of one
+// anchor, and not when the anchor steps forward to the 2nd song, the 3rd,
+// and so on. Starting another song by hand wipes all of it and begins again
+// with no filtering at all.
+function resetStream() {
+  streamId++;
+  seenKeys.clear();
+  playedIds.clear();
+  anchorIndex = 0;
+  songCountSinceLastFill = 0;
+  filling = false;
+  if (useRadioStore.getState().pendingDownloads.length) {
+    useRadioStore.setState({ pendingDownloads: [] });
+  }
+}
+
+function remember(song) {
+  if (!song) return;
+  seenKeys.add(trackKey(song.artist, song.title));
+  if (song.id != null) playedIds.add(song.id);
+}
 
 // Insert a radio song every RADIO_INTERVAL library songs
 const RADIO_INTERVAL = 3;
@@ -38,13 +87,11 @@ const useRadioStore = create((set, get) => ({
     set({ radioMode: next });
     setRadio(group, next); // remembered per context group, across sessions
     if (next) {
-      seenKeys.clear();
-      songCountSinceLastFill = 0;
+      resetStream();
       if (currentSong) {
         // Turning radio on while browsing the library switches to a
         // seed-anchored stream from whatever is playing now — drop the rest
         // of the queued library and let suggestions take it from here.
-        anchorIndex = 0;
         if (group === 'library') {
           usePlayerStore.setState({ queue: [currentSong], queueIndex: 0, seedSong: currentSong });
         }
@@ -58,9 +105,13 @@ const useRadioStore = create((set, get) => ({
     if (get().pendingDownloads.length >= 1) return; // one at a time
 
     filling = true;
+    const gen = streamId;
     try {
       const anchored = isSeedAnchored();
       const { seedSong, queue, queueIndex } = usePlayerStore.getState();
+      // Nothing already in this stream is a candidate — including the seed
+      // itself, which Last.fm will happily suggest back at you.
+      queue.forEach(remember);
       // Anchor suggestions to the song the listen STARTED from, not whatever
       // is playing right now — otherwise each suggestion seeds the next and
       // the stream drifts steadily away from what the user actually picked.
@@ -88,12 +139,18 @@ const useRadioStore = create((set, get) => ({
           break; // no Last.fm key or network error — library fallback below
         }
 
-        const fresh = Array.isArray(suggestions)
-          ? suggestions.find(s => !seenKeys.has(`${s.artist}::${s.title}`))
-          : null;
-        if (fresh) {
-          seenKeys.add(`${fresh.artist}::${fresh.title}`);
-          startRadioDownload(fresh);
+        if (gen !== streamId) return; // seed changed while we were waiting
+
+        // Take a RANDOM one of the ~20 unplayed suggestions rather than
+        // always the top-scoring one: Last.fm returns the same ordered list
+        // every time, so picking the head made the same seed produce the
+        // same stream in the same order on every listen.
+        const unseen = (Array.isArray(suggestions) ? suggestions : [])
+          .filter(t => !seenKeys.has(trackKey(t.artist, t.title)));
+        if (unseen.length) {
+          const fresh = unseen[Math.floor(Math.random() * unseen.length)];
+          seenKeys.add(trackKey(fresh.artist, fresh.title));
+          startRadioDownload(fresh, gen);
           return;
         }
 
@@ -103,15 +160,21 @@ const useRadioStore = create((set, get) => ({
         anchorIndex++;
       }
 
-      addLibrarySongToQueue();
+      addLibrarySongToQueue(gen);
     } finally {
       filling = false;
     }
   },
 }));
 
-async function startRadioDownload(track) {
+async function startRadioDownload(track, gen) {
   const downloadId = Math.random().toString(36).slice(2);
+  // gen is the stream this download belongs to; once the user starts another
+  // song by hand the stream is gone and so is this download's place in it.
+  const stale = () => gen !== streamId;
+  const drop = () => useRadioStore.setState((s) => ({
+    pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId),
+  }));
   useRadioStore.setState((s) => ({
     pendingDownloads: [...s.pendingDownloads, { id: downloadId, title: track.title, artist: track.artist, progress: 0 }],
   }));
@@ -124,38 +187,39 @@ async function startRadioDownload(track) {
     });
     const { jobId } = await res.json();
     if (!jobId) {
-      useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
-      addLibrarySongToQueue();
+      drop();
+      addLibrarySongToQueue(gen);
       return;
     }
 
     const song = await pollUntilDone(jobId, (progress) => {
+      if (stale()) return;
       useRadioStore.setState((s) => ({
         pendingDownloads: s.pendingDownloads.map((d) => d.id === downloadId ? { ...d, progress } : d),
       }));
-    });
+    }, stale);
 
-    if (!useRadioStore.getState().radioMode) {
-      useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
-      return;
-    }
-
-    useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
+    drop();
+    // The user picked something else while this was downloading, or turned
+    // radio off. The file is already in the library to keep — it just has no
+    // business being queued behind a song it isn't a suggestion for.
+    if (stale() || !useRadioStore.getState().radioMode) return;
 
     if (song) {
       insertSongIntoQueue(song);
     } else {
-      addLibrarySongToQueue();
+      addLibrarySongToQueue(gen);
     }
   } catch {
-    useRadioStore.setState((s) => ({ pendingDownloads: s.pendingDownloads.filter((d) => d.id !== downloadId) }));
-    addLibrarySongToQueue();
+    drop();
+    addLibrarySongToQueue(gen);
   }
 }
 
-async function pollUntilDone(jobId, onProgress) {
+async function pollUntilDone(jobId, onProgress, stale) {
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 3000));
+    if (stale && stale()) return null; // stop polling for an abandoned stream
     try {
       const res = await fetch(`/api/radio/status/${jobId}`);
       const job = await res.json();
@@ -169,6 +233,7 @@ async function pollUntilDone(jobId, onProgress) {
 
 // Insert a radio song RADIO_INTERVAL positions ahead so it appears soon, not at the end
 function insertSongIntoQueue(song) {
+  remember(song); // the file's own tags, which needn't match the suggestion's
   const wasWaiting = usePlayerStore.getState().waitingForRadio;
   usePlayerStore.setState(s => {
     const insertAt = Math.min(s.queueIndex + RADIO_INTERVAL, s.queue.length);
@@ -185,17 +250,22 @@ function insertSongIntoQueue(song) {
   }
 }
 
-async function addLibrarySongToQueue() {
+async function addLibrarySongToQueue(gen) {
   if (!useRadioStore.getState().radioMode) return;
+  if (gen !== undefined && gen !== streamId) return;
   try {
     const res = await fetch('/api/music');
     if (!res.ok) return;
     const allSongs = await res.json();
     if (!allSongs.length) return;
+    if (gen !== undefined && gen !== streamId) return;
     const { queue, queueIndex } = usePlayerStore.getState();
-    // Prefer songs not already in the upcoming queue; allow repeats if all are queued
+    // Nothing already queued ahead, and nothing this stream has played —
+    // "no repeats until the user changes song" covers the random fallback
+    // too, not just the suggestions. Repeats are allowed only once the
+    // library has genuinely nothing left to offer.
     const upcomingIds = new Set(queue.slice(queueIndex + 1).map(s => s.id));
-    const eligible = allSongs.filter(s => !upcomingIds.has(s.id));
+    const eligible = allSongs.filter(s => !upcomingIds.has(s.id) && !playedIds.has(s.id));
     const pool = eligible.length ? eligible : allSongs;
     const song = pool[Math.floor(Math.random() * pool.length)];
     insertSongIntoQueue(song);
@@ -215,16 +285,17 @@ usePlayerStore.subscribe((state, prev) => {
       // between the library and a playlist — which is why turning radio off
       // never stuck. See lib/playbackPrefs.js.
       useRadioStore.setState({ radioMode: getRadio(contextGroup(state.playContext)) });
-      seenKeys.clear();
-      anchorIndex = 0;
-      songCountSinceLastFill = 0;
+      resetStream();
     }
     // A new deliberate play re-seeds the stream, even within the same context
-    // (clicking another library song). Start its suggestion history fresh.
-    if (state.seedSong?.id !== prev.seedSong?.id) {
-      seenKeys.clear();
-      anchorIndex = 0;
+    // (clicking another library song). Everything the previous seed built up
+    // goes with it: its suggestion history, how far its anchor had walked,
+    // and any download still in flight for it. The new song starts from a
+    // clean slate with nothing filtered out.
+    else if (state.seedSong?.id !== prev.seedSong?.id) {
+      resetStream();
     }
+    remember(state.currentSong);
     songCountSinceLastFill++;
     // A seed-anchored stream is the whole queue, so keep a couple of songs
     // buffered ahead or playback stalls waiting on each download. In a
