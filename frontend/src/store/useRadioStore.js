@@ -36,8 +36,7 @@ function trackKey(artist, title) {
     .toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/\s+/g, '');  // spacing too: "Elbet Birgün" and "Elbet Bir Gün"
   return `${norm(artist)}::${norm(title)}`;
 }
 
@@ -232,7 +231,17 @@ async function pollUntilDone(jobId, onProgress, stale) {
 }
 
 // Insert a radio song RADIO_INTERVAL positions ahead so it appears soon, not at the end
-function insertSongIntoQueue(song) {
+function insertSongIntoQueue(song, { allowRepeat = false } = {}) {
+  // Name matching is best-effort — Last.fm and a downloaded file's tags can
+  // spell the same track differently enough to slip past trackKey. The
+  // library id can't be spelled two ways, so it's the real guarantee that a
+  // stream never plays the same song twice: whatever the suggestion was
+  // called, if it resolved to a song this stream already played, take
+  // something else instead.
+  if (!allowRepeat && song?.id != null && playedIds.has(song.id)) {
+    addLibrarySongToQueue(streamId);
+    return;
+  }
   remember(song); // the file's own tags, which needn't match the suggestion's
   const wasWaiting = usePlayerStore.getState().waitingForRadio;
   usePlayerStore.setState(s => {
@@ -266,9 +275,10 @@ async function addLibrarySongToQueue(gen) {
     // library has genuinely nothing left to offer.
     const upcomingIds = new Set(queue.slice(queueIndex + 1).map(s => s.id));
     const eligible = allSongs.filter(s => !upcomingIds.has(s.id) && !playedIds.has(s.id));
-    const pool = eligible.length ? eligible : allSongs;
+    const exhausted = !eligible.length; // nothing unplayed left to offer
+    const pool = exhausted ? allSongs : eligible;
     const song = pool[Math.floor(Math.random() * pool.length)];
-    insertSongIntoQueue(song);
+    insertSongIntoQueue(song, { allowRepeat: exhausted });
   } catch {}
 }
 
