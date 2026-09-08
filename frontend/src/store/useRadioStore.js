@@ -6,6 +6,14 @@ import { contextGroup, getRadio, setRadio } from '../lib/playbackPrefs';
 const seenKeys = new Set();
 let filling = false;
 let songCountSinceLastFill = 0;
+// How far along the "anchor chain" a seed-anchored stream has walked. Last.fm
+// returns a limited set of similar tracks (20), so once every one of them has
+// played, the seed is used up. Rather than dropping to random library songs at
+// that point, the anchor advances to the 2nd song of the stream, then the 3rd,
+// and so on — each still genuinely related to what came before, so the stream
+// keeps going and widens naturally instead of dead-ending. Reset whenever a
+// new stream starts.
+let anchorIndex = 0;
 
 // Insert a radio song every RADIO_INTERVAL library songs
 const RADIO_INTERVAL = 3;
@@ -36,6 +44,7 @@ const useRadioStore = create((set, get) => ({
         // Turning radio on while browsing the library switches to a
         // seed-anchored stream from whatever is playing now — drop the rest
         // of the queued library and let suggestions take it from here.
+        anchorIndex = 0;
         if (group === 'library') {
           usePlayerStore.setState({ queue: [currentSong], queueIndex: 0, seedSong: currentSong });
         }
@@ -50,29 +59,50 @@ const useRadioStore = create((set, get) => ({
 
     filling = true;
     try {
+      const anchored = isSeedAnchored();
+      const { seedSong, queue, queueIndex } = usePlayerStore.getState();
       // Anchor suggestions to the song the listen STARTED from, not whatever
       // is playing right now — otherwise each suggestion seeds the next and
       // the stream drifts steadily away from what the user actually picked.
-      const { seedSong } = usePlayerStore.getState();
-      const basis = (isSeedAnchored() && seedSong) ? seedSong : song;
-      const params = new URLSearchParams({
-        artist: basis.artist || '',
-        title: basis.title || '',
-      });
-      const res = await fetch(`/api/radio/suggestions?${params}`);
-      if (!res.ok) throw new Error('suggestions unavailable');
+      // The chain is the songs already played in this stream, so when the
+      // seed runs dry the anchor steps to the 2nd song, then the 3rd, etc.
+      const chain = anchored ? queue.slice(0, queueIndex + 1) : [];
+      const MAX_ANCHOR_HOPS = 4; // bound the requests one fill can make
 
-      const suggestions = await res.json();
-      const fresh = suggestions.find(s => !seenKeys.has(`${s.artist}::${s.title}`));
+      for (let hop = 0; hop < (anchored ? MAX_ANCHOR_HOPS : 1); hop++) {
+        const basis = anchored
+          ? (chain[anchorIndex] || chain[chain.length - 1] || seedSong || song)
+          : song;
+        if (!basis) break;
 
-      if (!fresh) {
-        addLibrarySongToQueue();
-      } else {
-        seenKeys.add(`${fresh.artist}::${fresh.title}`);
-        startRadioDownload(fresh);
+        let suggestions;
+        try {
+          const params = new URLSearchParams({
+            artist: basis.artist || '',
+            title: basis.title || '',
+          });
+          const res = await fetch(`/api/radio/suggestions?${params}`);
+          if (!res.ok) throw new Error('suggestions unavailable');
+          suggestions = await res.json();
+        } catch {
+          break; // no Last.fm key or network error — library fallback below
+        }
+
+        const fresh = Array.isArray(suggestions)
+          ? suggestions.find(s => !seenKeys.has(`${s.artist}::${s.title}`))
+          : null;
+        if (fresh) {
+          seenKeys.add(`${fresh.artist}::${fresh.title}`);
+          startRadioDownload(fresh);
+          return;
+        }
+
+        // Every suggestion for this anchor has already played. Step the
+        // anchor forward through the stream; give up once it runs out.
+        if (!anchored || anchorIndex >= chain.length - 1) break;
+        anchorIndex++;
       }
-    } catch {
-      // No Last.fm key or network error — fall back to library songs
+
       addLibrarySongToQueue();
     } finally {
       filling = false;
@@ -186,7 +216,14 @@ usePlayerStore.subscribe((state, prev) => {
       // never stuck. See lib/playbackPrefs.js.
       useRadioStore.setState({ radioMode: getRadio(contextGroup(state.playContext)) });
       seenKeys.clear();
+      anchorIndex = 0;
       songCountSinceLastFill = 0;
+    }
+    // A new deliberate play re-seeds the stream, even within the same context
+    // (clicking another library song). Start its suggestion history fresh.
+    if (state.seedSong?.id !== prev.seedSong?.id) {
+      seenKeys.clear();
+      anchorIndex = 0;
     }
     songCountSinceLastFill++;
     // A seed-anchored stream is the whole queue, so keep a couple of songs
