@@ -319,7 +319,8 @@
     "language": "Language",
     "unknown": "Unknown",
     "addedToQueue": "Added to queue",
-    "linkCopied": "Link copied"
+    "linkCopied": "Link copied",
+    "copyFailed": "Couldn't copy link"
   },
   "radio": {
     "searchPlaceholder": "Search stations…",

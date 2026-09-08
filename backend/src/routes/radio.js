@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { downloadBySearch } = require('../services/ytdlp');
+const { searchAndDownload } = require('../services/ytdlp');
+const { cleanTitle, primaryArtist } = require('../services/textClean');
 const { getDb } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { requireAuth } = require('../middleware/auth');
@@ -80,11 +81,20 @@ router.get('/suggestions', async (req, res) => {
   const { artist = '', title = '' } = req.query;
   if (!artist && !title) return res.status(400).json({ error: 'artist or title required' });
 
+  // Last.fm matches on an exact artist + track pair, so it has to be given
+  // the performer and the song name — not the raw tags a downloaded file
+  // carries. An artist field listing every credited writer
+  // ("Zeki Müren, M. Seyran") matches no artist at all and returns zero
+  // similar tracks, which is how a perfectly well-known song ends up
+  // silently falling back to random library picks. See services/textClean.js.
+  const lookupArtist = primaryArtist(artist);
+  const lookupTitle = cleanTitle(title);
+
   try {
     const url = new URL('http://ws.audioscrobbler.com/2.0/');
     url.searchParams.set('method', 'track.getSimilar');
-    url.searchParams.set('artist', artist);
-    url.searchParams.set('track', title);
+    url.searchParams.set('artist', lookupArtist);
+    url.searchParams.set('track', lookupTitle);
     url.searchParams.set('api_key', apiKey);
     url.searchParams.set('format', 'json');
     url.searchParams.set('limit', '20');
@@ -115,7 +125,13 @@ router.post('/download', (req, res) => {
     'INSERT INTO downloads (id, video_id, title, status, user_id) VALUES (?, ?, ?, ?, ?)'
   ).run(jobId, `radio:${jobId}`, query, 'pending', req.user.id);
 
-  downloadBySearch(query, MUSIC_DIR, (progress) => {
+  // searchAndDownload, not downloadBySearch: it scores several candidates on
+  // title/artist match and version keywords (live/acoustic/remix) and falls
+  // through to the next one if the top pick is a dead video, instead of
+  // blindly taking the first YouTube hit. Radio picks songs the user never
+  // explicitly chose AND keeps them in the library permanently, so grabbing
+  // a cover or an unrelated upload is worse here than anywhere else.
+  searchAndDownload(artist || null, title, null, null, MUSIC_DIR, (progress) => {
     db.prepare('UPDATE downloads SET progress = ?, status = ? WHERE id = ?').run(
       progress, 'downloading', jobId
     );

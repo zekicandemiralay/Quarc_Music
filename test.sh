@@ -320,6 +320,19 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
     fail "GET /api/radio/suggestions → unexpected: ${SUGG:0:120}"
   fi
 
+  # Regression: tags straight off a YouTube download are messy — the artist
+  # field often lists every credited name ("Zeki Muren, M. Seyran") and the
+  # title carries upload noise. Last.fm matches an exact artist+track pair,
+  # so unless the backend cleans these first the lookup returns nothing and
+  # radio silently degrades to random library picks.
+  MESSY=$(api --max-time 15 -b "$COOKIE"     "${BASE}/api/radio/suggestions?artist=Radiohead%2C%20Thom%20Yorke&title=Creep%20(Official%20Video)%20%5BHD%5D")
+  MESSY_COUNT=$(echo "$MESSY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo 0)
+  if [ "$MESSY_COUNT" -gt 0 ] 2>/dev/null; then
+    pass "GET /api/radio/suggestions with messy tags → ${MESSY_COUNT} suggestion(s) (cleaning works)"
+  else
+    fail "GET /api/radio/suggestions with messy tags → 0 suggestions; tag cleaning broken: ${MESSY:0:120}"
+  fi
+
   # Start a radio download and verify jobId returned
   DL_RESP=$(api -b "$COOKIE" -X POST "${BASE}/api/radio/download" \
     -H "Content-Type: application/json" \

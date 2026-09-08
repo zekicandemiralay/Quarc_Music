@@ -11,6 +11,7 @@ import useFeaturedStore from '../../store/useFeaturedStore';
 import useRadioStore from '../../store/useRadioStore';
 import { coverUrl } from '../../lib/apiUrl';
 import useBackableOverlay from '../../hooks/useBackableOverlay';
+import { shareSong } from '../../lib/share';
 
 // Normalize for search: strips diacritics (ş→s, ü→u, é→e, etc.) and lowercases.
 // ı (Turkish dotless-i, U+0131) has no NFD decomposition so we replace it explicitly.
@@ -181,15 +182,6 @@ function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded, position }) {
     </>,
     document.body
   );
-}
-
-async function shareSong(song) {
-  const url = `${window.location.origin}/?share=${song.id}`;
-  if (navigator.share) {
-    try { await navigator.share({ title: 'Quarc Music', text: url, url }); return 'shared'; } catch { return null; }
-  } else {
-    try { await navigator.clipboard.writeText(url); return 'copied'; } catch { return null; }
-  }
 }
 
 function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPlaylistId, onRemoveFromPlaylist }) {
@@ -446,7 +438,7 @@ export default function Library({ view = 'all' }) {
     queueToastTimer.current = setTimeout(() => setQueueToast(null), 2000);
   }
   function showQueueToast() { showToast(t('common.addedToQueue')); }
-  function showShareToast() { showToast(t('common.linkCopied')); }
+  function showShareToast(result) { showToast(t(result === 'copied' ? 'common.linkCopied' : 'common.copyFailed')); }
 
   useEffect(() => {
     const el = songListRef.current;
@@ -883,7 +875,7 @@ export default function Library({ view = 'all' }) {
                   <button
                     onClick={async () => {
                       const result = await shareSong(song);
-                      if (result === 'copied') showShareToast();
+                      if (result !== 'shared') showShareToast(result);
                     }}
                     className="p-1.5 text-zinc-500 hover:text-white transition-colors"
                     title="Share song"
@@ -932,7 +924,7 @@ export default function Library({ view = 'all' }) {
           onShare={async () => {
             const result = await shareSong(actionSheet);
             setActionSheet(null);
-            if (result === 'copied') showShareToast();
+            if (result !== 'shared') showShareToast(result);
           }}
           currentPlaylistId={view === 'playlist' ? playlistId : null}
           onRemoveFromPlaylist={currentPlaylist ? () => removeFromPlaylist(currentPlaylist.id, actionSheet.id) : null}

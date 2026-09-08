@@ -9,6 +9,7 @@ import useInternetRadioStore from '../../store/useInternetRadioStore';
 import QueuePanel from './QueuePanel';
 import LyricsPanel from './LyricsPanel';
 import { coverUrl } from '../../lib/apiUrl';
+import { shareSong } from '../../lib/share';
 import useBackableOverlay from '../../hooks/useBackableOverlay';
 
 function fmt(s) {
@@ -199,14 +200,16 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
     }
   }
 
-  function handleShare() {
+  // Was sharing only "Title — Artist" text, with no link in it at all — so
+  // there was never anything to open, and on Android (no share sheet in the
+  // WebView) the clipboard write could fail silently on top of that.
+  const [shareState, setShareState] = useState(null); // 'copied' | 'failed'
+  async function handleShare() {
     if (!currentSong) return;
-    const text = `${currentSong.title}${currentSong.artist ? ` — ${currentSong.artist}` : ''}`;
-    if (navigator.share) {
-      navigator.share({ title: currentSong.title, text }).catch(() => {});
-    } else {
-      navigator.clipboard?.writeText(text).catch(() => {});
-    }
+    const result = await shareSong(currentSong);
+    if (result === 'shared') return; // the OS sheet already gave feedback
+    setShareState(result === 'copied' ? 'copied' : 'failed');
+    setTimeout(() => setShareState(null), 2000);
   }
 
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -393,6 +396,11 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
           >
             <Share2 size={20} />
           </button>
+          {shareState && (
+            <div className="fixed bottom-28 left-1/2 -translate-x-1/2 bg-white text-black text-sm font-medium px-4 py-2 rounded-full shadow-xl z-[210] pointer-events-none queue-toast">
+              {t(shareState === 'copied' ? 'common.linkCopied' : 'common.copyFailed')}
+            </div>
+          )}
           <div className="flex items-center gap-1">
             <button
               onClick={onOpenLyrics}
