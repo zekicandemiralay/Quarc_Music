@@ -10,6 +10,10 @@ const playedIds = new Set();    // library ids, for the random fallback
 // suggestion. Songs that arrived as a random-library fallback are deliberately
 // NOT in here — see the anchor pool in fillQueue for why that matters.
 const onThemeIds = new Set();
+// Every artist YouTube Music has named as similar to this stream's seed —
+// ~49 per lookup, so this fills up fast. It's what makes the fallback stay in
+// the right neighbourhood without collapsing onto a single artist.
+const themeArtists = new Set();
 let filling = false;
 let songCountSinceLastFill = 0;
 
@@ -56,6 +60,7 @@ function resetStream() {
   seenVideoIds.clear();
   playedIds.clear();
   onThemeIds.clear();
+  themeArtists.clear();
   anchorIndex = 0;
   songCountSinceLastFill = 0;
   filling = false;
@@ -163,6 +168,10 @@ const useRadioStore = create((set, get) => ({
         // A YouTube Music suggestion carries its own videoId, which identifies
         // the track exactly — no spelling to get wrong. Name matching stays as
         // the fallback for Last.fm suggestions, which have nothing else.
+        for (const t of (Array.isArray(suggestions) ? suggestions : [])) {
+          if (t.artist) themeArtists.add(trackKey(t.artist, ''));
+        }
+
         const unseen = (Array.isArray(suggestions) ? suggestions : []).filter(t =>
           !seenKeys.has(trackKey(t.artist, t.title))
           && !(t.videoId && seenVideoIds.has(t.videoId))
@@ -312,17 +321,18 @@ async function addLibrarySongToQueue(gen) {
     const eligible = allSongs.filter(s => !upcomingIds.has(s.id) && !playedIds.has(s.id));
     const exhausted = !eligible.length; // nothing unplayed left to offer
 
-    // A purely random pick out of thousands of songs is how a Turkish rock
-    // stream suddenly plays a belly-dance track. When this fires we've already
-    // failed to get a suggestion, but the seed's own artist is still a far
-    // better guess than the whole library — so prefer their other songs, and
-    // only spread out when there are none left.
-    const { seedSong } = usePlayerStore.getState();
-    const seedArtist = seedSong ? trackKey(seedSong.artist, '') : null;
-    const sameArtist = seedArtist
-      ? eligible.filter((s) => trackKey(s.artist, '') === seedArtist)
+    // A uniform pick out of thousands of songs is how a Turkish rock stream
+    // suddenly plays a belly-dance track. But narrowing to the seed's OWN
+    // artist is the opposite mistake — the stream turns into one artist on
+    // repeat, which is worse than an occasional odd song.
+    //
+    // So the pool is every library song by an artist YouTube Music has already
+    // named as similar to this seed. That's dozens of different artists, all
+    // genuinely on-theme, which keeps the variety while dropping the whiplash.
+    const onThemeSongs = themeArtists.size
+      ? eligible.filter((s) => s.artist && themeArtists.has(trackKey(s.artist, '')))
       : [];
-    const pool = exhausted ? allSongs : (sameArtist.length ? sameArtist : eligible);
+    const pool = exhausted ? allSongs : (onThemeSongs.length ? onThemeSongs : eligible);
     const song = pool[Math.floor(Math.random() * pool.length)];
     // onTheme: false — this song is filler, not a suggestion. It plays, but it
     // never gets to steer what comes next.
