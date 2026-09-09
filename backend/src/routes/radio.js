@@ -10,6 +10,16 @@ const { requireAuth } = require('../middleware/auth');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
 
+// Last.fm is the fallback when YouTube Music can't confidently identify a
+// song. Silencing it (RADIO_LASTFM_FALLBACK=off) makes YouTube Music the only
+// source, so its real hit rate is visible instead of being quietly papered
+// over — a lookup it fails now shows up as "no suggestions" rather than
+// looking like a success. The Last.fm code stays put and is one .env line
+// away from coming back. Every lookup logs which source answered, so
+//   docker compose logs backend | grep '\[radio\]'
+// is the reliability record.
+const LASTFM_FALLBACK = (process.env.RADIO_LASTFM_FALLBACK || 'on').toLowerCase() !== 'off';
+
 // Radio Browser is a community-run directory backed by several independent
 // mirror servers, not one canonical host — hardcoding a single mirror (the
 // frontend used to call de1.api.radio-browser.info directly) means the whole
@@ -87,9 +97,21 @@ router.get('/suggestions', async (req, res) => {
   // downloading it later needs no name matching whatsoever. Returns [] (never
   // throws) when the song can't be confidently identified, so Last.fm still
   // gets its turn. See services/ytmusic.js.
+  const label = `"${artist} - ${title}"`;
   const fromYouTube = await relatedTracks(artist, title, videoId || null);
   if (fromYouTube.length) {
+    console.log(`[radio] youtube-music → ${fromYouTube.length} suggestions for ${label}`);
+    res.set('X-Radio-Source', 'youtube-music');
     return res.json(fromYouTube.map((t) => ({ artist: t.artist, title: t.title, videoId: t.videoId })));
+  }
+
+  if (!LASTFM_FALLBACK) {
+    // Deliberately empty rather than falling through: the client drops to a
+    // random library song, which is the honest outcome of YouTube Music not
+    // finding this one.
+    console.warn(`[radio] youtube-music → NOTHING for ${label} (last.fm fallback is off)`);
+    res.set('X-Radio-Source', 'none');
+    return res.json([]);
   }
 
   if (!apiKey) return res.status(503).json({ error: 'Radio not configured — set LASTFM_API_KEY in .env' });
@@ -117,6 +139,8 @@ router.get('/suggestions', async (req, res) => {
     const data = await response.json();
     const tracks = data.similartracks?.track || [];
 
+    console.log(`[radio] last.fm → ${tracks.length} suggestions for ${label} (youtube-music found nothing)`);
+    res.set('X-Radio-Source', 'lastfm');
     res.json(tracks.map(t => ({
       artist: t.artist.name,
       title: t.name,

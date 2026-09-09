@@ -304,18 +304,29 @@ fi
 
 # Suggestions come from YouTube Music first and fall back to Last.fm, so this
 # works with no LASTFM_API_KEY at all — a videoId on the results is the proof
-# it came from YouTube Music rather than the fallback.
+# it came from YouTube Music rather than the fallback. While the fallback is
+# silenced (RADIO_LASTFM_FALLBACK=off) YouTube Music is the ONLY source, so a
+# result without videoIds isn't a soft warning any more, it's a failure.
+LASTFM_MODE="${RADIO_LASTFM_FALLBACK:-on}"
 SUGG=$(api --max-time 20 -b "$COOKIE" "${BASE}/api/radio/suggestions?artist=Radiohead&title=Creep")
 SUGG_COUNT=$(echo "$SUGG" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo 0)
 if [ "$SUGG_COUNT" -gt 0 ] 2>/dev/null; then
   WITH_ID=$(echo "$SUGG" | python3 -c "import sys,json; print(sum(1 for t in json.load(sys.stdin) if t.get('videoId')))" 2>/dev/null || echo 0)
   if [ "$WITH_ID" -gt 0 ] 2>/dev/null; then
     pass "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s), ${WITH_ID} with videoId (YouTube Music)"
+  elif [ "$LASTFM_MODE" = "off" ]; then
+    fail "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s) with no videoId, but the Last.fm fallback is off — where did these come from?"
   else
-    warn "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s) but no videoId — YouTube Music path down, using Last.fm fallback"
+    warn "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s) but no videoId — YouTube Music path down, served by the Last.fm fallback"
   fi
+elif [ "$LASTFM_MODE" = "off" ]; then
+  fail "GET /api/radio/suggestions → nothing, and there is no fallback (RADIO_LASTFM_FALLBACK=off): the YouTube Music lookup is failing"
 else
   fail "GET /api/radio/suggestions → no suggestions: ${SUGG:0:120}"
+fi
+
+if [ "$LASTFM_MODE" = "off" ]; then
+  warn "Last.fm fallback is SILENCED (RADIO_LASTFM_FALLBACK=off) — YouTube Music is the only source"
 fi
 
 # Regression: tags straight off a YouTube download are messy — the artist field
