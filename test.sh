@@ -165,8 +165,11 @@ fi
 hdr "Home Feed & Collections"
 # ════════════════════════════════════════════════════════════
 
-HOME=$(api -b "$COOKIE" "${BASE}/api/home")
-if [ -n "$HOME" ] && [ "$HOME" != "null" ]; then
+# NOT $HOME — that's the shell's own home directory, and overwriting it with a
+# JSON blob made every later `docker` command fail with
+# "open {\"recentlyPlayed\":...}/.docker/config.json: file name too long".
+HOME_FEED=$(api -b "$COOKIE" "${BASE}/api/home")
+if [ -n "$HOME_FEED" ] && [ "$HOME_FEED" != "null" ]; then
   pass "GET /api/home → responding"
 else
   fail "GET /api/home → empty/null"
@@ -404,7 +407,13 @@ if [ "$IMP" = "null" ]; then
   pass "GET /api/import/status → no active job (null)"
 elif echo "$IMP" | grep -q '"status"'; then
   IMP_S=$(echo "$IMP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','?'))" 2>/dev/null || echo "?")
-  warn "GET /api/import/status → active job detected (status: ${IMP_S})"
+  # The endpoint keeps returning the LAST job after it finishes, so 'done' and
+  # 'error' are just leftover state, not something running now.
+  if [ "$IMP_S" = "done" ] || [ "$IMP_S" = "error" ]; then
+    pass "GET /api/import/status → no job running (last one: ${IMP_S})"
+  else
+    warn "GET /api/import/status → active job detected (status: ${IMP_S})"
+  fi
 else
   fail "GET /api/import/status → unexpected: ${IMP}"
 fi
