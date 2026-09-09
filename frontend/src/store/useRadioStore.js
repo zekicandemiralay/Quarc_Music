@@ -6,6 +6,10 @@ import { contextGroup, getRadio, setRadio } from '../lib/playbackPrefs';
 const seenKeys = new Set();     // artist+title of everything this stream has used
 const seenVideoIds = new Set(); // YouTube ids, when a suggestion carries one
 const playedIds = new Set();    // library ids, for the random fallback
+// Songs that belong to the theme: the seed, plus everything reached through a
+// suggestion. Songs that arrived as a random-library fallback are deliberately
+// NOT in here — see the anchor pool in fillQueue for why that matters.
+const onThemeIds = new Set();
 let filling = false;
 let songCountSinceLastFill = 0;
 
@@ -51,6 +55,7 @@ function resetStream() {
   seenKeys.clear();
   seenVideoIds.clear();
   playedIds.clear();
+  onThemeIds.clear();
   anchorIndex = 0;
   songCountSinceLastFill = 0;
   filling = false;
@@ -118,7 +123,16 @@ const useRadioStore = create((set, get) => ({
       // the stream drifts steadily away from what the user actually picked.
       // The chain is the songs already played in this stream, so when the
       // seed runs dry the anchor steps to the 2nd song, then the 3rd, etc.
-      const chain = anchored ? queue.slice(0, queueIndex + 1) : [];
+      // Only songs that are actually part of the theme can become the next
+      // anchor. A random-library fallback lands in the queue like any other
+      // song, and anchoring on one re-points the whole stream at something the
+      // listener never asked for — one unrelated track and everything after it
+      // is suggestions for THAT, which is how a Turkish rock stream ends up
+      // playing belly dance for the rest of the night.
+      if (seedSong?.id != null) onThemeIds.add(seedSong.id);
+      const chain = anchored
+        ? queue.slice(0, queueIndex + 1).filter((s) => s?.id != null && onThemeIds.has(s.id))
+        : [];
       const MAX_ANCHOR_HOPS = 4; // bound the requests one fill can make
 
       for (let hop = 0; hop < (anchored ? MAX_ANCHOR_HOPS : 1); hop++) {
@@ -251,7 +265,7 @@ async function pollUntilDone(jobId, onProgress, stale) {
 }
 
 // Insert a radio song RADIO_INTERVAL positions ahead so it appears soon, not at the end
-function insertSongIntoQueue(song, { allowRepeat = false } = {}) {
+function insertSongIntoQueue(song, { allowRepeat = false, onTheme = true } = {}) {
   // Name matching is best-effort — Last.fm and a downloaded file's tags can
   // spell the same track differently enough to slip past trackKey. The
   // library id can't be spelled two ways, so it's the real guarantee that a
@@ -263,6 +277,7 @@ function insertSongIntoQueue(song, { allowRepeat = false } = {}) {
     return;
   }
   remember(song); // the file's own tags, which needn't match the suggestion's
+  if (onTheme && song?.id != null) onThemeIds.add(song.id);
   const wasWaiting = usePlayerStore.getState().waitingForRadio;
   usePlayerStore.setState(s => {
     const insertAt = Math.min(s.queueIndex + RADIO_INTERVAL, s.queue.length);
@@ -296,9 +311,22 @@ async function addLibrarySongToQueue(gen) {
     const upcomingIds = new Set(queue.slice(queueIndex + 1).map(s => s.id));
     const eligible = allSongs.filter(s => !upcomingIds.has(s.id) && !playedIds.has(s.id));
     const exhausted = !eligible.length; // nothing unplayed left to offer
-    const pool = exhausted ? allSongs : eligible;
+
+    // A purely random pick out of thousands of songs is how a Turkish rock
+    // stream suddenly plays a belly-dance track. When this fires we've already
+    // failed to get a suggestion, but the seed's own artist is still a far
+    // better guess than the whole library — so prefer their other songs, and
+    // only spread out when there are none left.
+    const { seedSong } = usePlayerStore.getState();
+    const seedArtist = seedSong ? trackKey(seedSong.artist, '') : null;
+    const sameArtist = seedArtist
+      ? eligible.filter((s) => trackKey(s.artist, '') === seedArtist)
+      : [];
+    const pool = exhausted ? allSongs : (sameArtist.length ? sameArtist : eligible);
     const song = pool[Math.floor(Math.random() * pool.length)];
-    insertSongIntoQueue(song, { allowRepeat: exhausted });
+    // onTheme: false — this song is filler, not a suggestion. It plays, but it
+    // never gets to steer what comes next.
+    insertSongIntoQueue(song, { allowRepeat: exhausted, onTheme: false });
   } catch {}
 }
 
