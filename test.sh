@@ -302,6 +302,54 @@ else
   fail "GET /api/radio/stations → unexpected (all Radio Browser mirrors may be down): ${STATIONS:0:150}"
 fi
 
+# Suggestions come from YouTube Music first and fall back to Last.fm, so this
+# works with no LASTFM_API_KEY at all — a videoId on the results is the proof
+# it came from YouTube Music rather than the fallback.
+SUGG=$(api --max-time 20 -b "$COOKIE" "${BASE}/api/radio/suggestions?artist=Radiohead&title=Creep")
+SUGG_COUNT=$(echo "$SUGG" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo 0)
+if [ "$SUGG_COUNT" -gt 0 ] 2>/dev/null; then
+  WITH_ID=$(echo "$SUGG" | python3 -c "import sys,json; print(sum(1 for t in json.load(sys.stdin) if t.get('videoId')))" 2>/dev/null || echo 0)
+  if [ "$WITH_ID" -gt 0 ] 2>/dev/null; then
+    pass "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s), ${WITH_ID} with videoId (YouTube Music)"
+  else
+    warn "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s) but no videoId — YouTube Music path down, using Last.fm fallback"
+  fi
+else
+  fail "GET /api/radio/suggestions → no suggestions: ${SUGG:0:120}"
+fi
+
+# Regression: tags straight off a YouTube download are messy — the artist field
+# often lists every credited name ("Zeki Muren, M. Seyran") and the title
+# carries upload noise. Both lookups need the tags cleaned first: Last.fm
+# matches an exact artist+track pair, and YouTube Music will confidently return
+# something unrelated rather than nothing. Untreated, radio silently degrades
+# to random library picks.
+MESSY=$(api --max-time 20 -b "$COOKIE" "${BASE}/api/radio/suggestions?artist=Radiohead%2C%20Thom%20Yorke&title=Creep%20(Official%20Video)%20%5BHD%5D")
+MESSY_COUNT=$(echo "$MESSY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo 0)
+if [ "$MESSY_COUNT" -gt 0 ] 2>/dev/null; then
+  pass "GET /api/radio/suggestions with messy tags → ${MESSY_COUNT} suggestion(s) (cleaning works)"
+else
+  fail "GET /api/radio/suggestions with messy tags → 0 suggestions; tag cleaning broken: ${MESSY:0:120}"
+fi
+
+# A song already in the library must never be downloaded again — the route
+# should hand back the existing row instead of opening a job.
+FIRST_SONG=$(api -b "$COOKIE" "${BASE}/api/music" | python3 -c "
+import sys, json
+songs = json.load(sys.stdin)
+if songs: print(json.dumps({'artist': songs[0].get('artist') or '', 'title': songs[0].get('title') or ''}))
+" 2>/dev/null || echo "")
+if [ -n "$FIRST_SONG" ]; then
+  DUP=$(api -b "$COOKIE" -X POST "${BASE}/api/radio/download" -H "Content-Type: application/json" -d "$FIRST_SONG")
+  if echo "$DUP" | grep -q '"source"[[:space:]]*:[[:space:]]*"library"'; then
+    pass "POST /api/radio/download for a song already in the library → served from library, no download"
+  else
+    fail "POST /api/radio/download re-downloaded a song already in the library: ${DUP:0:160}"
+  fi
+else
+  warn "No songs in library — library-hit check skipped"
+fi
+
 if [ -n "${LASTFM_API_KEY:-}" ]; then
   # Verify key is inside the container
   BACKEND_KEY=$(docker exec -i "$(docker ps -q --filter 'label=com.docker.compose.service=backend' | head -1)" \
@@ -312,33 +360,14 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
     fail "LASTFM_API_KEY mismatch or missing in container — re-run bash deploy.sh"
   fi
 
-  SUGG=$(api --max-time 15 -b "$COOKIE" "${BASE}/api/radio/suggestions?artist=Radiohead&title=Creep")
-  if echo "$SUGG" | grep -q '^\['; then
-    SUGG_COUNT=$(echo "$SUGG" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
-    pass "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s)"
-  else
-    fail "GET /api/radio/suggestions → unexpected: ${SUGG:0:120}"
-  fi
-
-  # Regression: tags straight off a YouTube download are messy — the artist
-  # field often lists every credited name ("Zeki Muren, M. Seyran") and the
-  # title carries upload noise. Last.fm matches an exact artist+track pair,
-  # so unless the backend cleans these first the lookup returns nothing and
-  # radio silently degrades to random library picks.
-  MESSY=$(api --max-time 15 -b "$COOKIE"     "${BASE}/api/radio/suggestions?artist=Radiohead%2C%20Thom%20Yorke&title=Creep%20(Official%20Video)%20%5BHD%5D")
-  MESSY_COUNT=$(echo "$MESSY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo 0)
-  if [ "$MESSY_COUNT" -gt 0 ] 2>/dev/null; then
-    pass "GET /api/radio/suggestions with messy tags → ${MESSY_COUNT} suggestion(s) (cleaning works)"
-  else
-    fail "GET /api/radio/suggestions with messy tags → 0 suggestions; tag cleaning broken: ${MESSY:0:120}"
-  fi
-
   # Start a radio download and verify jobId returned
   DL_RESP=$(api -b "$COOKIE" -X POST "${BASE}/api/radio/download" \
     -H "Content-Type: application/json" \
     -d '{"artist":"Radiohead","title":"Creep"}')
   JOB_ID=$(echo "$DL_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('jobId',''))" 2>/dev/null || echo "")
-  if [ -n "$JOB_ID" ]; then
+  if echo "$DL_RESP" | grep -q '"source"[[:space:]]*:[[:space:]]*"library"'; then
+    pass "POST /api/radio/download → already in library, served without downloading"
+  elif [ -n "$JOB_ID" ]; then
     pass "POST /api/radio/download → jobId: ${JOB_ID:0:16}…"
 
     STATUS=$(api -b "$COOKIE" "${BASE}/api/radio/status/${JOB_ID}")
@@ -349,10 +378,10 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
       fail "GET /api/radio/status/:id → unexpected: ${STATUS}"
     fi
   else
-    fail "POST /api/radio/download → no jobId returned: ${DL_RESP}"
+    fail "POST /api/radio/download → neither jobId nor library hit: ${DL_RESP}"
   fi
 else
-  warn "LASTFM_API_KEY not set — radio tests skipped"
+  warn "LASTFM_API_KEY not set — Last.fm fallback tests skipped (YouTube Music path tested above)"
 fi
 
 # ════════════════════════════════════════════════════════════

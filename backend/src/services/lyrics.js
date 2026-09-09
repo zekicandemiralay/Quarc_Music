@@ -7,7 +7,7 @@ const USER_AGENT = 'QuarcMusic/1.0 (+https://github.com/zekicandemiralay/Quarc_M
 
 // Shared with the Last.fm suggestions lookup — see services/textClean.js
 // for why downloaded songs' tags need cleaning before any outside lookup.
-const { cleanTitle, cleanArtist } = require('./textClean');
+const { cleanTitle, cleanArtist, normalizeWords, wordOverlap } = require('./textClean');
 
 function normalizeResult(data) {
   if (!data) return null;
@@ -31,24 +31,6 @@ async function getJson(path, params) {
 // applies here: lrclib candidates carry no duration to compare against, and
 // "acoustic"/"live"/etc. in a title is actually fine to ignore for lyrics
 // purposes (the words are usually the same across versions of a song).
-function normalizeWords(s) {
-  return (s || '')
-    .replace(/[İIı]/g, 'i')
-    .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .split(' ')
-    .filter(Boolean);
-}
-
-function wordOverlap(wordsA, wordsB) {
-  if (!wordsA.length) return 0;
-  const setB = new Set(wordsB);
-  return wordsA.filter((w) => setB.has(w)).length / wordsA.length;
-}
-
 // Broad fallback: a title-only search across every artist/version lrclib
 // has, scored to find the closest real match. Used when the recording
 // itself — a cover, remix, or otherwise non-original YouTube upload, often

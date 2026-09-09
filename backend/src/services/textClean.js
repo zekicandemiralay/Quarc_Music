@@ -57,4 +57,26 @@ function primaryArtist(artist) {
   );
 }
 
-module.exports = { cleanTitle, cleanArtist, primaryArtist };
+// Word-overlap scoring, shared by every "did this outside service actually
+// find the song we asked for?" check. Deliberately crude — it compares words,
+// not order or spelling — because the failure it guards against is not a near
+// miss, it's a service confidently returning something unrelated.
+function normalizeWords(s) {
+  return (s || '')
+    .replace(/[İIı]/g, 'i')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+function wordOverlap(wordsA, wordsB) {
+  if (!wordsA.length) return 0;
+  const setB = new Set(wordsB);
+  return wordsA.filter((w) => setB.has(w)).length / wordsA.length;
+}
+
+module.exports = { cleanTitle, cleanArtist, primaryArtist, normalizeWords, wordOverlap };

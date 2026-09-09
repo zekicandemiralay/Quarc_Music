@@ -3,8 +3,9 @@ import usePlayerStore, { schedulePreload } from './playerStore';
 import { contextGroup, getRadio, setRadio } from '../lib/playbackPrefs';
 
 // Module-level: not reactive, just dedup guards
-const seenKeys = new Set();   // artist+title of everything this stream has used
-const playedIds = new Set();  // library ids, for the random fallback
+const seenKeys = new Set();     // artist+title of everything this stream has used
+const seenVideoIds = new Set(); // YouTube ids, when a suggestion carries one
+const playedIds = new Set();    // library ids, for the random fallback
 let filling = false;
 let songCountSinceLastFill = 0;
 
@@ -48,6 +49,7 @@ function trackKey(artist, title) {
 function resetStream() {
   streamId++;
   seenKeys.clear();
+  seenVideoIds.clear();
   playedIds.clear();
   anchorIndex = 0;
   songCountSinceLastFill = 0;
@@ -144,11 +146,17 @@ const useRadioStore = create((set, get) => ({
         // always the top-scoring one: Last.fm returns the same ordered list
         // every time, so picking the head made the same seed produce the
         // same stream in the same order on every listen.
-        const unseen = (Array.isArray(suggestions) ? suggestions : [])
-          .filter(t => !seenKeys.has(trackKey(t.artist, t.title)));
+        // A YouTube Music suggestion carries its own videoId, which identifies
+        // the track exactly — no spelling to get wrong. Name matching stays as
+        // the fallback for Last.fm suggestions, which have nothing else.
+        const unseen = (Array.isArray(suggestions) ? suggestions : []).filter(t =>
+          !seenKeys.has(trackKey(t.artist, t.title))
+          && !(t.videoId && seenVideoIds.has(t.videoId))
+        );
         if (unseen.length) {
           const fresh = unseen[Math.floor(Math.random() * unseen.length)];
           seenKeys.add(trackKey(fresh.artist, fresh.title));
+          if (fresh.videoId) seenVideoIds.add(fresh.videoId);
           startRadioDownload(fresh, gen);
           return;
         }
@@ -182,9 +190,21 @@ async function startRadioDownload(track, gen) {
     const res = await fetch('/api/radio/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ artist: track.artist, title: track.title }),
+      body: JSON.stringify({ artist: track.artist, title: track.title, videoId: track.videoId || null }),
     });
-    const { jobId } = await res.json();
+    const data = await res.json();
+
+    // Already in the library — radio keeps everything it downloads, so its own
+    // suggestions turn up again all the time. Play the copy we have instead of
+    // spending a minute fetching a second one.
+    if (data.song) {
+      drop();
+      if (stale() || !useRadioStore.getState().radioMode) return;
+      insertSongIntoQueue(data.song);
+      return;
+    }
+
+    const jobId = data.jobId;
     if (!jobId) {
       drop();
       addLibrarySongToQueue(gen);

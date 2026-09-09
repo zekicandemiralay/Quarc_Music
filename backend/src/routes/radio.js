@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { searchAndDownload } = require('../services/ytdlp');
-const { cleanTitle, primaryArtist } = require('../services/textClean');
+const { searchAndDownload, downloadAudioWithRetry } = require('../services/ytdlp');
+const { cleanTitle, primaryArtist, normalizeWords } = require('../services/textClean');
+const { relatedTracks } = require('../services/ytmusic');
 const { getDb } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { requireAuth } = require('../middleware/auth');
@@ -76,10 +77,22 @@ router.get('/stations', async (req, res) => {
 
 router.get('/suggestions', async (req, res) => {
   const apiKey = process.env.LASTFM_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: 'Radio not configured — set LASTFM_API_KEY in .env' });
-
-  const { artist = '', title = '' } = req.query;
+  const { artist = '', title = '', videoId = '' } = req.query;
   if (!artist && !title) return res.status(400).json({ error: 'artist or title required' });
+
+  // YouTube Music first — it's Google's recommender rather than Last.fm's
+  // scrobble counts, and the difference is decisive outside Anglo pop: for
+  // Turkish sanat müziği, Last.fm routinely returns nothing at all while this
+  // returns the genre's canon. Each track comes back with its own videoId, so
+  // downloading it later needs no name matching whatsoever. Returns [] (never
+  // throws) when the song can't be confidently identified, so Last.fm still
+  // gets its turn. See services/ytmusic.js.
+  const fromYouTube = await relatedTracks(artist, title, videoId || null);
+  if (fromYouTube.length) {
+    return res.json(fromYouTube.map((t) => ({ artist: t.artist, title: t.title, videoId: t.videoId })));
+  }
+
+  if (!apiKey) return res.status(503).json({ error: 'Radio not configured — set LASTFM_API_KEY in .env' });
 
   // Last.fm matches on an exact artist + track pair, so it has to be given
   // the performer and the song name — not the raw tags a downloaded file
@@ -113,17 +126,54 @@ router.get('/suggestions', async (req, res) => {
   }
 });
 
+// Compare the way a listener would, not the way a string comparison does:
+// case, diacritics, punctuation and spacing all differ freely between a
+// suggestion's name and the tags on a file already sitting in the library
+// ("Elbet Birgün" / "Elbet Bir Gün").
+function libraryKey(artist, title) {
+  return `${normalizeWords(primaryArtist(artist)).join('')}::${normalizeWords(cleanTitle(title)).join('')}`;
+}
+
+// Radio additions are permanent, so over time the library accumulates exactly
+// the songs radio likes to suggest — and re-downloading one costs a minute of
+// waiting for a file we already have. Two ways to recognise it: the download
+// history knows the precise YouTube id we fetched before, and failing that,
+// the tags.
+function findInLibrary(db, { artist, title, videoId }) {
+  if (videoId) {
+    const prev = db.prepare(
+      "SELECT song_id FROM downloads WHERE video_id = ? AND status = 'done' AND song_id IS NOT NULL ORDER BY created_at DESC LIMIT 1"
+    ).get(videoId);
+    if (prev?.song_id) {
+      const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(prev.song_id);
+      if (song) return song; // exact — same video, same file
+    }
+  }
+
+  const want = libraryKey(artist, title);
+  const hit = db.prepare('SELECT id, artist, title FROM songs').all()
+    .find((r) => libraryKey(r.artist, r.title) === want);
+  return hit ? db.prepare('SELECT * FROM songs WHERE id = ?').get(hit.id) : null;
+}
+
 router.post('/download', (req, res) => {
-  const { artist, title } = req.body;
+  const { artist, title, videoId } = req.body;
   if (!title) return res.status(400).json({ error: 'title required' });
+
+  const db = getDb();
+
+  // Already have it — hand it straight back. No job, no download, no wait.
+  const existing = findInLibrary(db, { artist, title, videoId });
+  if (existing) return res.json({ song: existing, source: 'library' });
 
   const query = artist ? `${artist} - ${title}` : title;
   const jobId = uuidv4();
-  const db = getDb();
 
+  // Record the real video id when the suggestion carried one, so the next
+  // time this track comes up the exact-match check above finds it.
   db.prepare(
     'INSERT INTO downloads (id, video_id, title, status, user_id) VALUES (?, ?, ?, ?, ?)'
-  ).run(jobId, `radio:${jobId}`, query, 'pending', req.user.id);
+  ).run(jobId, videoId || `radio:${jobId}`, query, 'pending', req.user.id);
 
   // searchAndDownload, not downloadBySearch: it scores several candidates on
   // title/artist match and version keywords (live/acoustic/remix) and falls
@@ -131,11 +181,20 @@ router.post('/download', (req, res) => {
   // blindly taking the first YouTube hit. Radio picks songs the user never
   // explicitly chose AND keeps them in the library permanently, so grabbing
   // a cover or an unrelated upload is worse here than anywhere else.
-  searchAndDownload(artist || null, title, null, null, MUSIC_DIR, (progress) => {
+  const onProgress = (progress) => {
     db.prepare('UPDATE downloads SET progress = ?, status = ? WHERE id = ?').run(
       progress, 'downloading', jobId
     );
-  })
+  };
+
+  // A suggestion from YouTube Music already names the exact upload, so there
+  // is nothing to search for or score — fetch that video. Only a Last.fm
+  // suggestion (name only) has to go hunting.
+  const job = videoId
+    ? downloadAudioWithRetry(videoId, MUSIC_DIR, onProgress)
+    : searchAndDownload(artist || null, title, null, null, MUSIC_DIR, onProgress);
+
+  job
     .then(async (filepath) => {
       const song = filepath ? await scanFile(filepath) : null;
       db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
