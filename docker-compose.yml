@@ -11,12 +11,17 @@ services:
       - OPENVPN_USER=${VPN_USER}
       - OPENVPN_PASSWORD=${VPN_PASSWORD}
       - SERVER_COUNTRIES=${VPN_COUNTRY:-Switzerland}
-      # Free-tier Proton accounts can only actually connect to free-tier
-      # servers — without this, gluetun might pick a paid-only server the
-      # account has no access to and fail auth. Remove this line (or set to
-      # off) if/when upgrading to a paid Proton plan.
-      - FREE_ONLY=on
-      - OPENVPN_PROTOCOL=tcp
+      # Free-tier Proton accounts can only connect to free-tier servers —
+      # with this on, gluetun won't pick a paid-only server the account has no
+      # access to and fail auth. On a paid plan it must be off, or you're
+      # restricted to ~10 countries for no reason. Set VPN_FREE_ONLY=on in
+      # .env if you ever go back to a free account.
+      - FREE_ONLY=${VPN_FREE_ONLY:-off}
+      # TCP survives restrictive networks that drop UDP, which is why it was
+      # chosen while fighting the free tier. UDP is meaningfully faster for
+      # downloads and paid Proton servers support it — VPN_PROTOCOL=udp in
+      # .env is worth trying, and costs one gluetun restart to undo.
+      - OPENVPN_PROTOCOL=${VPN_PROTOCOL:-tcp}
       - HTTPPROXY=on
     healthcheck:
       test: ["CMD-SHELL", "ping -c 1 -W 10 1.1.1.1"]

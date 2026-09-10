@@ -174,6 +174,8 @@ The database is stored in a Docker volume and survives rebuilds.
 | `VPN_USER` | *(empty)* | VPN provider's OpenVPN service credential username (currently ProtonVPN — account.proton.me → VPN → OpenVPN/IKEv2 username, NOT your account login) |
 | `VPN_PASSWORD` | *(empty)* | VPN provider's OpenVPN service credential password |
 | `VPN_COUNTRY` | `Switzerland` | VPN server country for downloads — must be one the provider/plan has (ProtonVPN free tier: Canada, Japan, Mexico, Netherlands, Norway, Poland, Romania, Singapore, Switzerland, US) |
+| `VPN_FREE_ONLY` | `off` | `on` restricts gluetun to ProtonVPN free-tier servers — required on a free account, must be off on a paid plan |
+| `VPN_PROTOCOL` | `tcp` | OpenVPN transport. `udp` is faster for downloads and works on paid Proton servers; `tcp` survives networks that block UDP |
 
 ---
 
