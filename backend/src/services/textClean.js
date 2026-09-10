@@ -10,7 +10,7 @@
 // Everything here is for MATCHING ONLY — the song's stored tags are never
 // modified, so the library keeps showing exactly what it always showed.
 
-const NOISE_WORD = /^(official|officiel|video|videoclip|audio|music|lyric|lyrics|visualizer|mv|hd|hq|4k|8k|remaster|remastered|clip|explicit|sub|subtitulado|legendado|\d{4})$/i;
+const NOISE_WORD = /^(official|officiel|video|videoclip|audio|music|lyric|lyrics|visualizer|visualiser|mv|hd|hq|4k|8k|remaster|remastered|clip|explicit|sub|subtitulado|legendado|\d{4})$/i;
 
 // Drops (...) / [...] groups whose contents are ENTIRELY noise, so
 // "(Official Video)" goes but "(feat. Dre)" or "(Acoustic)" stay.
@@ -32,6 +32,30 @@ function cleanTitle(title) {
     .replace(/(\s+(official|video|audio|lyrics?|hd|hq|4k|8k|mv|remastered))+$/i, '')
     .trim();
   return cleaned || (title || ''); // never clean a title away entirely
+}
+
+// A harsher normalization used ONLY for deciding whether two titles refer to
+// the same song — never for a lookup that cares about which recording it is.
+//
+// cleanTitle is careful: it drops "(Official Video)" but keeps "(Acoustic)"
+// and "(feat. Dre)", because for lyrics those can matter. For matching a song
+// against YouTube Music's catalogue that caution backfires. Their titles are
+// clean ("A Dangerous Thing"); ours are whatever the uploader typed
+// ("A Dangerous Thing (Visualiser)", "I Went Too Far [All My Demons Greeting
+// Me As A Friend] (2016)"), and every surviving word counts against the
+// match — that is why obviously-correct songs were scoring 0.63-0.81 and
+// being left behind.
+//
+// So for matching: every bracketed aside goes, whatever is in it, and so does
+// a trailing feature credit. What's left is the song's actual name.
+function matchTitle(title) {
+  const stripped = (title || '')
+    .replace(/[([{（【][^)\]}）】]*[)\]}）】]/g, ' ')   // any aside, incl. full-width brackets
+    .replace(/\s*\b(feat|ft|featuring|with)\b\.?\s+.*$/i, '') // trailing feature credit
+    .replace(/\s*[|·–—-]\s*(official\s*)?(music\s*)?(video|audio|lyrics?|visualiser|visualizer|mv)\b.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return stripped || cleanTitle(title);
 }
 
 function cleanArtist(artist) {
@@ -79,4 +103,4 @@ function wordOverlap(wordsA, wordsB) {
   return wordsA.filter((w) => setB.has(w)).length / wordsA.length;
 }
 
-module.exports = { cleanTitle, cleanArtist, primaryArtist, normalizeWords, wordOverlap };
+module.exports = { cleanTitle, matchTitle, cleanArtist, primaryArtist, normalizeWords, wordOverlap };

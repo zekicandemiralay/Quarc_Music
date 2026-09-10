@@ -20,7 +20,7 @@
 // down (they currently don't), and shared VPN exit IPs are *more* likely to
 // be bot-flagged than the server's own, not less. Every user search already
 // reaches YouTube from this IP, so this adds no exposure that isn't there.
-const { cleanTitle, primaryArtist, normalizeWords, wordOverlap } = require('./textClean');
+const { matchTitle, primaryArtist, normalizeWords, wordOverlap } = require('./textClean');
 
 const BASE = 'https://music.youtube.com/youtubei/v1';
 
@@ -136,11 +136,14 @@ function itemArtist(item) {
 // the match. Callers pick their own bar: radio accepts MIN_MATCH because a
 // mediocre seed for one queue is recoverable, while the backfill demands more
 // before writing an id to the song permanently.
-async function resolveVideoId(artist, title) {
-  // Search on the cleaned tags: upload noise ("(Official Video)") and a
-  // comma-joined writer credit both drag the query off the real song.
-  const wantTitle = cleanTitle(title);
+async function searchBest(artist, title) {
+  // Match on the harsher normalization: upload noise ("(Visualiser)", a
+  // bracketed album name, a trailing feature credit) is absent from YouTube
+  // Music's titles, and every word of it that survives counts against the
+  // score. A comma-joined writer credit does the same to the artist.
+  const wantTitle = matchTitle(title);
   const wantArtist = primaryArtist(artist);
+  if (!wantTitle) return null;
   const query = wantArtist ? `${wantArtist} ${wantTitle}` : wantTitle;
 
   const data = await innertube('search', { query, params: SONGS_FILTER });
@@ -153,6 +156,22 @@ async function resolveVideoId(artist, title) {
     if (!best || score > best.score) best = { id, score };
   }
   return best && best.score > 0 ? best : null;
+}
+
+async function resolveVideoId(artist, title) {
+  const best = await searchBest(artist, title);
+  if (best && best.score >= MIN_MATCH) return best;
+
+  // Some files have the two fields the wrong way round — yt-dlp's
+  // "Artist - Title" parse misreads video titles that don't follow it, giving
+  // rows like artist="16 Departure (Home)", title="Max Richter". Nothing can
+  // match those as-is, so when the straight reading fails, try them swapped
+  // and keep whichever the catalogue actually recognises.
+  if (artist && title) {
+    const swapped = await searchBest(title, artist);
+    if (swapped && (!best || swapped.score > best.score)) return swapped;
+  }
+  return best;
 }
 
 // Radio needs a seed video, and our library songs carry tags, not YouTube ids.
