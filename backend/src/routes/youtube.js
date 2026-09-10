@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { searchYoutube, downloadAudioWithRetry, downloadBySearch } = require('../services/ytdlp');
-const { getDb } = require('../db');
+const { getDb, setSongVideoId } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { requireAuth } = require('../middleware/auth');
 
@@ -47,6 +47,7 @@ router.post('/download', (req, res) => {
 
   const finish = async (filepath) => {
     const song = filepath ? await scanFile(filepath) : null;
+    setSongVideoId(song?.id, videoId); // so radio can seed on it exactly, not by name
     db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
       'done', song?.id || null, jobId
     );

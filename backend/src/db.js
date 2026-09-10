@@ -99,6 +99,33 @@ function initDb() {
     `);
   }
 
+  // Every song here came from a YouTube video, so the one identifier that
+  // names it exactly is the video id — no spelling, no tags, no ambiguity.
+  // It was being thrown away after the download, leaving radio to re-search
+  // YouTube Music by artist+title every time it needed a seed. That search is
+  // where "sometimes perfect, sometimes half-random" came from: a wrong-but-
+  // similar hit (a cover, a live cut, a different song sharing a title) seeds
+  // a radio queue that looks valid and isn't.
+  if (!songCols.includes('video_id')) {
+    database.exec('ALTER TABLE songs ADD COLUMN video_id TEXT');
+    // The downloads table already knows the answer for everything fetched
+    // through the app — carry it across rather than making the user re-earn
+    // it. 'radio:<uuid>' rows are placeholders from before radio recorded the
+    // real id, so they're skipped.
+    const filled = database.prepare(`
+      UPDATE songs SET video_id = (
+        SELECT d.video_id FROM downloads d
+        WHERE d.song_id = songs.id
+          AND d.status = 'done'
+          AND d.video_id IS NOT NULL
+          AND d.video_id NOT LIKE 'radio:%'
+        ORDER BY d.created_at DESC LIMIT 1
+      )
+      WHERE video_id IS NULL
+    `).run();
+    console.log(`[db] added songs.video_id — backfilled ${filled.changes} row(s) from download history`);
+  }
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS featured_playlists (
       id TEXT PRIMARY KEY,
@@ -161,4 +188,14 @@ function ensureAdmin(database) {
   ).run(uuidv4(), username, hash, salt, 'admin');
 }
 
-module.exports = { getDb, initDb };
+// Remember which YouTube video a song came from, so radio can seed its
+// suggestions on the exact track instead of searching for it by name again.
+// Only ever fills a blank — a song's origin doesn't change, and overwriting
+// a known-good id with a guess from some later code path would be a
+// regression, not an update.
+function setSongVideoId(songId, videoId) {
+  if (!songId || !videoId) return;
+  getDb().prepare('UPDATE songs SET video_id = ? WHERE id = ? AND video_id IS NULL').run(videoId, songId);
+}
+
+module.exports = { getDb, initDb, setSongVideoId };

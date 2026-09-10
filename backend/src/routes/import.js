@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const { requireAuth } = require('../middleware/auth');
 const { searchAndDownload, downloadAudioWithRetry, withTimeout } = require('../services/ytdlp');
 const { scanFile } = require('../services/scanner');
-const { getDb } = require('../db');
+const { getDb, setSongVideoId } = require('../db');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 const MUSIC_DIR = () => process.env.MUSIC_DIR || '/music';
@@ -240,6 +240,7 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
           const filepath = await downloadWithRetry(track);
           if (filepath) {
             song = await scanFile(filepath);
+            setSongVideoId(song?.id, track.videoId); // no-op for CSV imports, which have none
             // Keep lookup current so later tracks in the same import don't re-download
             if (song) {
               const t = normalizeStr(song.title);

@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { searchAndDownload, downloadAudioWithRetry } = require('../services/ytdlp');
 const { cleanTitle, primaryArtist, normalizeWords } = require('../services/textClean');
 const { relatedTracks } = require('../services/ytmusic');
-const { getDb } = require('../db');
+const { getDb, setSongVideoId } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { requireAuth } = require('../middleware/auth');
 
@@ -87,8 +87,19 @@ router.get('/stations', async (req, res) => {
 
 router.get('/suggestions', async (req, res) => {
   const apiKey = process.env.LASTFM_API_KEY;
-  const { artist = '', title = '', videoId = '' } = req.query;
+  const { artist = '', title = '', videoId = '', songId = '' } = req.query;
   if (!artist && !title) return res.status(400).json({ error: 'artist or title required' });
+
+  // Every song in the library came from a YouTube video, so when we know which
+  // one, seed the radio on it directly. Searching YouTube Music by artist+title
+  // instead is a guess, and a plausible wrong guess — a cover, a live cut, a
+  // different song of the same name — produces a queue that looks fine and
+  // isn't. That guess is why suggestions were excellent for some songs and
+  // half-random for others.
+  let seedVideoId = videoId || null;
+  if (!seedVideoId && songId) {
+    seedVideoId = getDb().prepare('SELECT video_id FROM songs WHERE id = ?').get(songId)?.video_id || null;
+  }
 
   // YouTube Music first — it's Google's recommender rather than Last.fm's
   // scrobble counts, and the difference is decisive outside Anglo pop: for
@@ -98,9 +109,9 @@ router.get('/suggestions', async (req, res) => {
   // throws) when the song can't be confidently identified, so Last.fm still
   // gets its turn. See services/ytmusic.js.
   const label = `"${artist} - ${title}"`;
-  const fromYouTube = await relatedTracks(artist, title, videoId || null);
+  const fromYouTube = await relatedTracks(artist, title, seedVideoId);
   if (fromYouTube.length) {
-    console.log(`[radio] youtube-music → ${fromYouTube.length} suggestions for ${label}`);
+    console.log(`[radio] youtube-music → ${fromYouTube.length} suggestions for ${label}${seedVideoId ? ' (exact seed)' : ' (matched by name)'}`);
     res.set('X-Radio-Source', 'youtube-music');
     return res.json(fromYouTube.map((t) => ({ artist: t.artist, title: t.title, videoId: t.videoId })));
   }
@@ -109,7 +120,7 @@ router.get('/suggestions', async (req, res) => {
     // Deliberately empty rather than falling through: the client drops to a
     // random library song, which is the honest outcome of YouTube Music not
     // finding this one.
-    console.warn(`[radio] youtube-music → NOTHING for ${label} (last.fm fallback is off)`);
+    console.warn(`[radio] youtube-music → NOTHING for ${label} (no video id on file; name lookup failed; last.fm fallback is off)`);
     res.set('X-Radio-Source', 'none');
     return res.json([]);
   }
@@ -221,6 +232,7 @@ router.post('/download', (req, res) => {
   job
     .then(async (filepath) => {
       const song = filepath ? await scanFile(filepath) : null;
+      setSongVideoId(song?.id, videoId); // null when this came from a name-only suggestion
       db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
         'done', song?.id ?? null, jobId
       );

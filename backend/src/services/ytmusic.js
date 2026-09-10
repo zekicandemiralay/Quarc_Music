@@ -111,15 +111,32 @@ function matchScore(wantArtist, wantTitle, gotArtist, gotTitle) {
   return titleScore * 0.75 + artistScore * 0.25;
 }
 
-// The first flex column is the track title; the second is the byline.
-function itemTitle(item) {
-  const col = item.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer;
-  return runsText(col?.text);
+// Search results and radio-queue entries describe themselves differently:
+// a queue entry carries longBylineText, while a search result has none at all
+// and puts "Artist • Album • 3:45" in its second flex column. Reading only the
+// byline meant every search result looked like it had no artist, so the artist
+// contributed nothing to picking a seed — a song titled "Olsun" matched any
+// other "Olsun" equally well, whoever recorded it, and the radio was built on
+// whichever happened to rank first.
+function flexText(item, i) {
+  return runsText(item.flexColumns?.[i]?.musicResponsiveListItemFlexColumnRenderer?.text);
 }
 
-// Find the videoId for a song we only know by name. Radio needs a seed video,
-// and our library songs carry tags, not YouTube ids.
-async function findVideoId(artist, title) {
+function itemTitle(item) {
+  return flexText(item, 0);
+}
+
+function itemArtist(item) {
+  const byline = bylineArtist(item);
+  if (byline) return byline;
+  return (flexText(item, 1).split('•')[0] || '').trim() || null;
+}
+
+// Find the videoId for a song we only know by name, with the confidence of
+// the match. Callers pick their own bar: radio accepts MIN_MATCH because a
+// mediocre seed for one queue is recoverable, while the backfill demands more
+// before writing an id to the song permanently.
+async function resolveVideoId(artist, title) {
   // Search on the cleaned tags: upload noise ("(Official Video)") and a
   // comma-joined writer credit both drag the query off the real song.
   const wantTitle = cleanTitle(title);
@@ -132,9 +149,15 @@ async function findVideoId(artist, title) {
   for (const item of collect(data, 'musicResponsiveListItemRenderer').slice(0, 5)) {
     const [id] = collect(item, 'videoId');
     if (!id) continue;
-    const score = matchScore(wantArtist, wantTitle, bylineArtist(item), itemTitle(item));
+    const score = matchScore(wantArtist, wantTitle, itemArtist(item), itemTitle(item));
     if (!best || score > best.score) best = { id, score };
   }
+  return best && best.score > 0 ? best : null;
+}
+
+// Radio needs a seed video, and our library songs carry tags, not YouTube ids.
+async function findVideoId(artist, title) {
+  const best = await resolveVideoId(artist, title);
   return best && best.score >= MIN_MATCH ? best.id : null;
 }
 
@@ -176,4 +199,4 @@ async function relatedTracks(artist, title, videoId = null) {
   }
 }
 
-module.exports = { relatedTracks, findVideoId, radioQueue };
+module.exports = { relatedTracks, findVideoId, resolveVideoId, radioQueue, MIN_MATCH };

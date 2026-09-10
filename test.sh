@@ -348,11 +348,36 @@ fi
 
 # A song already in the library must never be downloaded again — the route
 # should hand back the existing row instead of opening a job.
-FIRST_SONG=$(api -b "$COOKIE" "${BASE}/api/music" | python3 -c "
+SONG_JSON=$(api -b "$COOKIE" "${BASE}/api/music" | python3 -c "
 import sys, json
 songs = json.load(sys.stdin)
-if songs: print(json.dumps({'artist': songs[0].get('artist') or '', 'title': songs[0].get('title') or ''}))
+if songs: print(json.dumps(songs[0]))
 " 2>/dev/null || echo "")
+FIRST_SONG=$(echo "$SONG_JSON" | python3 -c "
+import sys, json
+s = json.load(sys.stdin)
+print(json.dumps({'artist': s.get('artist') or '', 'title': s.get('title') or ''}))
+" 2>/dev/null || echo "")
+
+# Seeding on the song's own YouTube id is what makes suggestions reliable
+# rather than a name-search guess. The column is populated at download time,
+# by the db migration from download history, and by backfillVideoIds.js.
+if echo "$SONG_JSON" | grep -q '"video_id"'; then
+  pass "GET /api/music → songs carry video_id (radio can seed exactly)"
+else
+  warn "GET /api/music → no video_id field; migration may not have run — check deploy"
+fi
+
+SID=$(echo "$SONG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+if [ -n "$SID" ]; then
+  SEEDED=$(api --max-time 20 -b "$COOKIE" -G "${BASE}/api/radio/suggestions" --data-urlencode "songId=$SID"     --data-urlencode "artist=$(echo "$FIRST_SONG" | python3 -c "import sys,json; print(json.load(sys.stdin)['artist'])" 2>/dev/null)"     --data-urlencode "title=$(echo "$FIRST_SONG" | python3 -c "import sys,json; print(json.load(sys.stdin)['title'])" 2>/dev/null)")
+  SEEDED_N=$(echo "$SEEDED" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo 0)
+  if [ "$SEEDED_N" -gt 0 ] 2>/dev/null; then
+    pass "GET /api/radio/suggestions?songId=… → ${SEEDED_N} suggestion(s) for a real library song"
+  else
+    fail "GET /api/radio/suggestions?songId=… → nothing for a real library song: ${SEEDED:0:120}"
+  fi
+fi
 if [ -n "$FIRST_SONG" ]; then
   DUP=$(api -b "$COOKIE" -X POST "${BASE}/api/radio/download" -H "Content-Type: application/json" -d "$FIRST_SONG")
   if echo "$DUP" | grep -q '"source"[[:space:]]*:[[:space:]]*"library"'; then

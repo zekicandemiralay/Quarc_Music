@@ -148,9 +148,15 @@ const useRadioStore = create((set, get) => ({
 
         let suggestions;
         try {
+          // songId lets the backend seed on the exact YouTube video this song
+          // came from, when it knows it, instead of searching for it by name —
+          // a search that can land on a cover or a same-titled different song
+          // and build the whole queue on that. Tags are still sent as the
+          // fallback for songs whose origin was never recorded.
           const params = new URLSearchParams({
             artist: basis.artist || '',
             title: basis.title || '',
+            songId: basis.id || '',
           });
           const res = await fetch(`/api/radio/suggestions?${params}`);
           if (!res.ok) throw new Error('suggestions unavailable');
