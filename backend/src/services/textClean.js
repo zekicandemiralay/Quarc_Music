@@ -50,6 +50,12 @@ function cleanTitle(title) {
 // a trailing feature credit. What's left is the song's actual name.
 function matchTitle(title) {
   const stripped = (title || '')
+    .replace(/\.(wmv|mp4|mp3|m4a|avi|flv|mkv|webm|wav|flac|ogg)$/i, '') // a filename crept into the tag
+    // A leading track number, but only with a separator after it: "10. Emma",
+    // "2 - Altalena", "01 - ...". Never a bare number, because "212",
+    // "50 Ways to Leave Your Lover" and "7 Rings" start that way legitimately
+    // and losing the first word would be worse than keeping a stray digit.
+    .replace(/^\s*\d{1,3}\s*[.\-–—)]\s+/, '')
     .replace(/[([{（【][^)\]}）】]*[)\]}）】]/g, ' ')   // any aside, incl. full-width brackets
     .replace(/\s*\b(feat|ft|featuring|with)\b\.?\s+.*$/i, '') // trailing feature credit
     // Everything after a pipe. YouTube titles use it for whatever the
