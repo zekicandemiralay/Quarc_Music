@@ -189,7 +189,18 @@ async function resolveVideoId(artist, title) {
   // and keep whichever the catalogue actually recognises.
   if (artist && title) {
     const swapped = await searchBest(title, artist);
-    if (swapped && (!best || swapped.score > best.score)) return swapped;
+    if (swapped && (!best || swapped.score > best.score)) best = swapped;
+    if (best && best.score >= STRONG_MATCH) return best;
+  }
+
+  // The artist field is often just the uploading channel ("AisaNela",
+  // "Akademia Filmu i Telewizji"), with the real credit sitting inside the
+  // title: "Yann Tiersen ~ Slippery Stones", "Gabriel Fauré – Pavane, Op. 50".
+  // Reading the title's own leading segment as the artist recovers those.
+  const split = (title || '').match(/^\s*(.+?)\s+[~–—-]\s+(.+)$/);
+  if (split) {
+    const fromTitle = await searchBest(split[1], split[2]);
+    if (fromTitle && (!best || fromTitle.score > best.score)) best = fromTitle;
   }
   return best;
 }
