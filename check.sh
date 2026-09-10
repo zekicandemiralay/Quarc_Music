@@ -220,7 +220,13 @@ if $AUTHED; then
     IMP_STATUS=$(echo "$IMP_RESP" | grep -oP '"status":"\K[^"]+' | head -1 || echo "?")
     IMP_DONE=$(echo "$IMP_RESP" | grep -oP '"done":\K\d+' | head -1 || echo "?")
     IMP_TOTAL=$(echo "$IMP_RESP" | grep -oP '"total":\K\d+' | head -1 || echo "?")
-    warn "GET /api/import/status → active job (status: ${IMP_STATUS}, ${IMP_DONE}/${IMP_TOTAL} done)"
+    # The endpoint keeps returning the last job after it finishes, so 'done'
+    # and 'error' are leftover state, not something running now.
+    if [ "$IMP_STATUS" = "done" ] || [ "$IMP_STATUS" = "error" ]; then
+      ok "GET /api/import/status → no job running (last: ${IMP_STATUS}, ${IMP_DONE}/${IMP_TOTAL})"
+    else
+      warn "GET /api/import/status → active job (status: ${IMP_STATUS}, ${IMP_DONE}/${IMP_TOTAL} done)"
+    fi
   else
     fail "GET /api/import/status → unexpected: ${IMP_RESP}"
   fi
@@ -361,20 +367,22 @@ else
   fail "yt-dlp not found in backend container"
 fi
 
-# Search is deliberately NOT routed through the VPN in production (it's a light,
-# low-risk operation unlike downloads, and skipping the VPN avoids its latency/
-# rate-limit exposure for the thing that most needs to be fast) — test it the
-# same way the app actually does it, i.e. direct, no --proxy.
-info "Testing YouTube search direct, no VPN (may take ~10s)..."
+# Search now goes through the VPN, because YouTube started refusing yt-dlp's
+# search from the server's own IP while VPN downloads kept working — the app
+# looked healthy while nobody could add new music. Test the path the app
+# actually uses, proxy included.
+info "Testing YouTube search via VPN (may take ~10s)..."
+YT_PROXY=$(dexec backend sh -c 'echo "$YTDLP_PROXY"' 2>/dev/null | tr -d '\r\n')
 YT_RESULT=$(dexec backend yt-dlp \
   "ytsearch1:Rick Astley Never Gonna Give You Up" \
   --dump-json --flat-playlist --no-warnings \
+  ${YT_PROXY:+--proxy "$YT_PROXY"} \
   --socket-timeout 15 2>/dev/null | head -1 || echo "")
 YT_ID=$(echo "$YT_RESULT" | grep -oP '"id":\s*"\K[^"]+' | head -1 || echo "")
 if [ -n "$YT_ID" ]; then
-  ok "YouTube search OK (direct, no VPN) — got video ID: ${YT_ID}"
+  ok "YouTube search OK (via VPN) — got video ID: ${YT_ID}"
 else
-  fail "YouTube search failed — server's direct connection to YouTube may be blocked (search doesn't use the VPN)"
+  fail "YouTube search failed — nobody can add new music. If the download test below passes, the VPN exit is blocked for search specifically: rotate VPN_COUNTRY, or set YTDLP_SEARCH_DIRECT=1 to search off the VPN"
 fi
 
 # Search alone isn't enough to catch real problems: flat-playlist search doesn't

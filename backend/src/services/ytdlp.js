@@ -43,12 +43,23 @@ function summarizeError(errorOut) {
   return errorOut.slice(-300);
 }
 
-// Deliberately NOT routed through the VPN (PROXY_ARGS) — search is a light,
-// low-risk operation (no extraction, no bandwidth) unlike actual downloads,
-// so it doesn't need the VPN's protection, and skipping it avoids the VPN's
-// latency/rate-limit exposure entirely for the thing that most needs to be
-// fast. Only the real download functions below (downloadAudio,
-// downloadBySearch) route through the VPN.
+// Search used to run direct, off the VPN: it's light (no extraction, no
+// bandwidth), it doesn't need the VPN's protection, and skipping the tunnel
+// kept the latency down on the thing that most needs to feel fast. That
+// reasoning assumed the server's own IP could still reach YouTube.
+//
+// It can't. YouTube now refuses yt-dlp's search from this IP outright while
+// downloads through the VPN keep working — check.sh caught it as "YouTube
+// search failed" with every download test passing beside it, which meant
+// nobody could add new music even though the app looked healthy. The
+// latency argument was also written against a free VPN tier that no longer
+// applies.
+//
+// Set YTDLP_SEARCH_DIRECT=1 to go back to a direct search — worth trying if
+// the VPN exit itself ever gets blocklisted for search, since then the two
+// paths fail independently and you want whichever still works.
+const SEARCH_PROXY_ARGS = process.env.YTDLP_SEARCH_DIRECT === '1' ? [] : PROXY_ARGS;
+
 function searchYoutube(query, limit = 10) {
   return new Promise((resolve, reject) => {
     const proc = spawn('yt-dlp', [
@@ -57,6 +68,7 @@ function searchYoutube(query, limit = 10) {
       '--flat-playlist',
       '--no-warnings',
       '--socket-timeout', '10',
+      ...SEARCH_PROXY_ARGS,
       ...JS_ARGS,
       ...POT_ARGS,
     ]);
