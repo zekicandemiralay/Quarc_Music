@@ -13,13 +13,23 @@
 // notice — which is why Last.fm is kept underneath rather than deleted, and
 // why every parse here is defensive rather than assuming a shape.
 //
-// Deliberately NOT routed through the VPN, matching searchYoutube() in
-// ytdlp.js: this is a metadata lookup, not extraction — no bandwidth, no
-// video data, and nothing yt-dlp's proxy exists to protect. Routing it
-// through gluetun would make radio suggestions break whenever the tunnel is
-// down (they currently don't), and shared VPN exit IPs are *more* likely to
-// be bot-flagged than the server's own, not less. Every user search already
-// reaches YouTube from this IP, so this adds no exposure that isn't there.
+// Routed through the VPN, same as downloads.
+//
+// This originally ran direct, reasoning that a metadata lookup needs no
+// protection and that the server's own IP was the safer, less bot-flagged
+// exit. That was wrong in the way that mattered: the IP is a shared resource
+// across every feature, and when YouTube 403s it, everything using it dies at
+// once with nothing to fall back on. The backfill script proved it — a few
+// hundred rapid lookups got the server blocked, which took live radio down
+// with it for hours.
+//
+// A VPN exit is the opposite: expendable and replaceable. If it gets blocked,
+// autoheal rotates VPN_COUNTRY and we're on a fresh one, whereas the server's
+// own address just has to sit out the cooldown. Bulk work in particular
+// should never be spending the address the whole app depends on.
+//
+// YTMUSIC_DIRECT=1 goes back to direct — worth trying if the VPN exit itself
+// is refused, since the two paths fail independently.
 const { matchTitle, primaryArtist, normalizeWords, wordOverlap } = require('./textClean');
 
 const BASE = 'https://music.youtube.com/youtubei/v1';
@@ -53,8 +63,29 @@ const TIMEOUT_MS = 10000;
 // percent-encoded form (which is what the web client itself sends).
 const SONGS_FILTER = 'EgWKAQIIAWoKEAoQAxAEEAkQBQ%3D%3D';
 
+// Node's global fetch has no proxy support, so a proxied request needs
+// undici's ProxyAgent — and its own fetch alongside it, so the dispatcher and
+// the client come from the same undici rather than the copy bundled inside
+// Node. Falls back to a direct fetch if undici is somehow unavailable: losing
+// the proxy is bad, but failing to start the backend is worse.
+const PROXY = process.env.YTMUSIC_DIRECT === '1'
+  ? ''
+  : (process.env.YTMUSIC_PROXY || process.env.YTDLP_PROXY || '');
+
+let httpFetch = (url, opts) => fetch(url, opts);
+if (PROXY) {
+  try {
+    const { fetch: undiciFetch, ProxyAgent } = require('undici');
+    const agent = new ProxyAgent(PROXY);
+    httpFetch = (url, opts) => undiciFetch(url, { ...opts, dispatcher: agent });
+    console.log(`[ytmusic] suggestions routed through ${PROXY}`);
+  } catch (err) {
+    console.warn(`[ytmusic] undici unavailable (${err.message}) — falling back to a DIRECT connection, which risks the server's own IP being blocked`);
+  }
+}
+
 async function innertube(endpoint, body) {
-  const res = await fetch(`${BASE}/${endpoint}?prettyPrint=false`, {
+  const res = await httpFetch(`${BASE}/${endpoint}?prettyPrint=false`, {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ context: { client: CLIENT }, ...body }),
