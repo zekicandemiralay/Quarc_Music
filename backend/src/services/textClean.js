@@ -52,7 +52,13 @@ function matchTitle(title) {
   const stripped = (title || '')
     .replace(/[([{（【][^)\]}）】]*[)\]}）】]/g, ' ')   // any aside, incl. full-width brackets
     .replace(/\s*\b(feat|ft|featuring|with)\b\.?\s+.*$/i, '') // trailing feature credit
-    .replace(/\s*[|·–—-]\s*(official\s*)?(music\s*)?(video|audio|lyrics?|visualiser|visualizer|mv)\b.*$/i, '')
+    // Everything after a pipe. YouTube titles use it for whatever the
+    // uploader felt like appending — the channel, the session, the album, a
+    // language tag: "Little Things | Immaterial", "SOFT UNIVERSE |
+    // LEGENDADO", "Vanishing Point | Mahogany Session". None of it is the
+    // song's name.
+    .replace(/\s*\|.*$/, '')
+    .replace(/\s*[·–—-]\s*(official\s*)?(music\s*)?(video|audio|lyrics?|visualiser|visualizer|mv)\b.*$/i, '')
     .replace(/\s+/g, ' ')
     .trim();
   return stripped || cleanTitle(title);

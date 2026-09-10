@@ -98,6 +98,9 @@ function bylineArtist(renderer) {
 // the bar is treated as "not found" so the caller falls back to Last.fm
 // instead of streaming nonsense.
 const MIN_MATCH = 0.5;
+// Good enough to stop looking. Below this it's worth spending another request
+// to see if a wider search finds something better.
+const STRONG_MATCH = 0.85;
 const MIN_TITLE_MATCH = 0.5; // the title alone must be plausible — a shared
                              // artist can't carry an unrelated song
 
@@ -105,10 +108,17 @@ function matchScore(wantArtist, wantTitle, gotArtist, gotTitle) {
   const titleScore = wordOverlap(normalizeWords(wantTitle), normalizeWords(gotTitle));
   if (titleScore < MIN_TITLE_MATCH) return 0;
   const artistScore = wordOverlap(normalizeWords(wantArtist), normalizeWords(gotArtist));
-  // Title carries most of the weight: our artist tag is the field most often
-  // wrong on a downloaded file (a channel name, every credited writer), so
-  // failing a good title match on it would reject real songs.
-  return titleScore * 0.75 + artistScore * 0.25;
+  // The artist agreeing is the single strongest evidence that a candidate is
+  // the same recording, so it carries real weight — titles alone are far too
+  // easy to share. "La Nave Va" by Aleandro Baldi matches our Alessandro
+  // Safina track's title perfectly and is a completely different song, while
+  // Agar Agar's "I'm That Guy" is unmistakably our "I Am That Guy" despite
+  // the contraction costing it a word.
+  //
+  // It can't dominate outright, though: our artist field is the one most
+  // often wrong on a downloaded file (a channel name, every credited writer),
+  // and the title still has to hold up on its own.
+  return titleScore * 0.6 + artistScore * 0.4;
 }
 
 // Search results and radio-queue entries describe themselves differently:
@@ -136,7 +146,7 @@ function itemArtist(item) {
 // the match. Callers pick their own bar: radio accepts MIN_MATCH because a
 // mediocre seed for one queue is recoverable, while the backfill demands more
 // before writing an id to the song permanently.
-async function searchBest(artist, title) {
+async function searchBest(artist, title, { songsOnly = true } = {}) {
   // Match on the harsher normalization: upload noise ("(Visualiser)", a
   // bracketed album name, a trailing feature credit) is absent from YouTube
   // Music's titles, and every word of it that survives counts against the
@@ -146,7 +156,7 @@ async function searchBest(artist, title) {
   if (!wantTitle) return null;
   const query = wantArtist ? `${wantArtist} ${wantTitle}` : wantTitle;
 
-  const data = await innertube('search', { query, params: SONGS_FILTER });
+  const data = await innertube('search', songsOnly ? { query, params: SONGS_FILTER } : { query });
 
   let best = null;
   for (const item of collect(data, 'musicResponsiveListItemRenderer').slice(0, 5)) {
@@ -159,8 +169,18 @@ async function searchBest(artist, title) {
 }
 
 async function resolveVideoId(artist, title) {
-  const best = await searchBest(artist, title);
-  if (best && best.score >= MIN_MATCH) return best;
+  let best = await searchBest(artist, title);
+  if (best && best.score >= STRONG_MATCH) return best;
+
+  // The songs filter only covers YouTube Music's official catalogue. Plenty of
+  // what's in this library — live sets, indie uploads, classical performances
+  // — exists on YouTube purely as a video, and for those the filtered search
+  // can't return the right track at all: it returns some other artist's song
+  // of the same name, which looks like a match and isn't. Widening the search
+  // is the only way to reach them.
+  const unfiltered = await searchBest(artist, title, { songsOnly: false });
+  if (unfiltered && (!best || unfiltered.score > best.score)) best = unfiltered;
+  if (best && best.score >= STRONG_MATCH) return best;
 
   // Some files have the two fields the wrong way round — yt-dlp's
   // "Artist - Title" parse misreads video titles that don't follow it, giving
