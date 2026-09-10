@@ -155,6 +155,19 @@ if [ -n "$CERT_EXP" ]; then
   if   [ "$DAYS" -lt 7  ]; then fail "SSL cert expires in ${DAYS} days! Every client will fail to connect. Run: bash renew-cert.sh --force"
   elif [ "$DAYS" -lt 30 ]; then warn "SSL cert expires in ${DAYS} days (renew-cert.sh renews inside 30 — check it is in crontab below)"
   else ok "SSL cert valid for ${DAYS} more days"; fi
+
+  # nginx loads the certificate once at startup and serves that copy until it
+  # reloads, so a renewed file and a live-but-stale cert look identical unless
+  # you compare them. This is what makes a successful renewal appear to have
+  # done nothing: the file said 89 days while clients were still getting 16.
+  CERT_FILE="/var/lib/tailscale/certs/${CERT_DOMAIN:-quarcnet0.tail84500c.ts.net}.crt"
+  FILE_EXP=$(sudo -n cat "$CERT_FILE" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || echo "")
+  if [ -n "$FILE_EXP" ]; then
+    FILE_DAYS=$(( ($(date -d "$FILE_EXP" +%s 2>/dev/null || echo 0) - $(date +%s)) / 86400 ))
+    if [ "$FILE_DAYS" -gt $(( DAYS + 1 )) ]; then
+      warn "nginx is serving a STALE certificate — the file on disk has ${FILE_DAYS} days but clients get ${DAYS}. It was renewed and never reloaded. Run: docker compose restart frontend"
+    fi
+  fi
 else
   warn "Could not read SSL certificate (self-signed or nginx not up)"
 fi
@@ -498,7 +511,14 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
       "${BASE}/api/radio/suggestions?artist=Radiohead&title=Creep" 2>/dev/null || echo "")
     if echo "$RADIO_RESP" | grep -q '\['; then
       SUGG_COUNT=$(echo "$RADIO_RESP" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
-      ok "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s) returned"
+      # An empty array is still valid JSON, so this used to tick green while
+      # radio had nothing to play and was silently falling back to random
+      # library songs — the failure it exists to catch, reported as health.
+      if [ "$SUGG_COUNT" = "0" ]; then
+        fail "GET /api/radio/suggestions → 0 suggestions for a song that normally returns 49. YouTube Music is refusing this IP (a running backfill can trigger that), and with RADIO_LASTFM_FALLBACK=off there is nothing underneath — radio is playing random library songs right now"
+      else
+        ok "GET /api/radio/suggestions → ${SUGG_COUNT} suggestion(s) returned"
+      fi
     else
       fail "GET /api/radio/suggestions → unexpected: ${RADIO_RESP:-no response}"
     fi
@@ -542,7 +562,13 @@ hdr "Auto-Heal"
 # scheduled. It living in the repo unused is indistinguishable from "working
 # fine" until the exact moment it's needed, so check for real instead of
 # assuming.
+# Both crontabs: autoheal runs as the user, but renew-cert.sh needs root for
+# `tailscale cert` and is documented as going in root's. Reading only the
+# user's reported a correctly-scheduled renewal as missing.
 CRON_LIST=$(crontab -l 2>/dev/null || echo "")
+CRON_ROOT=$(sudo -n crontab -l 2>/dev/null || echo "")
+CRON_ALL="${CRON_LIST}
+${CRON_ROOT}"
 if echo "$CRON_LIST" | grep -q 'autoheal\.sh'; then
   ok "autoheal.sh is scheduled in crontab"
 else
@@ -552,10 +578,14 @@ fi
 # actually running renew-cert.sh. An unscheduled renewal script is
 # indistinguishable from a working one right up until the cert lapses and
 # every client drops with a TLS error.
-if echo "$CRON_LIST" | grep -q 'renew-cert\.sh'; then
+if echo "$CRON_ALL" | grep -q 'renew-cert\.sh'; then
   ok "renew-cert.sh is scheduled in crontab"
 else
-  warn "renew-cert.sh is NOT scheduled — the HTTPS cert will eventually expire with no warning. Add: 17 4 * * * cd $(pwd) && bash renew-cert.sh >> renew-cert.log 2>&1"
+  if [ -z "$CRON_ROOT" ] && [ "$(id -u)" -ne 0 ]; then
+    warn "renew-cert.sh not found in your crontab, and root's could not be read without a sudo password — if you added it there, this warning is wrong. Verify with: sudo crontab -l"
+  else
+    warn "renew-cert.sh is NOT scheduled — the HTTPS cert will eventually expire with no warning. Add to root: 17 4 * * * cd $(pwd) && bash renew-cert.sh >> renew-cert.log 2>&1"
+  fi
 fi
 
 if echo "$CRON_LIST" | grep -q 'gluetun-watchdog\.sh'; then
