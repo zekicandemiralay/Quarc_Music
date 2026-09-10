@@ -37,6 +37,7 @@ cd "$(dirname "$0")" || exit 1
 DOMAIN="${CERT_DOMAIN:-quarcnet0.tail84500c.ts.net}"
 CERT_DIR="${CERT_DIR:-/var/lib/tailscale/certs}"
 RENEW_WITHIN_DAYS="${RENEW_WITHIN_DAYS:-30}"
+HTTPS_PORT="${HTTPS_PORT:-4000}"
 
 CRT="${CERT_DIR}/${DOMAIN}.crt"
 KEY="${CERT_DIR}/${DOMAIN}.key"
@@ -53,28 +54,62 @@ done
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log() { echo "[$(ts)] $*"; }
 
-# Read expiry from the file rather than by connecting to nginx: this must
-# still work when nginx is down, which is exactly when an expired cert is the
-# likeliest cause.
-days_left() {
-  [ -r "$CRT" ] || return 1
-  local end epoch
-  end=$(openssl x509 -enddate -noout -in "$CRT" 2>/dev/null | cut -d= -f2) || return 1
-  [ -n "$end" ] || return 1
-  epoch=$(date -d "$end" +%s 2>/dev/null) || return 1
-  echo $(( (epoch - $(date +%s)) / 86400 ))
-}
-
 # tailscale needs root; run directly if we already are, else non-interactive
 # sudo. -n rather than a prompt because cron has no terminal to answer one.
 as_root() {
   if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo -n "$@"; fi
 }
 
+# Getting the expiry is worth three attempts, because failing to read it and
+# failing to HAVE a certificate look identical from an unprivileged shell and
+# have opposite correct responses.
+#
+# /var/lib/tailscale/certs is root-only, so a normal user can't read the file
+# — not even to test that it exists, since that needs search permission on the
+# directory too. Treating that as "no certificate" would renew on every run,
+# which under a user crontab means every day, into Let's Encrypt's rate
+# limits, for a certificate that was never expiring.
+#
+#   1. read the file directly    — works as root
+#   2. read it via sudo -n       — works with passwordless sudo
+#   3. ask nginx what it serves  — works as anyone, needs nginx up
+cert_enddate() {
+  if [ -r "$CRT" ]; then
+    openssl x509 -enddate -noout -in "$CRT" 2>/dev/null | cut -d= -f2
+    return
+  fi
+  local viasudo
+  viasudo=$(as_root cat "$CRT" 2>/dev/null | openssl x509 -enddate -noout 2>/dev/null | cut -d= -f2)
+  if [ -n "$viasudo" ]; then echo "$viasudo"; return; fi
+  # Whatever nginx is actually serving is the thing that matters to clients
+  # anyway, so this is a fair answer rather than a consolation prize.
+  echo | openssl s_client -connect "localhost:${HTTPS_PORT}" -servername "$DOMAIN" 2>/dev/null     | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2
+}
+
+days_left() {
+  local end epoch
+  end=$(cert_enddate) || return 1
+  [ -n "$end" ] || return 1
+  epoch=$(date -d "$end" +%s 2>/dev/null) || return 1
+  echo $(( (epoch - $(date +%s)) / 86400 ))
+}
+
 DAYS=$(days_left) || DAYS=""
 
 if [ -z "$DAYS" ]; then
-  log "Could not read ${CRT} — treating as needing a certificate."
+  # Deliberately does NOT renew. Not knowing the expiry is not evidence the
+  # certificate is expiring, and renewing on every run would burn rate limit
+  # on a certificate that may have months left. --force is the override.
+  log "Could not determine the certificate's expiry."
+  log "  Tried: reading ${CRT}, reading it via sudo -n, and asking nginx on :${HTTPS_PORT}."
+  if [ "$(id -u)" -ne 0 ]; then
+    log "  That directory is root-only — run this as root (sudo bash renew-cert.sh) or from root's crontab."
+  fi
+  if [ "$FORCE" -ne 1 ]; then
+    log "Refusing to renew blindly. Use --force if you know it needs renewing."
+    exit 1
+  fi
+  log "--force given, renewing anyway."
   DAYS=-1
 else
   log "Certificate for ${DOMAIN} has ${DAYS} day(s) left."
