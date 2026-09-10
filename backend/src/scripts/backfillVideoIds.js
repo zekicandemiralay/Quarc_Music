@@ -27,7 +27,19 @@ const { getDb, initDb } = require('../db');
 const { resolveVideoId } = require('../services/ytmusic');
 
 const DRY_RUN = process.argv.includes('--dry-run');
-const DELAY_MS = 400; // courtesy throttle — this is YouTube's private API
+// This hammers YouTube's private API, and YouTube notices. At 400ms with up
+// to four searches per song it got the server's IP 403'd about 500 songs in —
+// which doesn't just stop the backfill, it takes RADIO down with it, because
+// live suggestions use the same endpoint from the same IP. A one-time catch-up
+// job is never worth breaking the running app for, so this is deliberately
+// slow. Override with BACKFILL_DELAY_MS if you know better.
+const DELAY_MS = Number(process.env.BACKFILL_DELAY_MS || 2500);
+
+// Stop rather than grind. Once YouTube starts refusing, every further request
+// confirms the pattern that got us blocked and pushes the cooldown out; the
+// remaining songs are no worse off for being left NULL, since a re-run picks
+// them up. Consecutive, so an occasional dud doesn't end the run.
+const MAX_CONSECUTIVE_FAILURES = Number(process.env.BACKFILL_MAX_FAILURES || 8);
 
 // Deliberately stricter than the runtime bar (MIN_MATCH, 0.5). At runtime a
 // mediocre seed affects one queue and is forgotten; here it would be written
@@ -48,11 +60,13 @@ async function main() {
 
   const update = db.prepare('UPDATE songs SET video_id = ? WHERE id = ?');
   let resolved = 0, weak = 0, missing = 0, failed = 0;
+  let consecutiveFailures = 0;
 
   for (let i = 0; i < songs.length; i++) {
     const song = songs[i];
     try {
       const best = await resolveVideoId(song.artist, song.title);
+      consecutiveFailures = 0;
       if (best && best.score >= MIN_CONFIDENCE) {
         if (!DRY_RUN) update.run(best.id, song.id);
         resolved++;
@@ -66,7 +80,20 @@ async function main() {
       }
     } catch (err) {
       failed++;
+      consecutiveFailures++;
       console.error(`  ✗ "${song.artist} - ${song.title}": ${err.message}`);
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.error(`
+STOPPING: ${consecutiveFailures} lookups failed in a row.`);
+        if (/40[39]/.test(err.message)) {
+          console.error('YouTube is refusing this IP. Radio suggestions use the same endpoint,');
+          console.error('so they are down too until it lifts — set RADIO_LASTFM_FALLBACK=on in');
+          console.error('.env and redeploy to keep radio working meanwhile.');
+        }
+        console.error(`Resolved ${resolved} song(s) before stopping; the rest stay NULL and a`);
+        console.error('later run continues from here. Wait a few hours before re-running.');
+        break;
+      }
     }
 
     if ((i + 1) % 25 === 0 || i === songs.length - 1) {

@@ -237,16 +237,25 @@ async function radioQueue(videoId) {
 // and every track returned carries its own, so downloading a suggestion never
 // has to guess which YouTube upload was meant. That removes the whole class
 // of artist/title matching problems from the download path.
+// Why the last relatedTracks() call came back empty. Without this, "YouTube is
+// refusing this IP" and "we couldn't identify this song" are the same empty
+// array, and the first one — which takes radio down for everyone until it
+// lifts — is invisible in the logs.
+let lastFailure = null;
+function lastFailureReason() { return lastFailure; }
+
 async function relatedTracks(artist, title, videoId = null) {
+  lastFailure = null;
   try {
     const seed = videoId || (await findVideoId(artist, title));
     if (!seed) return [];
     const tracks = await radioQueue(seed);
     // The queue always opens with the seed itself.
     return tracks.filter((t) => t.videoId !== seed);
-  } catch {
+  } catch (err) {
+    lastFailure = err.message || String(err);
     return [];
   }
 }
 
-module.exports = { relatedTracks, findVideoId, resolveVideoId, radioQueue, MIN_MATCH };
+module.exports = { relatedTracks, findVideoId, resolveVideoId, radioQueue, lastFailureReason, MIN_MATCH };

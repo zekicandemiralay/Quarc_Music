@@ -3,7 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { searchAndDownload, downloadAudioWithRetry } = require('../services/ytdlp');
 const { cleanTitle, primaryArtist, normalizeWords } = require('../services/textClean');
-const { relatedTracks } = require('../services/ytmusic');
+const { relatedTracks, lastFailureReason } = require('../services/ytmusic');
 const { getDb, setSongVideoId } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { requireAuth } = require('../middleware/auth');
@@ -120,7 +120,15 @@ router.get('/suggestions', async (req, res) => {
     // Deliberately empty rather than falling through: the client drops to a
     // random library song, which is the honest outcome of YouTube Music not
     // finding this one.
-    console.warn(`[radio] youtube-music → NOTHING for ${label} (no video id on file; name lookup failed; last.fm fallback is off)`);
+    const why = lastFailureReason();
+    if (why && /40[39]/.test(why)) {
+      // Not a matching problem — YouTube is refusing us outright, so EVERY
+      // song fails, not just this one, and radio is on random library picks
+      // until it lifts. Usually self-inflicted by a bulk job on the same API.
+      console.error(`[radio] youtube-music BLOCKED (${why}) — radio is degraded for everyone until this clears. Set RADIO_LASTFM_FALLBACK=on to keep suggestions working.`);
+    } else {
+      console.warn(`[radio] youtube-music → NOTHING for ${label}${why ? ` (${why})` : ''} (last.fm fallback is off)`);
+    }
     res.set('X-Radio-Source', 'none');
     return res.json([]);
   }
