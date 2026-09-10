@@ -24,7 +24,9 @@ Run this once on the server:
 sudo tailscale cert quarcnet0.tail84500c.ts.net
 ```
 
-This creates the cert files at `/var/lib/tailscale/certs/`. They renew automatically — re-run the command if nginx ever reports a certificate error after renewal.
+This creates the cert files at `/var/lib/tailscale/certs/`, which nginx reads.
+
+**These do not renew themselves.** A file written by `tailscale cert` is a static copy — Tailscale only auto-renews certificates it serves itself. When it lapses, every client fails with a TLS error that looks like the server being down. Schedule `renew-cert.sh` (see [Scheduled maintenance](#scheduled-maintenance)) and it's handled.
 
 ---
 
@@ -126,6 +128,34 @@ bash deploy.sh
 ```
 
 Always use `bash deploy.sh` rather than `docker compose up` directly — it avoids restarting the VPN container unnecessarily.
+
+Note that `deploy.sh` deliberately never touches the VPN container, so changes to any `VPN_*` value in `.env` need `docker compose up -d gluetun` as well.
+
+---
+
+## Scheduled maintenance
+
+Two things need to run on a schedule. Without them the app works right up until it suddenly doesn't, so `check.sh` verifies both are actually in crontab rather than assuming.
+
+```bash
+crontab -e
+```
+
+```
+*/5 * * * * cd /path/to/Quarc_Music && bash autoheal.sh >> autoheal.log 2>&1
+17 4 * * *  cd /path/to/Quarc_Music && bash renew-cert.sh >> renew-cert.log 2>&1
+```
+
+| Script | Cadence | What it prevents |
+|---|---|---|
+| `autoheal.sh` | every 5 min | A failed VPN or YouTube bot-check leaving downloads broken — it restarts gluetun and rotates `VPN_COUNTRY` |
+| `renew-cert.sh` | daily | The HTTPS certificate expiring, which locks out every client at once |
+
+`renew-cert.sh` needs root for `tailscale cert`. Put its line in root's crontab (`sudo crontab -e`), or allow the user passwordless sudo for `tailscale` — the script reports which is missing rather than failing silently. Check it without changing anything:
+
+```bash
+bash renew-cert.sh --dry-run
+```
 
 ---
 

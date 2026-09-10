@@ -152,8 +152,8 @@ CERT_EXP=$(echo | openssl s_client -connect "localhost:${HTTPS_PORT}" \
 if [ -n "$CERT_EXP" ]; then
   EXP_EPOCH=$(date -d "$CERT_EXP" +%s 2>/dev/null || echo 0)
   DAYS=$(( (EXP_EPOCH - $(date +%s)) / 86400 ))
-  if   [ "$DAYS" -lt 7  ]; then fail "SSL cert expires in ${DAYS} days! Renew now."
-  elif [ "$DAYS" -lt 30 ]; then warn "SSL cert expires in ${DAYS} days"
+  if   [ "$DAYS" -lt 7  ]; then fail "SSL cert expires in ${DAYS} days! Every client will fail to connect. Run: bash renew-cert.sh --force"
+  elif [ "$DAYS" -lt 30 ]; then warn "SSL cert expires in ${DAYS} days (renew-cert.sh renews inside 30 — check it is in crontab below)"
   else ok "SSL cert valid for ${DAYS} more days"; fi
 else
   warn "Could not read SSL certificate (self-signed or nginx not up)"
@@ -548,6 +548,16 @@ if echo "$CRON_LIST" | grep -q 'autoheal\.sh'; then
 else
   fail "autoheal.sh is NOT in crontab — VPN/download failures will NOT self-heal. Add: */5 * * * * cd $(pwd) && bash autoheal.sh >> autoheal.log 2>&1"
 fi
+# Same reasoning as autoheal: the cert renews itself only if something is
+# actually running renew-cert.sh. An unscheduled renewal script is
+# indistinguishable from a working one right up until the cert lapses and
+# every client drops with a TLS error.
+if echo "$CRON_LIST" | grep -q 'renew-cert\.sh'; then
+  ok "renew-cert.sh is scheduled in crontab"
+else
+  warn "renew-cert.sh is NOT scheduled — the HTTPS cert will eventually expire with no warning. Add: 17 4 * * * cd $(pwd) && bash renew-cert.sh >> renew-cert.log 2>&1"
+fi
+
 if echo "$CRON_LIST" | grep -q 'gluetun-watchdog\.sh'; then
   warn "gluetun-watchdog.sh is still in crontab — it's deprecated (merged into autoheal.sh). Remove its crontab line to avoid the two racing each other."
 fi
