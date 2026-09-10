@@ -45,15 +45,18 @@ cd "$(dirname "$0")" || exit 1
 COOLDOWN_SECONDS=1800   # don't act more than once per 30 min
 STATE_FILE=".autoheal_last_restart"
 ENV_FILE=".env"
-# Must be countries the current VPN plan can actually reach. ProtonVPN's
-# FREE tier only has servers in 10 countries total (Canada, Japan, Mexico,
-# Netherlands, Norway, Poland, Romania, Singapore, Switzerland, US) —
-# picked 4 of those, skipping Netherlands (Surfshark's NL pool got broadly
-# YouTube-blocklisted earlier — different provider/IPs, but no reason to
-# tempt it) and US (the most commonly VPN-abused exit pool). On a paid
-# Proton plan (FREE_ONLY removed from docker-compose.yml), this can widen
-# to any of Proton's 145+ countries.
-COUNTRIES=(Switzerland Norway Poland Romania)
+# Must be countries the current VPN plan can actually reach. On the FREE
+# tier that was 10 countries total, of which only 4 were worth rotating
+# through. A paid plan reaches all of Proton's, so the pool is wider now —
+# which matters more than it sounds: rotation exists to escape a YouTube
+# bot-check, and the more distinct exit pools available, the better the odds
+# the next one isn't flagged.
+#
+# All European, because the server is: a nearer exit is a faster download,
+# and there's no reason to route through another continent. US and UK are
+# still deliberately absent — they're the most heavily VPN-abused exit
+# pools and the likeliest to be blocklisted in the first place.
+COUNTRIES=(Switzerland Norway Poland Romania Germany Austria Sweden Czechia Spain Finland)
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 
 PROJECT=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
