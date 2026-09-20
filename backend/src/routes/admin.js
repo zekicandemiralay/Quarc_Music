@@ -8,6 +8,7 @@ const mm = require('music-metadata');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db');
 const { requireAdmin } = require('../middleware/auth');
+const { asyncRoute } = require('../lib/asyncRoute');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
 
@@ -61,7 +62,7 @@ router.delete('/users/:id', (req, res) => {
 });
 
 // Reset password — data is preserved since there is no encryption key tied to the password
-router.post('/users/:id/reset-password', async (req, res) => {
+router.post('/users/:id/reset-password', asyncRoute(async (req, res) => {
   const { newPassword } = req.body;
   if (!newPassword || newPassword.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -69,7 +70,7 @@ router.post('/users/:id/reset-password', async (req, res) => {
   const newHash = await bcrypt.hash(newPassword, 12);
   getDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.params.id);
   res.json({ ok: true });
-});
+}));
 
 // ── Featured Playlists ────────────────────────────────────────────────────────
 

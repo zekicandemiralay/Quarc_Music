@@ -121,6 +121,27 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
       fail "GET /api/music/:id/stream → HTTP ${STREAM_CODE}"
     fi
 
+    # A suffix range ("the last N bytes") is valid per RFC 7233 and some
+    # players use it to read trailing tags. The old parser read "-64" as a
+    # start of NaN, sent a 206 with a nonsense Content-Length, and then broke
+    # the connection when the read stream threw.
+    SUFFIX_HDRS=$(api -b "$COOKIE" -o /dev/null -D - -H "Range: bytes=-64" "${BASE}/api/music/${FIRST_ID}/stream" 2>/dev/null | tr -d '')
+    SUFFIX_CODE=$(echo "$SUFFIX_HDRS" | head -1 | awk '{print $2}')
+    SUFFIX_LEN=$(echo "$SUFFIX_HDRS" | grep -i '^content-length:' | awk '{print $2}')
+    if [ "$SUFFIX_CODE" = "206" ] && [ "$SUFFIX_LEN" = "64" ]; then
+      pass "GET /api/music/:id/stream with a suffix range → 206, exactly 64 bytes"
+    else
+      fail "GET /api/music/:id/stream 'Range: bytes=-64' → HTTP ${SUFFIX_CODE:-?}, Content-Length ${SUFFIX_LEN:-?} (expected 206 / 64)"
+    fi
+
+    # Unsatisfiable ranges must say so rather than opening a stream that can't work.
+    BADRANGE_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" -H "Range: bytes=99999999999-" "${BASE}/api/music/${FIRST_ID}/stream")
+    if [ "$BADRANGE_CODE" = "416" ]; then
+      pass "GET /api/music/:id/stream with an out-of-range request → HTTP 416"
+    else
+      fail "GET /api/music/:id/stream past EOF → HTTP ${BADRANGE_CODE} (expected 416)"
+    fi
+
     if [ "$HAS_COVER" = "True" ] || [ "$HAS_COVER" = "true" ] || [ "$HAS_COVER" = "1" ]; then
       COVER_CODE=$(api -b "$COOKIE" -o /dev/null -w "%{http_code}" "${BASE}/api/music/${FIRST_ID}/cover")
       if [ "$COVER_CODE" = "200" ]; then

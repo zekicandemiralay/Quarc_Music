@@ -158,6 +158,12 @@ function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_lh_user_date ON listening_history(user_id, played_at);
     CREATE INDEX IF NOT EXISTS idx_lh_user_song  ON listening_history(user_id, song_id);
+    -- Radio checks "have we already downloaded this exact video?" before every
+    -- suggestion download, and the downloads table only ever grows (radio adds
+    -- a row per track it fetches). songs.filepath needs no index of its own:
+    -- it is UNIQUE, so SQLite already maintains one.
+    CREATE INDEX IF NOT EXISTS idx_downloads_video ON downloads(video_id, status);
+    CREATE INDEX IF NOT EXISTS idx_downloads_user  ON downloads(user_id);
   `);
 
   ensureAdmin(database);
