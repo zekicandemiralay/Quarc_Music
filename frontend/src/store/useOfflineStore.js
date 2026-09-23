@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { saveAudio, getAudioBlob, removeAudio, getAllCachedIds, getStorageEstimate } from '../lib/offlineLib';
+import { saveAudio, getAudioBlob, removeAudio, getAllCachedSongs, getStorageEstimate, setCachedMeta } from '../lib/offlineLib';
+import { loadCachedSongs } from '../lib/songCache';
 import { streamUrl } from '../lib/apiUrl';
 
 // ── Wake Lock ────────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ if (typeof document !== 'undefined') {
 
 const useOfflineStore = create((set, get) => ({
   cachedIds: new Set(),
+  cachedSongs: [],   // [{ ...song, savedAt, bytes }] — enough to render with no network
   downloading: {},   // songId → number (0–100) | 'error'
   storageEstimate: null,
   initialized: false,
@@ -42,9 +44,26 @@ const useOfflineStore = create((set, get) => ({
 
   init: async () => {
     try {
-      const ids = await getAllCachedIds();
+      const records = await getAllCachedSongs();
       const storageEstimate = await getStorageEstimate();
-      set({ cachedIds: new Set(ids), storageEstimate, initialized: true });
+
+      // Songs downloaded before details were stored alongside the audio have
+      // no meta of their own. Recover them from the library cache if it's
+      // there, and write it back so this only has to happen once.
+      const library = loadCachedSongs();
+      const byId = new Map(library.map((s) => [s.id, s]));
+      const cachedSongs = records.map((r) => {
+        const meta = r.meta || byId.get(r.songId) || null;
+        if (!r.meta && meta) setCachedMeta(r.songId, meta).catch(() => {});
+        return { ...(meta || { id: r.songId, title: null, artist: null }), id: r.songId, savedAt: r.savedAt, bytes: r.bytes };
+      });
+
+      set({
+        cachedIds: new Set(records.map((r) => r.songId)),
+        cachedSongs,
+        storageEstimate,
+        initialized: true,
+      });
     } catch {
       set({ initialized: true });
     }
@@ -89,13 +108,23 @@ const useOfflineStore = create((set, get) => ({
       }
 
       const blob = new Blob(chunks, { type: contentType });
-      await saveAudio(song.id, blob);
+      // Keep only what's needed to display it — no play_count or other
+      // server-side state that goes stale the moment it's written.
+      const meta = {
+        id: song.id, title: song.title, artist: song.artist, album: song.album,
+        duration: song.duration, has_cover: song.has_cover,
+      };
+      await saveAudio(song.id, blob, meta);
 
       set((s) => {
         const newCached = new Set(s.cachedIds);
         newCached.add(song.id);
         const { [song.id]: _removed, ...rest } = s.downloading;
-        return { cachedIds: newCached, downloading: rest };
+        return {
+          cachedIds: newCached,
+          downloading: rest,
+          cachedSongs: [...s.cachedSongs.filter((c) => c.id !== song.id), { ...meta, savedAt: Date.now(), bytes: blob.size }],
+        };
       });
 
       const storageEstimate = await getStorageEstimate();
@@ -127,7 +156,7 @@ const useOfflineStore = create((set, get) => ({
     set((s) => {
       const newCached = new Set(s.cachedIds);
       newCached.delete(songId);
-      return { cachedIds: newCached };
+      return { cachedIds: newCached, cachedSongs: s.cachedSongs.filter((c) => c.id !== songId) };
     });
     const storageEstimate = await getStorageEstimate();
     if (storageEstimate) set({ storageEstimate });
@@ -138,7 +167,8 @@ const useOfflineStore = create((set, get) => ({
     set((s) => {
       const newCached = new Set(s.cachedIds);
       songIds.forEach((id) => newCached.delete(id));
-      return { cachedIds: newCached };
+      const gone = new Set(songIds);
+      return { cachedIds: newCached, cachedSongs: s.cachedSongs.filter((c) => !gone.has(c.id)) };
     });
     const storageEstimate = await getStorageEstimate();
     if (storageEstimate) set({ storageEstimate });

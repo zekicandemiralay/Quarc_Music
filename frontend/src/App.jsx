@@ -5,6 +5,7 @@ import useUserDataStore from './store/userDataStore';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login/Login';
 import Library from './pages/Library/Library';
+import Downloaded from './pages/Downloaded/Downloaded';
 import YouTube from './pages/YouTube/YouTube';
 import Admin from './pages/Admin/Admin';
 import Stats from './pages/Stats/Stats';
@@ -85,6 +86,7 @@ export default function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/library" element={<Library />} />
                 <Route path="/liked" element={<Library view="liked" />} />
+                <Route path="/downloaded" element={<Downloaded />} />
                 <Route path="/playlist/:playlistId" element={<Library view="playlist" />} />
                 <Route path="/mix/:mixId" element={<Library view="mix" />} />
                 <Route path="/featured/:featuredId" element={<Library view="featured" />} />

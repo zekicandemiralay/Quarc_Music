@@ -3,6 +3,7 @@
     "home": "Ana Sayfa",
     "library": "Kütüphane",
     "likedSongs": "Beğenilen Şarkılar",
+    "downloaded": "İndirilenler",
     "youtube": "YouTube",
     "radio": "Radyo",
     "stats": "İstatistikler",
@@ -320,7 +321,8 @@
     "unknown": "Bilinmiyor",
     "addedToQueue": "Sıraya eklendi",
     "linkCopied": "Bağlantı kopyalandı",
-    "copyFailed": "Bağlantı kopyalanamadı"
+    "copyFailed": "Bağlantı kopyalanamadı",
+    "play": "Çal"
   },
   "radio": {
     "searchPlaceholder": "İstasyon ara…",
@@ -343,5 +345,17 @@
     "viewRelease": "GitHub'da görüntüle",
     "refresh": "Yenile",
     "error": "Hata"
+  },
+  "downloaded": {
+    "subtitle": "Bu cihaza kaydedilen şarkılar — bağlantı olmadan da çalar",
+    "count": "{{n}} şarkı",
+    "ofQuota": "/ {{total}} kullanılabilir",
+    "emptyTitle": "Henüz indirilen yok",
+    "emptyHint": "Şarkıları buraya kaydetmek için bir çalma listesindeki veya kitaplıktaki indirme düğmesini kullanın. Bağlantı olmadan da çalarlar.",
+    "remove": "Kaldır",
+    "confirmRemove": "Bu indirme kaldırılsın mı?",
+    "confirmRemoveHint": "Şarkı kitaplığınızda kalır — yalnızca bu cihazdaki kopya silinir.",
+    "unknownTitle": "Bilinmeyen başlık",
+    "unknownArtist": "Bilinmeyen sanatçı"
   }
 }

@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const mm = require('music-metadata');
 const { getDb } = require('../db');
+const { SONG_LIST_COLUMNS } = require('../lib/songColumns');
 const { scanMusicDir } = require('../services/scanner');
 const { fetchLyrics } = require('../services/lyrics');
 const { requireAuth } = require('../middleware/auth');
@@ -94,7 +95,7 @@ const MIME = {
 router.get('/', (req, res) => {
   const songs = getDb()
     .prepare(`
-      SELECT s.*, COALESCE(pc.play_count, 0) as play_count
+      SELECT ${SONG_LIST_COLUMNS}, COALESCE(pc.play_count, 0) as play_count
       FROM songs s
       LEFT JOIN (
         SELECT song_id, COUNT(*) as play_count

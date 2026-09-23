@@ -12,6 +12,7 @@ import useRadioStore from '../../store/useRadioStore';
 import { coverUrl } from '../../lib/apiUrl';
 import useBackableOverlay from '../../hooks/useBackableOverlay';
 import { shareSong } from '../../lib/share';
+import { loadCachedSongs, saveCachedSongs } from '../../lib/songCache';
 
 // Normalize for search: strips diacritics (ş→s, ü→u, é→e, etc.) and lowercases.
 // ı (Turkish dotless-i, U+0131) has no NFD decomposition so we replace it explicitly.
@@ -395,9 +396,7 @@ export default function Library({ view = 'all' }) {
   const { playlistId, mixId, featuredId } = useParams();
   const mixData = useMixStore((s) => view === 'mix' ? s.getMix(mixId) : null);
   const featuredData = useFeaturedStore((s) => view === 'featured' ? s.getPlaylist(featuredId) : null);
-  const [songs, setSongs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('quarc_songs') || '[]'); } catch { return []; }
-  });
+  const [songs, setSongs] = useState(loadCachedSongs);
   // Only show loading spinner if we have no cached songs to display
   const [loading, setLoading] = useState(() => view !== 'mix' && view !== 'featured' && !localStorage.getItem('quarc_songs'));
   const [scanning, setScanning] = useState(false);
@@ -529,7 +528,7 @@ export default function Library({ view = 'all' }) {
       const data = await res.json();
       if (!Array.isArray(data)) return;
       setSongs(data);
-      try { localStorage.setItem('quarc_songs', JSON.stringify(data)); } catch {}
+      saveCachedSongs(data);
     } catch {
       // Offline or timeout — keep cached songs
     } finally {

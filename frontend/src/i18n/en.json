@@ -3,6 +3,7 @@
     "home": "Home",
     "library": "Library",
     "likedSongs": "Liked Songs",
+    "downloaded": "Downloaded",
     "youtube": "YouTube",
     "radio": "Radio",
     "stats": "Stats",
@@ -320,7 +321,8 @@
     "unknown": "Unknown",
     "addedToQueue": "Added to queue",
     "linkCopied": "Link copied",
-    "copyFailed": "Couldn't copy link"
+    "copyFailed": "Couldn't copy link",
+    "play": "Play"
   },
   "radio": {
     "searchPlaceholder": "Search stations…",
@@ -343,5 +345,17 @@
     "viewRelease": "View on GitHub",
     "refresh": "Refresh",
     "error": "Error"
+  },
+  "downloaded": {
+    "subtitle": "Songs saved on this device — these play without a connection",
+    "count": "{{n}} songs",
+    "ofQuota": "of {{total}} available",
+    "emptyTitle": "Nothing downloaded yet",
+    "emptyHint": "Use the download button on a playlist or the library to save songs here. They will play even with no connection.",
+    "remove": "Remove",
+    "confirmRemove": "Remove this download?",
+    "confirmRemoveHint": "The song stays in your library — only the copy on this device is deleted.",
+    "unknownTitle": "Unknown title",
+    "unknownArtist": "Unknown artist"
   }
 }

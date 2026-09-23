@@ -1,9 +1,10 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink, Radio } from 'lucide-react';
+import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink, Radio, ArrowDownToLine } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
+import useOfflineStore from '../../store/useOfflineStore';
 import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
 
@@ -308,6 +309,7 @@ export default function Sidebar({ onNavigate }) {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
   const { playlists, likedSongs, createPlaylist } = useUserDataStore();
+  const cachedIds = useOfflineStore((s) => s.cachedIds);
   const mixes = useMixStore((s) => s.mixes);
   const featured = useFeaturedStore((s) => s.playlists);
   const [creating, setCreating] = useState(false);
@@ -365,6 +367,13 @@ export default function Sidebar({ onNavigate }) {
             {t('nav.likedSongs')}
             {likedSongs.length > 0 && (
               <span className="ml-auto text-xs text-zinc-500">{likedSongs.length}</span>
+            )}
+          </NavLink>
+          <NavLink to="/downloaded" className={linkClass} onClick={onNavigate}>
+            <ArrowDownToLine size={18} className="text-sky-400" />
+            {t('nav.downloaded')}
+            {cachedIds.size > 0 && (
+              <span className="ml-auto text-xs text-zinc-500">{cachedIds.size}</span>
             )}
           </NavLink>
           <NavLink to="/youtube" className={linkClass} onClick={onNavigate}>
