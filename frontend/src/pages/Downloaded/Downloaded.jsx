@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Play, Music, Trash2, WifiOff, HardDrive } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
@@ -31,10 +31,15 @@ function Cover({ song }) {
 
 export default function Downloaded() {
   const { t } = useTranslation();
-  const { cachedSongs, removeSong, storageEstimate } = useOfflineStore();
+  const { cachedSongs, removeSong, storageEstimate, hydrateMeta } = useOfflineStore();
   const playSong = usePlayerStore((s) => s.playSong);
   const currentSong = usePlayerStore((s) => s.currentSong);
   const [confirmId, setConfirmId] = useState(null);
+
+  // Anything downloaded before details were stored with the audio arrives
+  // here nameless. Resolve it now rather than relying on whatever the app
+  // happened to have cached when it started.
+  useEffect(() => { hydrateMeta(); }, [hydrateMeta]);
 
   // Newest download first — the reason you came to this page is usually the
   // thing you just saved.

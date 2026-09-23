@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { saveAudio, getAudioBlob, removeAudio, getAllCachedSongs, getStorageEstimate, setCachedMeta } from '../lib/offlineLib';
-import { loadCachedSongs } from '../lib/songCache';
+import { loadCachedSongs, saveCachedSongs } from '../lib/songCache';
 import { streamUrl } from '../lib/apiUrl';
 
 // ── Wake Lock ────────────────────────────────────────────────────────────
@@ -66,6 +66,58 @@ const useOfflineStore = create((set, get) => ({
       });
     } catch {
       set({ initialized: true });
+    }
+  },
+
+  // Fill in details for downloads that don't have any.
+  //
+  // init() runs when the app mounts, but the library cache is only written
+  // when the Library page is actually visited — so anything downloaded before
+  // details were stored beside the audio would find nothing to copy from and
+  // stay nameless, which is what "Unknown title" was. Resolving it once at
+  // startup was the mistake; this can be called whenever a library turns up,
+  // and falls back to asking the server when the cache still can't answer.
+  //
+  // Whatever it resolves is written back to IndexedDB, so each song only
+  // needs this once, and it works offline from then on.
+  hydrateMeta: async () => {
+    const needsMeta = () => get().cachedSongs.filter((c) => !c.title);
+    if (!needsMeta().length) return;
+
+    const apply = (library) => {
+      if (!library.length) return;
+      const byId = new Map(library.map((s) => [s.id, s]));
+      let changed = false;
+      const cachedSongs = get().cachedSongs.map((c) => {
+        if (c.title) return c;
+        const found = byId.get(c.id);
+        if (!found) return c;
+        changed = true;
+        const meta = {
+          id: found.id, title: found.title, artist: found.artist, album: found.album,
+          duration: found.duration, has_cover: found.has_cover,
+        };
+        setCachedMeta(c.id, meta).catch(() => {});
+        return { ...meta, savedAt: c.savedAt, bytes: c.bytes };
+      });
+      if (changed) set({ cachedSongs });
+    };
+
+    apply(loadCachedSongs());
+    if (!needsMeta().length || !navigator.onLine) return;
+
+    // The cache couldn't answer and we have a connection — ask the server,
+    // and keep the result so the Library page benefits too.
+    try {
+      const res = await fetch('/api/music');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+      saveCachedSongs(data);
+      apply(data);
+    } catch {
+      // Offline after all, or the server is down — the names stay unknown,
+      // which is cosmetic. The audio still plays.
     }
   },
 

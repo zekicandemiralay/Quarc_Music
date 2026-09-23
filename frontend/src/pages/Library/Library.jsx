@@ -529,6 +529,9 @@ export default function Library({ view = 'all' }) {
       if (!Array.isArray(data)) return;
       setSongs(data);
       saveCachedSongs(data);
+      // A fresh library is also the chance to name any downloads that are
+      // still missing their details.
+      useOfflineStore.getState().hydrateMeta();
     } catch {
       // Offline or timeout — keep cached songs
     } finally {
