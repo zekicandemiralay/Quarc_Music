@@ -295,7 +295,15 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
   persistImportState(userId, job, [], 0, 0);
 }
 
-// Parse a single Google Takeout playlist JSON buffer
+// Parse a single Google Takeout playlist JSON buffer.
+//
+// Kept for any older or hand-built export that happens to use this shape,
+// but it is NOT what a real Takeout export actually contains — a real one
+// is takeoutCsvToPlaylist below. This JSON shape looks like a guess at the
+// YouTube Data API's playlistItems.list response rather than something
+// Takeout has ever produced, which is why every real export hit "No tracks
+// found": the parser was only ever looking for a file type that doesn't
+// exist in the ZIP.
 function takeoutJsonToPlaylist(entryName, buffer) {
   try {
     const data = JSON.parse(buffer.toString('utf8'));
@@ -313,7 +321,38 @@ function takeoutJsonToPlaylist(entryName, buffer) {
   }
 }
 
-// Accepts: a Google Takeout ZIP, or individual playlist JSON files
+// Parse a single Google Takeout "<playlist title> videos.csv" file — the
+// actual real export format (confirmed against a real Takeout download):
+// header "Video ID,Playlist video creation timestamp", one row per video,
+// no title/artist/anything else. That's fine: track.videoId goes straight
+// to a by-id download (see downloadWithRetry), so no title is ever needed
+// to fetch the right file — the real title comes from yt-dlp once it's
+// actually downloaded.
+//
+// The same ZIP also contains "playlists.csv", one row per playlist with
+// columns like "Playlist ID", "Playlist title (original)", etc. — a totally
+// different shape, not a list of videos at all. Checking for a "video id"
+// column (rather than hardcoding "not named playlists.csv") is what skips
+// it, which also means a file that happens to be empty or malformed is
+// skipped the same way rather than crashing the whole import.
+function takeoutCsvToPlaylist(filename, buffer) {
+  const rows = parseCsv(buffer.toString('utf8'));
+  if (!rows.length || !('video id' in rows[0])) return null;
+
+  const tracks = rows
+    .map(r => (r['video id'] || '').trim())
+    .filter(id => /^[A-Za-z0-9_-]{11}$/.test(id)) // a real YouTube video id is always exactly 11 chars
+    .map(videoId => ({ name: videoId, videoId }));
+  if (!tracks.length) return null;
+
+  // Takeout always names the file "<title> videos.csv" — strip that suffix
+  // so the playlist lands with the name it actually has in YouTube, not
+  // "<name> videos".
+  const playlistName = playlistNameFromFilename(filename).replace(/ videos$/i, '').trim() || 'Imported Playlist';
+  return { playlistName, isLiked: isLikedSongsName(playlistName), tracks };
+}
+
+// Accepts: a Google Takeout ZIP, or individual playlist CSV/JSON files
 function parseYouTubeTakeout(files) {
   const playlists = [];
   for (const file of files) {
@@ -321,11 +360,16 @@ function parseYouTubeTakeout(files) {
     if (name.toLowerCase().endsWith('.zip')) {
       const zip = new AdmZip(file.buffer);
       for (const entry of zip.getEntries()) {
-        if (!entry.isDirectory && entry.name.toLowerCase().endsWith('.json')) {
-          const pl = takeoutJsonToPlaylist(entry.name, entry.getData());
-          if (pl) playlists.push(pl);
-        }
+        if (entry.isDirectory) continue;
+        const lower = entry.name.toLowerCase();
+        const pl = lower.endsWith('.csv') ? takeoutCsvToPlaylist(entry.name, entry.getData())
+          : lower.endsWith('.json') ? takeoutJsonToPlaylist(entry.name, entry.getData())
+          : null;
+        if (pl) playlists.push(pl);
       }
+    } else if (name.toLowerCase().endsWith('.csv')) {
+      const pl = takeoutCsvToPlaylist(name, file.buffer);
+      if (pl) playlists.push(pl);
     } else if (name.toLowerCase().endsWith('.json')) {
       const pl = takeoutJsonToPlaylist(name, file.buffer);
       if (pl) playlists.push(pl);
@@ -391,8 +435,8 @@ router.post('/youtube', upload.array('files', 50), async (req, res) => {
   const files = req.files;
   if (!files || files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
 
-  const invalid = files.find(f => !f.originalname.toLowerCase().match(/\.(zip|json)$/));
-  if (invalid) return res.status(400).json({ error: 'Only .zip and .json files are accepted' });
+  const invalid = files.find(f => !f.originalname.toLowerCase().match(/\.(zip|csv|json)$/));
+  if (invalid) return res.status(400).json({ error: 'Only .zip, .csv and .json files are accepted' });
 
   const existing = importJobs.get(req.user.id);
   if (existing && existing.status === 'running') {

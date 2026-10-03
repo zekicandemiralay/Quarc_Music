@@ -273,7 +273,7 @@
     "failedTracks_plural": "{{n}} parça başarısız",
     "importAnother": "Başka bir dosya içe aktar",
     "spotifyHint": "ZIP (tüm çalma listeleri) veya ayrı CSV dosyaları — tıklayarak seçin",
-    "youtubeHint": "Google Takeout ZIP veya ayrı çalma listesi JSON dosyaları — tıklayarak seçin",
+    "youtubeHint": "Google Takeout ZIP (veya ayrı çalma listesi CSV dosyaları) — tıklayarak seçin",
     "spotifyInstructions": "Spotify'dan nasıl dışa aktarılır:",
     "spotifyStep1": "exportify.net'e gidin ve Spotify ile giriş yapın",
     "spotifyStep2": "Tüm çalma listelerini ZIP olarak almak için \"Export All\"a, ayrı listeler için CSV'ye tıklayın",

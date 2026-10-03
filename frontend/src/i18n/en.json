@@ -273,7 +273,7 @@
     "failedTracks_plural": "{{n}} tracks failed",
     "importAnother": "Import another file",
     "spotifyHint": "ZIP (all playlists) or individual CSV files — click to browse",
-    "youtubeHint": "Google Takeout ZIP or individual playlist JSON files — click to browse",
+    "youtubeHint": "Google Takeout ZIP (or individual playlist CSV files) — click to browse",
     "spotifyInstructions": "How to export from Spotify:",
     "spotifyStep1": "Go to exportify.net and log in with Spotify",
     "spotifyStep2": "Click \"Export All\" for all playlists as a ZIP, or export individual playlists as CSVs",

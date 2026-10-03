@@ -379,8 +379,8 @@ export default function Import() {
 
       {!job && tab === 'youtube' && (
         <UploadSection
-          accept=".zip,.json"
-          mimeTypes={['application/zip', 'application/x-zip-compressed', 'application/json', 'text/json']}
+          accept=".zip,.csv,.json"
+          mimeTypes={['application/zip', 'application/x-zip-compressed', 'text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel', 'application/json', 'text/json', 'text/plain']}
           endpoint="/api/import/youtube"
           hint={t('import.youtubeHint')}
           onJobStart={setJob}
