@@ -15,6 +15,28 @@ const MUSIC_DIR = () => process.env.MUSIC_DIR || '/music';
 // In-memory job status per user
 const importJobs = new Map();
 
+// Parsed-but-not-yet-started YouTube imports, keyed by a one-time id. A
+// Takeout export is often dozens of playlists — workout routines, tutorials,
+// recipe videos — mixed in with actual music, and there was no way to leave
+// any of them out short of editing the ZIP by hand before upload. Parsing
+// now returns a playlist list with track counts for the user to choose from
+// instead of starting the download immediately; POST /youtube/confirm below
+// is what actually starts it, for whichever subset was picked.
+//
+// Holds only the already-parsed { playlistName, isLiked, tracks } objects,
+// not the uploaded file bytes — for even a very large export that's a few
+// hundred KB at most. Swept on every new preview rather than on a timer, so
+// an abandoned one (uploaded, then never confirmed) doesn't sit forever.
+const importPreviews = new Map();
+const PREVIEW_TTL_MS = 30 * 60 * 1000;
+
+function sweepStalePreviews() {
+  const cutoff = Date.now() - PREVIEW_TTL_MS;
+  for (const [id, p] of importPreviews) {
+    if (p.createdAt < cutoff) importPreviews.delete(id);
+  }
+}
+
 function parseCsv(text) {
   // Strip UTF-8 BOM — present when exported from Windows or some Android email clients
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
@@ -380,6 +402,30 @@ function parseYouTubeTakeout(files) {
 
 router.use(requireAuth);
 
+// Shared by /spotify (starts immediately — Exportify exports are small
+// enough that a selection step wouldn't earn its keep) and
+// /youtube/confirm (starts only the playlists that were actually picked).
+// Caller has already checked for an existing running job.
+function startImportJob(userId, playlists) {
+  const job = {
+    status: 'running',
+    done: 0,
+    total: 0,
+    currentTrack: null,
+    currentPlaylist: null,
+    playlists: playlists.map(p => p.playlistName),
+    errors: [],
+  };
+  importJobs.set(userId, job);
+
+  runImport(userId, playlists).catch(err => {
+    const j = importJobs.get(userId);
+    if (j) { j.status = 'error'; j.errorMessage = err.message; }
+  });
+
+  return { ok: true, playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length })) };
+}
+
 router.post('/spotify', upload.array('files', 50), async (req, res) => {
   const files = req.files;
   if (!files || files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
@@ -409,28 +455,16 @@ router.post('/spotify', upload.array('files', 50), async (req, res) => {
     return res.status(400).json({ error: 'No tracks found in the uploaded files' });
   }
 
-  const job = {
-    status: 'running',
-    done: 0,
-    total: 0,
-    currentTrack: null,
-    currentPlaylist: null,
-    playlists: playlists.map(p => p.playlistName),
-    errors: [],
-  };
-  importJobs.set(req.user.id, job);
-
-  runImport(req.user.id, playlists).catch(err => {
-    const j = importJobs.get(req.user.id);
-    if (j) { j.status = 'error'; j.errorMessage = err.message; }
-  });
-
-  res.json({
-    ok: true,
-    playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length })),
-  });
+  res.json(startImportJob(req.user.id, playlists));
 });
 
+// Parse only — does NOT start downloading. A Takeout export is commonly
+// dozens of playlists with no relation to music (workout routines,
+// tutorials, recipe videos), so starting every single one immediately,
+// with no way to leave anything out, downloaded a lot nobody actually
+// wanted. The frontend shows this list with per-playlist track counts and
+// lets the user pick before anything is fetched; POST /youtube/confirm
+// is what actually starts it.
 router.post('/youtube', upload.array('files', 50), async (req, res) => {
   const files = req.files;
   if (!files || files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
@@ -454,26 +488,45 @@ router.post('/youtube', upload.array('files', 50), async (req, res) => {
     return res.status(400).json({ error: 'No tracks found — make sure this is a Google Takeout YouTube export' });
   }
 
-  const job = {
-    status: 'running',
-    done: 0,
-    total: 0,
-    currentTrack: null,
-    currentPlaylist: null,
-    playlists: playlists.map(p => p.playlistName),
-    errors: [],
-  };
-  importJobs.set(req.user.id, job);
-
-  runImport(req.user.id, playlists).catch(err => {
-    const j = importJobs.get(req.user.id);
-    if (j) { j.status = 'error'; j.errorMessage = err.message; }
-  });
+  sweepStalePreviews();
+  const previewId = uuidv4();
+  importPreviews.set(previewId, { userId: req.user.id, playlists, createdAt: Date.now() });
 
   res.json({
     ok: true,
-    playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length })),
+    previewId,
+    playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length, isLiked: p.isLiked })),
   });
+});
+
+// Starts the job for whichever playlists were selected out of a prior
+// preview. One-time: the preview is consumed whether this succeeds or not,
+// since re-confirming the same preview twice would otherwise double-queue
+// a user's own selection if, say, a slow network made them press the button
+// again.
+router.post('/youtube/confirm', (req, res) => {
+  const { previewId, selected } = req.body;
+  const preview = importPreviews.get(previewId);
+  importPreviews.delete(previewId);
+
+  // Same response either way (expired vs. never existed vs. someone else's)
+  // — nothing about why it's unavailable is any of the caller's business.
+  if (!preview || preview.userId !== req.user.id) {
+    return res.status(400).json({ error: 'This selection has expired — please upload the export again' });
+  }
+
+  const existing = importJobs.get(req.user.id);
+  if (existing && existing.status === 'running') {
+    return res.status(409).json({ error: 'An import is already running' });
+  }
+
+  const chosen = new Set(Array.isArray(selected) ? selected : []);
+  const playlists = preview.playlists.filter(p => chosen.has(p.playlistName));
+  if (!playlists.length) {
+    return res.status(400).json({ error: 'No playlists selected' });
+  }
+
+  res.json(startImportJob(req.user.id, playlists));
 });
 
 router.post('/pause', (req, res) => {
