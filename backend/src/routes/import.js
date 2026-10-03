@@ -15,6 +15,15 @@ const MUSIC_DIR = () => process.env.MUSIC_DIR || '/music';
 // In-memory job status per user
 const importJobs = new Map();
 
+// The AbortController for whichever download is currently in flight for a
+// user's import, keyed the same way as importJobs. Separate from the job
+// object itself rather than a field on it — job is serialized wholesale as
+// the /status response, and an AbortController has nothing worth sending a
+// client anyway. Each track gets its own fresh controller that overwrites
+// the previous one, so /cancel always reaches whatever is actually running
+// at the moment it's clicked.
+const jobAbortControllers = new Map();
+
 // Parsed-but-not-yet-started YouTube imports, keyed by a one-time id. A
 // Takeout export is often dozens of playlists — workout routines, tutorials,
 // recipe videos — mixed in with actual music, and there was no way to leave
@@ -145,8 +154,14 @@ function persistImportState(userId, job, playlists, pli, ti) {
   } catch {}
 }
 
-async function downloadWithRetry(track, maxAttempts = 3) {
-  if (track.videoId) return downloadAudioWithRetry(track.videoId, MUSIC_DIR(), () => {}, maxAttempts);
+async function downloadWithRetry(track, maxAttempts = 3, signal) {
+  // Cancellation is only wired up for the known-video path (Takeout imports
+  // always carry a videoId, which is the case this was reported against).
+  // The search-based path below — used only for Spotify tracks, which have
+  // no video id to download by — doesn't check signal, so a cancel won't
+  // interrupt one already in flight; it's a smaller, riskier function
+  // (several scored candidates tried in turn) that this didn't touch.
+  if (track.videoId) return downloadAudioWithRetry(track.videoId, MUSIC_DIR(), () => {}, maxAttempts, signal);
 
   let lastErr;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -253,13 +268,20 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
         : (track.artist ? `${track.artist} - ${track.name}` : track.name);
       job.currentTrack = label;
 
+      // Fresh per track — this is what /cancel actually reaches. Overwriting
+      // the previous entry is deliberate: by the time a new one is created
+      // the last one has already settled, so there's never a question of
+      // which download a cancel click is meant to stop.
+      const controller = new AbortController();
+      jobAbortControllers.set(userId, controller);
+
       try {
         // Only pre-check the library for known-video (YouTube Takeout) tracks —
         // see lookupSong for why Spotify tracks always search first instead.
         let song = (track.videoId && track.name) ? lookupSong(songLookup, track.name, track.artist) : null;
 
         if (!song) {
-          const filepath = await downloadWithRetry(track);
+          const filepath = await downloadWithRetry(track, 3, controller.signal);
           if (filepath) {
             song = await scanFile(filepath);
             setSongVideoId(song?.id, track.videoId); // no-op for CSV imports, which have none
@@ -301,6 +323,13 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
           }
         }
       } catch (err) {
+        if (err.cancelled) {
+          // Deliberately stopped, not failed — doesn't count toward done,
+          // doesn't show up in the failed-tracks list. job.control was set
+          // to 'cancel_requested' by /cancel before it aborted this, so the
+          // status line below already resolves to 'cancelled'.
+          break outer;
+        }
         console.log(`[import] FAILED "${label}": ${err.message}`);
         job.errors.push({ track: label, error: err.message });
       }
@@ -310,6 +339,7 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
     }
   }
 
+  jobAbortControllers.delete(userId);
   job.status = job.control === 'cancel_requested' ? 'cancelled' : 'done';
   job.currentTrack = null;
   job.currentPlaylist = null;
@@ -581,6 +611,16 @@ router.post('/cancel', (req, res) => {
     return res.status(400).json({ error: 'No active import to cancel' });
   }
   job.control = 'cancel_requested';
+  // Setting job.control alone only stops the NEXT track from starting — the
+  // loop only checks it between tracks, so whatever is downloading right now
+  // (an accidentally-queued hours-long video, say) would otherwise keep
+  // running untouched until it finished, timed out, or failed entirely on
+  // its own. This reaches it directly: downloadAudio kills the yt-dlp
+  // process immediately and deletes everything it had written so far for
+  // that one track (see services/ytdlp.js — every download writes to its own
+  // disposable folder for exactly this). A no-op if nothing is actually
+  // downloading right now (e.g. cancelling from a paused state).
+  jobAbortControllers.get(req.user.id)?.abort();
   res.json({ ok: true });
 });
 

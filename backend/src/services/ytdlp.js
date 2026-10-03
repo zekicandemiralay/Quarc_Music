@@ -1,4 +1,7 @@
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 const PROXY_ARGS = process.env.YTDLP_PROXY ? ['--proxy', process.env.YTDLP_PROXY] : [];
 const RATE_ARGS = process.env.YTDLP_RATE_LIMIT ? ['--limit-rate', process.env.YTDLP_RATE_LIMIT] : [];
@@ -142,8 +145,36 @@ function searchYoutube(query, limit = 10) {
 // true silence trips this.
 const STALL_MS = 45_000;
 
-function downloadAudio(videoId, outputDir, onProgress) {
+// A hard wall-clock ceiling, independent of activity. The stall timer above
+// only catches silence — a download that's genuinely progressing (an
+// accidentally-queued day-long video, say) resets it forever and never
+// trips it. This fires regardless, after HARD_TIMEOUT_MS no matter how
+// busy the process looks.
+const HARD_TIMEOUT_MS = 5 * 60 * 1000;
+
+// Every download writes into its own disposable folder under outputDir,
+// never directly into the library, and only gets moved to its real
+// location once yt-dlp (and ffmpeg's audio extraction, thumbnail embed,
+// etc.) has fully finished. That's what makes "stop this and delete
+// whatever it already wrote" exact and complete: one recursive removal of
+// the temp folder, regardless of which stage — fragment download, muxing,
+// extraction — was in progress at the moment, with no need to guess at
+// yt-dlp/ffmpeg's partial-file naming (.part, .ytdl, a pre-extraction
+// intermediate format, etc.). A subfolder of outputDir rather than the
+// system temp dir, so the final move is an instant same-volume rename, not
+// a cross-filesystem copy.
+//
+// signal (optional AbortSignal) is what makes a user-initiated cancel
+// actually stop THIS download instead of merely telling the import loop not
+// to start the next one — previously the only way out of a long download was
+// to wait for it to finish, time out, or for the whole server to restart,
+// and even a timeout only abandoned the js-side Promise while the real
+// yt-dlp process kept running untracked, writing to disk indefinitely.
+function downloadAudio(videoId, outputDir, onProgress, signal) {
   return new Promise((resolve, reject) => {
+    const tmpDir = path.join(outputDir, '.importing', uuidv4());
+    fs.mkdirSync(tmpDir, { recursive: true });
+
     const proc = spawn('yt-dlp', [
       `https://www.youtube.com/watch?v=${videoId}`,
       '-x',
@@ -154,7 +185,7 @@ function downloadAudio(videoId, outputDir, onProgress) {
       ...THUMB_ARGS,
       '--parse-metadata', 'title:%(artist)s - %(title)s',
       '--newline',
-      '-o', `${outputDir}/%(uploader)s/%(title)s.%(ext)s`,
+      '-o', `${tmpDir}/%(uploader)s/%(title)s.%(ext)s`,
       '--no-playlist',
       ...PROXY_ARGS,
       ...RATE_ARGS,
@@ -168,21 +199,46 @@ function downloadAudio(videoId, outputDir, onProgress) {
     let errorOut = '';
     let settled = false;
 
+    function cleanupTemp() {
+      fs.rm(tmpDir, { recursive: true, force: true }, () => {});
+    }
+
     function finish(fn) {
       if (settled) return;
       settled = true;
       clearTimeout(stallTimer);
+      clearTimeout(hardTimer);
+      if (signal) signal.removeEventListener('abort', onAbort);
       fn();
     }
 
-    function onStall() {
+    function killAndReject(err) {
       finish(() => {
         proc.kill('SIGKILL');
-        reject(new Error(`Download stalled — no response for ${STALL_MS / 1000}s (VPN/proxy likely down)`));
+        cleanupTemp();
+        reject(err);
       });
+    }
+
+    function onStall() {
+      killAndReject(new Error(`Download stalled — no response for ${STALL_MS / 1000}s (VPN/proxy likely down)`));
     }
     let stallTimer = setTimeout(onStall, STALL_MS);
     const bumpStallTimer = () => { clearTimeout(stallTimer); stallTimer = setTimeout(onStall, STALL_MS); };
+
+    let hardTimer = setTimeout(() => {
+      killAndReject(new Error(`Download exceeded the ${HARD_TIMEOUT_MS / 60000}-minute limit`));
+    }, HARD_TIMEOUT_MS);
+
+    function onAbort() {
+      const err = new Error('Cancelled');
+      err.cancelled = true;
+      killAndReject(err);
+    }
+    if (signal) {
+      if (signal.aborted) { onAbort(); return; }
+      signal.addEventListener('abort', onAbort);
+    }
 
     proc.stdout.on('data', (chunk) => {
       bumpStallTimer();
@@ -205,12 +261,32 @@ function downloadAudio(videoId, outputDir, onProgress) {
 
     proc.on('close', (code) => {
       finish(() => {
-        if (code !== 0) reject(new Error(`Download failed: ${summarizeError(errorOut)}`));
-        else resolve(lastFile);
+        if (code !== 0) {
+          cleanupTemp();
+          return reject(new Error(`Download failed: ${summarizeError(errorOut)}`));
+        }
+        if (!lastFile) {
+          cleanupTemp();
+          return reject(new Error('Download finished with no output file'));
+        }
+        // Move out of the temp folder into the real library location, THEN
+        // clean up whatever's left behind (stray thumbnail temp files etc.)
+        // — only ever this one rename, never a partial file, lands in
+        // outputDir.
+        try {
+          const finalPath = path.join(outputDir, path.relative(tmpDir, lastFile));
+          fs.mkdirSync(path.dirname(finalPath), { recursive: true });
+          fs.renameSync(lastFile, finalPath);
+          cleanupTemp();
+          resolve(finalPath);
+        } catch (err) {
+          cleanupTemp();
+          reject(err);
+        }
       });
     });
 
-    proc.on('error', (err) => finish(() => reject(err)));
+    proc.on('error', (err) => finish(() => { cleanupTemp(); reject(err); }));
   });
 }
 
@@ -538,17 +614,33 @@ function withTimeout(promise, ms, message) {
 }
 
 // Retries a known-video download up to maxAttempts times with backoff, each
-// attempt capped at 5 minutes. A shared commercial VPN exit IP occasionally
-// hits transient rate-limits/hiccups (confirmed happening in production) —
-// without this, a single blip either hangs forever (downloadAudio has no
-// internal timeout) or fails permanently with no chance to recover.
-async function downloadAudioWithRetry(videoId, outputDir, onProgress, maxAttempts = 3) {
+// attempt capped at HARD_TIMEOUT_MS INSIDE downloadAudio itself now (which
+// can actually reach and kill the process) rather than via an outer
+// Promise.race here, which could only abandon the promise — the real
+// yt-dlp process kept running as an untracked orphan, continuing to write
+// to disk, for as long as it took to finish on its own. A shared commercial
+// VPN exit IP occasionally hits transient rate-limits/hiccups (confirmed
+// happening in production), which is what the retries are for.
+//
+// signal, when given, is checked before every attempt and passed into
+// downloadAudio so an abort reaches the in-flight process immediately
+// rather than waiting for the current attempt to time out on its own.
+async function downloadAudioWithRetry(videoId, outputDir, onProgress, maxAttempts = 3, signal) {
   let lastErr;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (signal?.aborted) {
+      const err = new Error('Cancelled');
+      err.cancelled = true;
+      throw err;
+    }
     try {
-      return await withTimeout(downloadAudio(videoId, outputDir, onProgress), 5 * 60 * 1000, 'Download timed out after 5 minutes');
+      return await downloadAudio(videoId, outputDir, onProgress, signal);
     } catch (err) {
       lastErr = err;
+      // A cancellation is a deliberate stop, not a transient hiccup worth
+      // retrying — retrying it would mean immediately starting right back
+      // up on the very download the user just asked to stop.
+      if (err.cancelled) throw err;
       if (attempt < maxAttempts - 1) {
         await new Promise(r => setTimeout(r, 4000 * (attempt + 1))); // 4s, 8s backoff
       }
