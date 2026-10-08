@@ -2,6 +2,16 @@ import { useState, useEffect } from 'react';
 import { Clock, Music, Download, Flame, TrendingUp, BarChart2, Library } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { coverUrl } from '../../lib/apiUrl';
+import usePlayerStore from '../../store/playerStore';
+import useContextMenu from '../../hooks/useContextMenu';
+import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
+
+// Stats rows come from aggregate queries keyed by song_id, not the `id` shape
+// the rest of the app's song objects use — normalize before handing one to
+// playback/the context menu.
+function toSong(s) {
+  return { id: s.song_id, title: s.title, artist: s.artist, has_cover: s.has_cover };
+}
 
 // Benford's Law expected percentages for first digits 1–9
 const BENFORD = [30.1, 17.6, 12.5, 9.7, 7.9, 6.7, 5.8, 5.1, 4.6];
@@ -135,6 +145,8 @@ function LibraryOverview({ data }) {
 
 export default function Stats() {
   const { t } = useTranslation();
+  const { playSong, addToQueue } = usePlayerStore();
+  const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
   const [stats, setStats] = useState(null);
   const [libraryStats, setLibraryStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -237,7 +249,11 @@ export default function Stats() {
               ) : (
                 <div className="space-y-3">
                   {topSongs.map((s, i) => (
-                    <div key={s.song_id} className="flex items-center gap-3">
+                    <div
+                      key={s.song_id}
+                      className="flex items-center gap-3"
+                      onContextMenu={(e) => openCtxMenu(e, s)}
+                    >
                       <span className="text-zinc-600 text-sm w-4 shrink-0 text-right">{i + 1}</span>
                       <div className="w-9 h-9 bg-zinc-700 rounded shrink-0 overflow-hidden">
                         {s.has_cover
@@ -292,7 +308,11 @@ export default function Stats() {
               <h2 className="text-white font-semibold mb-4">{t('stats.recentlyPlayed')}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                 {recentlyPlayed.map((s) => (
-                  <div key={s.song_id} className="flex items-center gap-3 py-1.5">
+                  <div
+                    key={s.song_id}
+                    className="flex items-center gap-3 py-1.5"
+                    onContextMenu={(e) => openCtxMenu(e, s)}
+                  >
                     <div className="w-9 h-9 bg-zinc-700 rounded shrink-0 overflow-hidden">
                       {s.has_cover
                         ? <img src={coverUrl(s.song_id)} alt="" className="w-full h-full object-cover" />
@@ -312,6 +332,17 @@ export default function Stats() {
 
       {/* Library-wide distribution — always shown as long as there are songs */}
       {libraryStats && <LibraryOverview data={libraryStats} />}
+
+      {ctxMenu && (
+        <SongContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          song={toSong(ctxMenu.data)}
+          onClose={closeCtxMenu}
+          onPlay={() => { const song = toSong(ctxMenu.data); playSong(song, [song], 0, 'single', 'Stats'); }}
+          onAddToQueue={() => addToQueue(toSong(ctxMenu.data))}
+        />
+      )}
     </div>
   );
 }

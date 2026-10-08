@@ -11,6 +11,8 @@ import LyricsPanel from './LyricsPanel';
 import { coverUrl } from '../../lib/apiUrl';
 import { shareSong } from '../../lib/share';
 import useBackableOverlay from '../../hooks/useBackableOverlay';
+import useContextMenu from '../../hooks/useContextMenu';
+import SongContextMenu from '../ContextMenu/SongContextMenu';
 
 function fmt(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -180,7 +182,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
   const { t } = useTranslation();
   const {
     currentSong, isPlaying, currentTime, duration, shuffle, volume,
-    pause, resume, next, prev, seek, toggleShuffle, setVolume,
+    pause, resume, next, prev, seek, toggleShuffle, setVolume, addToQueue,
   } = usePlayerStore();
   const { likedSongs, toggleLike } = useUserDataStore();
   const { radioMode, toggleRadioMode } = useRadioStore();
@@ -203,6 +205,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
   // Was sharing only "Title — Artist" text, with no link in it at all — so
   // there was never anything to open, and on Android (no share sheet in the
   // WebView) the clipboard write could fail silently on top of that.
+  const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
   const [shareState, setShareState] = useState(null); // 'copied' | 'failed'
   async function handleShare() {
     if (!currentSong) return;
@@ -302,7 +305,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
       {/* Song info + controls */}
       <div className="px-8 pb-10 pt-2 space-y-5 shrink-0">
         {/* Song title row — like button on the right */}
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3" onContextMenu={(e) => currentSong && openCtxMenu(e, currentSong)}>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               {currentSong && <EqBars isPlaying={isPlaying} size="lg" />}
@@ -430,6 +433,16 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
           </div>
         </div>
       </div>
+
+      {ctxMenu && (
+        <SongContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          song={ctxMenu.data}
+          onClose={closeCtxMenu}
+          onAddToQueue={() => addToQueue(ctxMenu.data)}
+        />
+      )}
     </div>
   );
 }
@@ -438,7 +451,7 @@ export default function Player() {
   const { t } = useTranslation();
   const {
     currentSong, isPlaying, currentTime, duration, volume, shuffle,
-    pause, resume, next, prev, seek, setVolume, toggleShuffle,
+    pause, resume, next, prev, seek, setVolume, toggleShuffle, addToQueue,
   } = usePlayerStore();
   const { likedSongs, toggleLike } = useUserDataStore();
   const { radioMode, toggleRadioMode } = useRadioStore();
@@ -452,6 +465,7 @@ export default function Player() {
   const [showMenu, setShowMenu] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
 
   const openExpanded = () => { if (currentSong) setExpanded(true); };
   const closeExpanded = () => setExpanded(false);
@@ -603,7 +617,10 @@ export default function Player() {
                 <Cover song={currentSong} className="w-14 h-14 rounded shrink-0" />
                 {currentSong ? (
                   <>
-                    <div className="min-w-0 overflow-hidden flex items-center gap-2 flex-1">
+                    <div
+                      className="min-w-0 overflow-hidden flex items-center gap-2 flex-1"
+                      onContextMenu={(e) => openCtxMenu(e, currentSong)}
+                    >
                       <EqBars isPlaying={isPlaying} />
                       <div className="min-w-0 overflow-hidden">
                         <p className="text-green-400 text-base font-semibold truncate">{currentSong.title}</p>
@@ -702,6 +719,16 @@ export default function Player() {
           </div>
         </div>
       </div>
+
+      {ctxMenu && (
+        <SongContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          song={ctxMenu.data}
+          onClose={closeCtxMenu}
+          onAddToQueue={() => addToQueue(ctxMenu.data)}
+        />
+      )}
     </>
   );
 }

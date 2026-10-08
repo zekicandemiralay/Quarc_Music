@@ -11,7 +11,9 @@ import useFeaturedStore from '../../store/useFeaturedStore';
 import useRadioStore from '../../store/useRadioStore';
 import { coverUrl } from '../../lib/apiUrl';
 import useBackableOverlay from '../../hooks/useBackableOverlay';
+import useContextMenu from '../../hooks/useContextMenu';
 import { shareSong } from '../../lib/share';
+import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
 
 // Normalize for search: strips diacritics (ş→s, ü→u, é→e, etc.) and lowercases.
 // ı (Turkish dotless-i, U+0131) has no NFD decomposition so we replace it explicitly.
@@ -431,6 +433,7 @@ export default function Library({ view = 'all' }) {
   const listContext = (isPlaylist || view === 'mix' || view === 'featured') ? 'playlist' : 'single';
   const loadMixes = useMixStore((s) => s.loadMixes);
   const navigate = useNavigate();
+  const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
 
   function showToast(msg) {
     clearTimeout(queueToastTimer.current);
@@ -743,6 +746,7 @@ export default function Library({ view = 'all' }) {
                 }}
                 onMouseEnter={() => setHovered(song.id)}
                 onMouseLeave={() => setHovered(null)}
+                onContextMenu={(e) => openCtxMenu(e, song)}
                 onTouchStart={(e) => {
                   if (e.touches.length !== 1 || e.target.closest('button')) return;
                   swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, song, el: e.currentTarget, isH: false, lastDx: 0 };
@@ -928,6 +932,24 @@ export default function Library({ view = 'all' }) {
           }}
           currentPlaylistId={view === 'playlist' ? playlistId : null}
           onRemoveFromPlaylist={currentPlaylist ? () => removeFromPlaylist(currentPlaylist.id, actionSheet.id) : null}
+        />
+      )}
+
+      {/* Desktop right-click menu — the computer equivalent of the mobile swipe/action sheet above */}
+      {ctxMenu && (
+        <SongContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          song={ctxMenu.data}
+          onClose={closeCtxMenu}
+          onPlay={() => {
+            const song = ctxMenu.data;
+            const queue = isPlaylist ? visibleSongs : [song, ...visibleSongs.filter((s) => s.id !== song.id)];
+            playSong(song, queue, isPlaylist ? visibleSongs.indexOf(song) : 0, listContext, heading);
+          }}
+          onAddToQueue={() => { addToQueue(ctxMenu.data); showQueueToast(); }}
+          onRemoveFromPlaylist={currentPlaylist ? () => removeFromPlaylist(currentPlaylist.id, ctxMenu.data.id) : null}
+          onToast={showToast}
         />
       )}
     </div>

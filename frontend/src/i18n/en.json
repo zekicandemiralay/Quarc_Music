@@ -66,6 +66,12 @@
     "moveDown": "Move down",
     "removeFromQueue": "Remove from queue"
   },
+  "contextMenu": {
+    "play": "Play",
+    "download": "Download",
+    "removeDownload": "Remove download",
+    "removeFromCollection": "Remove from collection"
+  },
   "library": {
     "title": "Your Library",
     "likedSongs": "Liked Songs",
@@ -318,6 +324,7 @@
     "search": "Search",
     "language": "Language",
     "unknown": "Unknown",
+    "back": "Back",
     "addedToQueue": "Added to queue",
     "linkCopied": "Link copied",
     "copyFailed": "Couldn't copy link"

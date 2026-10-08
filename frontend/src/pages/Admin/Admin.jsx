@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { UserPlus, Trash2, ShieldCheck, User, KeyRound, X, Plus, Check, Search, Download, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, FolderSync, RefreshCw, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useFeaturedStore from '../../store/useFeaturedStore';
+import usePlayerStore from '../../store/playerStore';
+import useContextMenu from '../../hooks/useContextMenu';
+import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
 
 // ── Shared dialogs ────────────────────────────────────────────────────────────
 
@@ -351,6 +354,8 @@ function LibrarySearchPanel({ playlistId, currentSongIds, onSongAdded }) {
 
 function CollectionItem({ playlist, onUpdate }) {
   const { t } = useTranslation();
+  const { playSong } = usePlayerStore();
+  const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
   const [expanded, setExpanded] = useState(false);
   const [songs, setSongs] = useState([]);
   const [addMode, setAddMode] = useState(null); // 'library' | 'youtube' | null
@@ -440,7 +445,11 @@ function CollectionItem({ playlist, onUpdate }) {
           {songs.length > 0 ? (
             <div className="space-y-1">
               {songs.map((s) => (
-                <div key={s.id} className="flex items-center gap-2 py-1 group">
+                <div
+                  key={s.id}
+                  className="flex items-center gap-2 py-1 group"
+                  onContextMenu={(e) => openCtxMenu(e, s)}
+                >
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-xs truncate">{s.title}</p>
                     <p className="text-zinc-500 text-xs truncate">{s.artist}</p>
@@ -493,6 +502,17 @@ function CollectionItem({ playlist, onUpdate }) {
           message={t('admin.collections.deleteConfirm', { name: playlist.name })}
           onConfirm={deletePlaylist}
           onCancel={() => setDeleteConfirm(false)}
+        />
+      )}
+
+      {ctxMenu && (
+        <SongContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          song={ctxMenu.data}
+          onClose={closeCtxMenu}
+          onPlay={() => playSong(ctxMenu.data, songs, songs.indexOf(ctxMenu.data), 'playlist', playlist.name)}
+          onRemoveFromCollection={() => removeSong(ctxMenu.data.id)}
         />
       )}
     </div>

@@ -8,6 +8,8 @@ import useUserDataStore from '../../store/userDataStore';
 import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
 import { coverUrl } from '../../lib/apiUrl';
+import useContextMenu from '../../hooks/useContextMenu';
+import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
 
 const MIX_STYLES = {
   your_mix:     { icon: Sparkles, bg: 'from-purple-900/60 to-purple-800/30', border: 'border-purple-700/30', iconColor: 'text-purple-400' },
@@ -25,13 +27,14 @@ function fmtTime(s) {
   return null;
 }
 
-function SongCard({ song, queue, queueIndex, onPlay }) {
+function SongCard({ song, queue, queueIndex, onPlay, onContextMenu }) {
   const { currentSong, isPlaying } = usePlayerStore();
   const active = currentSong?.id === song.id;
 
   return (
     <button
       onClick={() => onPlay(song, queue, queueIndex)}
+      onContextMenu={(e) => onContextMenu(e, song)}
       className={`group flex items-center gap-3 rounded-lg p-2.5 text-left transition-colors w-full ${
         active ? 'bg-zinc-700/60' : 'bg-zinc-800/50 hover:bg-zinc-700/50'
       }`}
@@ -125,11 +128,12 @@ function getRecentPlaylists(playlists) {
 export default function Home() {
   const { t, i18n } = useTranslation();
   const { user } = useAuthStore();
-  const { playSong, shufflePlay } = usePlayerStore();
+  const { playSong, shufflePlay, addToQueue } = usePlayerStore();
   const { playlists: userPlaylists } = useUserDataStore();
   const { mixes } = useMixStore();
   const { playlists: featuredPlaylists } = useFeaturedStore();
   const navigate = useNavigate();
+  const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
 
   const [data, setData] = useState(null);
   const [allSongs, setAllSongs] = useState([]);
@@ -253,6 +257,7 @@ export default function Home() {
                     queue={[]}
                     queueIndex={0}
                     onPlay={handleJumpBackIn}
+                    onContextMenu={openCtxMenu}
                   />
                 ))}
               </div>
@@ -303,6 +308,17 @@ export default function Home() {
             </div>
           )}
         </>
+      )}
+
+      {ctxMenu && (
+        <SongContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          song={ctxMenu.data}
+          onClose={closeCtxMenu}
+          onPlay={() => handleJumpBackIn(ctxMenu.data)}
+          onAddToQueue={() => addToQueue(ctxMenu.data)}
+        />
       )}
     </div>
   );

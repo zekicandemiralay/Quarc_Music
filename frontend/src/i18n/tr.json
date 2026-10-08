@@ -66,6 +66,12 @@
     "moveDown": "Aşağı taşı",
     "removeFromQueue": "Sıradan çıkar"
   },
+  "contextMenu": {
+    "play": "Çal",
+    "download": "İndir",
+    "removeDownload": "İndirmeyi kaldır",
+    "removeFromCollection": "Koleksiyondan kaldır"
+  },
   "library": {
     "title": "Kütüphaneniz",
     "likedSongs": "Beğenilen Şarkılar",
@@ -318,6 +324,7 @@
     "search": "Ara",
     "language": "Dil",
     "unknown": "Bilinmiyor",
+    "back": "Geri",
     "addedToQueue": "Sıraya eklendi",
     "linkCopied": "Bağlantı kopyalandı",
     "copyFailed": "Bağlantı kopyalanamadı"

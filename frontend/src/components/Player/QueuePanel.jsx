@@ -5,8 +5,10 @@ import { useTranslation } from 'react-i18next';
 import usePlayerStore from '../../store/playerStore';
 import useRadioStore from '../../store/useRadioStore';
 import { coverUrl } from '../../lib/apiUrl';
+import useContextMenu from '../../hooks/useContextMenu';
+import SongContextMenu from '../ContextMenu/SongContextMenu';
 
-function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, onPlay }) {
+function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, onPlay, onContextMenu }) {
   const { t } = useTranslation();
   return (
     <div
@@ -14,6 +16,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
         active ? 'bg-zinc-800/60' : 'hover:bg-zinc-800/40 cursor-pointer'
       }`}
       onClick={!active && onPlay ? onPlay : undefined}
+      onContextMenu={onContextMenu}
     >
       <div className="w-10 h-10 shrink-0 rounded overflow-hidden bg-zinc-800 flex items-center justify-center">
         {song.has_cover
@@ -64,7 +67,7 @@ export default function QueuePanel({ onClose }) {
   const {
     currentSong, isPlaying, queue, queueIndex,
     manualQueue, playContextLabel,
-    removeFromManualQueue, reorderManualQueue, clearManualQueue, playSong,
+    removeFromManualQueue, reorderManualQueue, clearManualQueue, playSong, addToQueue,
   } = usePlayerStore();
   const { pendingDownloads } = useRadioStore();
 
@@ -76,6 +79,7 @@ export default function QueuePanel({ onClose }) {
   const entered = useRef(false);
   const [dragY, setDragY] = useState(0);
   const [snapping, setSnapping] = useState(false);
+  const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -180,7 +184,7 @@ export default function QueuePanel({ onClose }) {
             {currentSong && (
               <section className="px-4 pt-5 pb-3">
                 <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">{t('queue.nowPlaying')}</p>
-                <QueueSongRow song={currentSong} active />
+                <QueueSongRow song={currentSong} active onContextMenu={(e) => openCtxMenu(e, { song: currentSong, onAddToQueue: () => addToQueue(currentSong) })} />
               </section>
             )}
 
@@ -193,21 +197,29 @@ export default function QueuePanel({ onClose }) {
                     <span className="ml-1.5 text-zinc-600 normal-case font-normal">({manualQueue.length})</span>
                   </p>
                 </div>
-                {manualQueue.map((song, i) => (
-                  <QueueSongRow
-                    key={`manual-${i}-${song.id}`}
-                    song={song}
-                    isManual
-                    onRemove={() => removeFromManualQueue(i)}
-                    onMoveUp={i > 0 ? () => reorderManualQueue(i, i - 1) : null}
-                    onMoveDown={i < manualQueue.length - 1 ? () => reorderManualQueue(i, i + 1) : null}
-                    onPlay={() => {
-                      const { queue: q, queueIndex: qi, playContext, playContextLabel: pcl } = usePlayerStore.getState();
-                      removeFromManualQueue(i);
-                      playSong(song, q, qi, playContext, pcl);
-                    }}
-                  />
-                ))}
+                {manualQueue.map((song, i) => {
+                  const playThis = () => {
+                    const { queue: q, queueIndex: qi, playContext, playContextLabel: pcl } = usePlayerStore.getState();
+                    removeFromManualQueue(i);
+                    playSong(song, q, qi, playContext, pcl);
+                  };
+                  return (
+                    <QueueSongRow
+                      key={`manual-${i}-${song.id}`}
+                      song={song}
+                      isManual
+                      onRemove={() => removeFromManualQueue(i)}
+                      onMoveUp={i > 0 ? () => reorderManualQueue(i, i - 1) : null}
+                      onMoveDown={i < manualQueue.length - 1 ? () => reorderManualQueue(i, i + 1) : null}
+                      onPlay={playThis}
+                      onContextMenu={(e) => openCtxMenu(e, {
+                        song, onPlay: playThis,
+                        onAddToQueue: () => addToQueue(song),
+                        onRemoveFromQueue: () => removeFromManualQueue(i),
+                      })}
+                    />
+                  );
+                })}
               </section>
             )}
 
@@ -245,13 +257,17 @@ export default function QueuePanel({ onClose }) {
                   {t('queue.nextFrom')} <span className="text-zinc-400 normal-case font-medium">{contextLabel}</span>
                   <span className="ml-1.5 text-zinc-600 normal-case font-normal">({upNext.length})</span>
                 </p>
-                {upNext.slice(0, 100).map((song, i) => (
-                  <QueueSongRow
-                    key={`auto-${queueIndex + 1 + i}-${song.id}`}
-                    song={song}
-                    onPlay={() => playSong(song, queue, queueIndex + 1 + i)}
-                  />
-                ))}
+                {upNext.slice(0, 100).map((song, i) => {
+                  const playThis = () => playSong(song, queue, queueIndex + 1 + i);
+                  return (
+                    <QueueSongRow
+                      key={`auto-${queueIndex + 1 + i}-${song.id}`}
+                      song={song}
+                      onPlay={playThis}
+                      onContextMenu={(e) => openCtxMenu(e, { song, onPlay: playThis, onAddToQueue: () => addToQueue(song) })}
+                    />
+                  );
+                })}
                 {upNext.length > 100 && (
                   <p className="text-zinc-600 text-xs px-2 pt-2">{t('queue.moreSongs', { n: upNext.length - 100 })}</p>
                 )}
@@ -260,6 +276,18 @@ export default function QueuePanel({ onClose }) {
           </>
         )}
       </div>
+
+      {ctxMenu && (
+        <SongContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          song={ctxMenu.data.song}
+          onClose={closeCtxMenu}
+          onPlay={ctxMenu.data.onPlay}
+          onAddToQueue={ctxMenu.data.onAddToQueue}
+          onRemoveFromQueue={ctxMenu.data.onRemoveFromQueue}
+        />
+      )}
     </div>,
     document.body
   );
