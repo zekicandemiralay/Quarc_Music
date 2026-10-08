@@ -14,6 +14,26 @@ import useBackableOverlay from '../../hooks/useBackableOverlay';
 import useContextMenu from '../../hooks/useContextMenu';
 import { shareSong } from '../../lib/share';
 import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
+import { loadCachedSongs, saveCachedSongs } from '../../lib/songCache';
+
+// Whether this device has a real pointer that can hover.
+//
+// The row's action buttons (add to queue, add to playlist, find on YouTube,
+// share) are revealed by hover from md up, and the mobile "more" button that
+// opens the action sheet is hidden at that same breakpoint. With a mouse
+// that's fine. On a TOUCH device wide enough to count as md — a tablet, a
+// touchscreen laptop — it's a dead end: the only way to make those buttons
+// appear is to tap the row, and tapping the row plays the song. So reaching
+// "add to playlist" from the list meant starting playback of whatever you
+// tapped, every time.
+//
+// Tailwind 3's hover: variants aren't gated behind (hover: hover) unless
+// hoverOnlyWhenSupported is enabled, which would change every hover in the
+// app — so this decides it explicitly for the one place it actually breaks.
+// Read once: a device growing a mouse mid-session isn't worth a listener.
+const CAN_HOVER = typeof window !== 'undefined'
+  && typeof window.matchMedia === 'function'
+  && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 // Normalize for search: strips diacritics (ş→s, ü→u, é→e, etc.) and lowercases.
 // ı (Turkish dotless-i, U+0131) has no NFD decomposition so we replace it explicitly.
@@ -397,9 +417,7 @@ export default function Library({ view = 'all' }) {
   const { playlistId, mixId, featuredId } = useParams();
   const mixData = useMixStore((s) => view === 'mix' ? s.getMix(mixId) : null);
   const featuredData = useFeaturedStore((s) => view === 'featured' ? s.getPlaylist(featuredId) : null);
-  const [songs, setSongs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('quarc_songs') || '[]'); } catch { return []; }
-  });
+  const [songs, setSongs] = useState(loadCachedSongs);
   // Only show loading spinner if we have no cached songs to display
   const [loading, setLoading] = useState(() => view !== 'mix' && view !== 'featured' && !localStorage.getItem('quarc_songs'));
   const [scanning, setScanning] = useState(false);
@@ -532,7 +550,10 @@ export default function Library({ view = 'all' }) {
       const data = await res.json();
       if (!Array.isArray(data)) return;
       setSongs(data);
-      try { localStorage.setItem('quarc_songs', JSON.stringify(data)); } catch {}
+      saveCachedSongs(data);
+      // A fresh library is also the chance to name any downloads that are
+      // still missing their details.
+      useOfflineStore.getState().hydrateMeta();
     } catch {
       // Offline or timeout — keep cached songs
     } finally {
@@ -814,21 +835,27 @@ export default function Library({ view = 'all' }) {
                 <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => setActionSheet(song)}
-                    className="md:hidden p-2 text-zinc-500 hover:text-white transition-colors"
+                    className={`${CAN_HOVER ? 'md:hidden' : ''} p-2 text-zinc-500 hover:text-white transition-colors`}
                     title="More options"
                   >
                     <MoreHorizontal size={18} />
                   </button>
-                  {/* Liked indicator — visible when liked and not hovering; covered by overlay on hover */}
-                  <Heart
-                    size={15}
-                    className={`hidden md:block mr-1.5 ${liked ? 'text-red-400 fill-current' : 'invisible'}`}
-                  />
+                  {/* Liked indicator — visible when liked and not hovering; covered
+                      by overlay on hover. Only where hover exists: on a touch
+                      device the ⋮ button above stays visible at every width, and
+                      this column is a fixed 3rem on desktop — both together
+                      overflow it. The like state is in the action sheet anyway. */}
+                  {CAN_HOVER && (
+                    <Heart
+                      size={15}
+                      className={`hidden md:block mr-1.5 ${liked ? 'text-red-400 fill-current' : 'invisible'}`}
+                    />
+                  )}
                 </div>
 
                 {/* Desktop hover overlay — absolute, covers right side of row */}
                 <div
-                  className={`absolute inset-y-0 right-0 hidden items-center gap-1 px-3 bg-gradient-to-l from-zinc-900 from-70% to-transparent ${menuOpen === song.id ? '!flex' : 'md:group-hover:flex'}`}
+                  className={`absolute inset-y-0 right-0 hidden items-center gap-1 px-3 bg-gradient-to-l from-zinc-900 from-70% to-transparent ${menuOpen === song.id ? '!flex' : CAN_HOVER ? 'md:group-hover:flex' : ''}`}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db');
+const { SONG_LIST_COLUMNS } = require('../lib/songColumns');
 const { requireAuth } = require('../middleware/auth');
 
 router.use(requireAuth);
@@ -11,7 +12,7 @@ router.get('/', (req, res) => {
 
   // Last 8 distinct recently played songs with full song data
   const recentlyPlayed = db.prepare(`
-    SELECT s.*
+    SELECT ${SONG_LIST_COLUMNS}
     FROM songs s
     INNER JOIN (
       SELECT song_id, MAX(played_at) as last_played

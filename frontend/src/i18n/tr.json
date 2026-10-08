@@ -3,6 +3,7 @@
     "home": "Ana Sayfa",
     "library": "Kütüphane",
     "likedSongs": "Beğenilen Şarkılar",
+    "downloaded": "İndirilenler",
     "youtube": "YouTube",
     "radio": "Radyo",
     "stats": "İstatistikler",
@@ -278,7 +279,7 @@
     "failedTracks_plural": "{{n}} parça başarısız",
     "importAnother": "Başka bir dosya içe aktar",
     "spotifyHint": "ZIP (tüm çalma listeleri) veya ayrı CSV dosyaları — tıklayarak seçin",
-    "youtubeHint": "Google Takeout ZIP veya ayrı çalma listesi JSON dosyaları — tıklayarak seçin",
+    "youtubeHint": "Google Takeout ZIP (veya ayrı çalma listesi CSV dosyaları) — tıklayarak seçin",
     "spotifyInstructions": "Spotify'dan nasıl dışa aktarılır:",
     "spotifyStep1": "exportify.net'e gidin ve Spotify ile giriş yapın",
     "spotifyStep2": "Tüm çalma listelerini ZIP olarak almak için \"Export All\"a, ayrı listeler için CSV'ye tıklayın",
@@ -291,6 +292,10 @@
     "youtubeStep5": "ZIP'i indirip aşağıya yükleyin",
     "youtubeNote": "YouTube Music dışa aktarmaları tam video kimliklerini kullanır — her indirme mükemmel eşleşme sağlar.",
     "onlyAccepted": "Yalnızca {{accept}} dosyaları kabul edilir",
+    "choosePlaylists": "Neyi içe aktaracağınızı seçin",
+    "choosePlaylistsHint": "İndirilmesini istemediğiniz çalma listelerinin işaretini kaldırın — antrenman veya eğitim videoları gibi gerçekte müzik olmayanlar için kullanışlı.",
+    "back": "Geri",
+    "startImportTracks": "İçe Aktarmayı Başlat ({{n}} parça, {{count}} liste)",
     "export": "Dışa Aktar",
     "exportInstructions": "Kütüphanenizi Exportify'daki gibi CSV olarak dışa aktarın.",
     "exportHint": "Doğrudan indirmek için tek bir liste, veya her liste için ayrı CSV içeren bir ZIP almak için birden çok liste seçin.",
@@ -327,7 +332,8 @@
     "back": "Geri",
     "addedToQueue": "Sıraya eklendi",
     "linkCopied": "Bağlantı kopyalandı",
-    "copyFailed": "Bağlantı kopyalanamadı"
+    "copyFailed": "Bağlantı kopyalanamadı",
+    "play": "Çal"
   },
   "radio": {
     "searchPlaceholder": "İstasyon ara…",
@@ -350,5 +356,17 @@
     "viewRelease": "GitHub'da görüntüle",
     "refresh": "Yenile",
     "error": "Hata"
+  },
+  "downloaded": {
+    "subtitle": "Bu cihaza kaydedilen şarkılar — bağlantı olmadan da çalar",
+    "count": "{{n}} şarkı",
+    "ofQuota": "/ {{total}} kullanılabilir",
+    "emptyTitle": "Henüz indirilen yok",
+    "emptyHint": "Şarkıları buraya kaydetmek için bir çalma listesindeki veya kitaplıktaki indirme düğmesini kullanın. Bağlantı olmadan da çalarlar.",
+    "remove": "Kaldır",
+    "confirmRemove": "Bu indirme kaldırılsın mı?",
+    "confirmRemoveHint": "Şarkı kitaplığınızda kalır — yalnızca bu cihazdaki kopya silinir.",
+    "unknownTitle": "Bilinmeyen başlık",
+    "unknownArtist": "Bilinmeyen sanatçı"
   }
 }

@@ -15,6 +15,37 @@ const MUSIC_DIR = () => process.env.MUSIC_DIR || '/music';
 // In-memory job status per user
 const importJobs = new Map();
 
+// The AbortController for whichever download is currently in flight for a
+// user's import, keyed the same way as importJobs. Separate from the job
+// object itself rather than a field on it — job is serialized wholesale as
+// the /status response, and an AbortController has nothing worth sending a
+// client anyway. Each track gets its own fresh controller that overwrites
+// the previous one, so /cancel always reaches whatever is actually running
+// at the moment it's clicked.
+const jobAbortControllers = new Map();
+
+// Parsed-but-not-yet-started YouTube imports, keyed by a one-time id. A
+// Takeout export is often dozens of playlists — workout routines, tutorials,
+// recipe videos — mixed in with actual music, and there was no way to leave
+// any of them out short of editing the ZIP by hand before upload. Parsing
+// now returns a playlist list with track counts for the user to choose from
+// instead of starting the download immediately; POST /youtube/confirm below
+// is what actually starts it, for whichever subset was picked.
+//
+// Holds only the already-parsed { playlistName, isLiked, tracks } objects,
+// not the uploaded file bytes — for even a very large export that's a few
+// hundred KB at most. Swept on every new preview rather than on a timer, so
+// an abandoned one (uploaded, then never confirmed) doesn't sit forever.
+const importPreviews = new Map();
+const PREVIEW_TTL_MS = 30 * 60 * 1000;
+
+function sweepStalePreviews() {
+  const cutoff = Date.now() - PREVIEW_TTL_MS;
+  for (const [id, p] of importPreviews) {
+    if (p.createdAt < cutoff) importPreviews.delete(id);
+  }
+}
+
 function parseCsv(text) {
   // Strip UTF-8 BOM — present when exported from Windows or some Android email clients
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
@@ -123,8 +154,14 @@ function persistImportState(userId, job, playlists, pli, ti) {
   } catch {}
 }
 
-async function downloadWithRetry(track, maxAttempts = 3) {
-  if (track.videoId) return downloadAudioWithRetry(track.videoId, MUSIC_DIR(), () => {}, maxAttempts);
+async function downloadWithRetry(track, maxAttempts = 3, signal) {
+  // Cancellation is only wired up for the known-video path (Takeout imports
+  // always carry a videoId, which is the case this was reported against).
+  // The search-based path below — used only for Spotify tracks, which have
+  // no video id to download by — doesn't check signal, so a cancel won't
+  // interrupt one already in flight; it's a smaller, riskier function
+  // (several scored candidates tried in turn) that this didn't touch.
+  if (track.videoId) return downloadAudioWithRetry(track.videoId, MUSIC_DIR(), () => {}, maxAttempts, signal);
 
   let lastErr;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -231,13 +268,20 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
         : (track.artist ? `${track.artist} - ${track.name}` : track.name);
       job.currentTrack = label;
 
+      // Fresh per track — this is what /cancel actually reaches. Overwriting
+      // the previous entry is deliberate: by the time a new one is created
+      // the last one has already settled, so there's never a question of
+      // which download a cancel click is meant to stop.
+      const controller = new AbortController();
+      jobAbortControllers.set(userId, controller);
+
       try {
         // Only pre-check the library for known-video (YouTube Takeout) tracks —
         // see lookupSong for why Spotify tracks always search first instead.
         let song = (track.videoId && track.name) ? lookupSong(songLookup, track.name, track.artist) : null;
 
         if (!song) {
-          const filepath = await downloadWithRetry(track);
+          const filepath = await downloadWithRetry(track, 3, controller.signal);
           if (filepath) {
             song = await scanFile(filepath);
             setSongVideoId(song?.id, track.videoId); // no-op for CSV imports, which have none
@@ -279,6 +323,13 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
           }
         }
       } catch (err) {
+        if (err.cancelled) {
+          // Deliberately stopped, not failed — doesn't count toward done,
+          // doesn't show up in the failed-tracks list. job.control was set
+          // to 'cancel_requested' by /cancel before it aborted this, so the
+          // status line below already resolves to 'cancelled'.
+          break outer;
+        }
         console.log(`[import] FAILED "${label}": ${err.message}`);
         job.errors.push({ track: label, error: err.message });
       }
@@ -288,6 +339,7 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
     }
   }
 
+  jobAbortControllers.delete(userId);
   job.status = job.control === 'cancel_requested' ? 'cancelled' : 'done';
   job.currentTrack = null;
   job.currentPlaylist = null;
@@ -295,7 +347,15 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
   persistImportState(userId, job, [], 0, 0);
 }
 
-// Parse a single Google Takeout playlist JSON buffer
+// Parse a single Google Takeout playlist JSON buffer.
+//
+// Kept for any older or hand-built export that happens to use this shape,
+// but it is NOT what a real Takeout export actually contains — a real one
+// is takeoutCsvToPlaylist below. This JSON shape looks like a guess at the
+// YouTube Data API's playlistItems.list response rather than something
+// Takeout has ever produced, which is why every real export hit "No tracks
+// found": the parser was only ever looking for a file type that doesn't
+// exist in the ZIP.
 function takeoutJsonToPlaylist(entryName, buffer) {
   try {
     const data = JSON.parse(buffer.toString('utf8'));
@@ -313,7 +373,38 @@ function takeoutJsonToPlaylist(entryName, buffer) {
   }
 }
 
-// Accepts: a Google Takeout ZIP, or individual playlist JSON files
+// Parse a single Google Takeout "<playlist title> videos.csv" file — the
+// actual real export format (confirmed against a real Takeout download):
+// header "Video ID,Playlist video creation timestamp", one row per video,
+// no title/artist/anything else. That's fine: track.videoId goes straight
+// to a by-id download (see downloadWithRetry), so no title is ever needed
+// to fetch the right file — the real title comes from yt-dlp once it's
+// actually downloaded.
+//
+// The same ZIP also contains "playlists.csv", one row per playlist with
+// columns like "Playlist ID", "Playlist title (original)", etc. — a totally
+// different shape, not a list of videos at all. Checking for a "video id"
+// column (rather than hardcoding "not named playlists.csv") is what skips
+// it, which also means a file that happens to be empty or malformed is
+// skipped the same way rather than crashing the whole import.
+function takeoutCsvToPlaylist(filename, buffer) {
+  const rows = parseCsv(buffer.toString('utf8'));
+  if (!rows.length || !('video id' in rows[0])) return null;
+
+  const tracks = rows
+    .map(r => (r['video id'] || '').trim())
+    .filter(id => /^[A-Za-z0-9_-]{11}$/.test(id)) // a real YouTube video id is always exactly 11 chars
+    .map(videoId => ({ name: videoId, videoId }));
+  if (!tracks.length) return null;
+
+  // Takeout always names the file "<title> videos.csv" — strip that suffix
+  // so the playlist lands with the name it actually has in YouTube, not
+  // "<name> videos".
+  const playlistName = playlistNameFromFilename(filename).replace(/ videos$/i, '').trim() || 'Imported Playlist';
+  return { playlistName, isLiked: isLikedSongsName(playlistName), tracks };
+}
+
+// Accepts: a Google Takeout ZIP, or individual playlist CSV/JSON files
 function parseYouTubeTakeout(files) {
   const playlists = [];
   for (const file of files) {
@@ -321,11 +412,16 @@ function parseYouTubeTakeout(files) {
     if (name.toLowerCase().endsWith('.zip')) {
       const zip = new AdmZip(file.buffer);
       for (const entry of zip.getEntries()) {
-        if (!entry.isDirectory && entry.name.toLowerCase().endsWith('.json')) {
-          const pl = takeoutJsonToPlaylist(entry.name, entry.getData());
-          if (pl) playlists.push(pl);
-        }
+        if (entry.isDirectory) continue;
+        const lower = entry.name.toLowerCase();
+        const pl = lower.endsWith('.csv') ? takeoutCsvToPlaylist(entry.name, entry.getData())
+          : lower.endsWith('.json') ? takeoutJsonToPlaylist(entry.name, entry.getData())
+          : null;
+        if (pl) playlists.push(pl);
       }
+    } else if (name.toLowerCase().endsWith('.csv')) {
+      const pl = takeoutCsvToPlaylist(name, file.buffer);
+      if (pl) playlists.push(pl);
     } else if (name.toLowerCase().endsWith('.json')) {
       const pl = takeoutJsonToPlaylist(name, file.buffer);
       if (pl) playlists.push(pl);
@@ -335,6 +431,30 @@ function parseYouTubeTakeout(files) {
 }
 
 router.use(requireAuth);
+
+// Shared by /spotify (starts immediately — Exportify exports are small
+// enough that a selection step wouldn't earn its keep) and
+// /youtube/confirm (starts only the playlists that were actually picked).
+// Caller has already checked for an existing running job.
+function startImportJob(userId, playlists) {
+  const job = {
+    status: 'running',
+    done: 0,
+    total: 0,
+    currentTrack: null,
+    currentPlaylist: null,
+    playlists: playlists.map(p => p.playlistName),
+    errors: [],
+  };
+  importJobs.set(userId, job);
+
+  runImport(userId, playlists).catch(err => {
+    const j = importJobs.get(userId);
+    if (j) { j.status = 'error'; j.errorMessage = err.message; }
+  });
+
+  return { ok: true, playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length })) };
+}
 
 router.post('/spotify', upload.array('files', 50), async (req, res) => {
   const files = req.files;
@@ -365,34 +485,22 @@ router.post('/spotify', upload.array('files', 50), async (req, res) => {
     return res.status(400).json({ error: 'No tracks found in the uploaded files' });
   }
 
-  const job = {
-    status: 'running',
-    done: 0,
-    total: 0,
-    currentTrack: null,
-    currentPlaylist: null,
-    playlists: playlists.map(p => p.playlistName),
-    errors: [],
-  };
-  importJobs.set(req.user.id, job);
-
-  runImport(req.user.id, playlists).catch(err => {
-    const j = importJobs.get(req.user.id);
-    if (j) { j.status = 'error'; j.errorMessage = err.message; }
-  });
-
-  res.json({
-    ok: true,
-    playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length })),
-  });
+  res.json(startImportJob(req.user.id, playlists));
 });
 
+// Parse only — does NOT start downloading. A Takeout export is commonly
+// dozens of playlists with no relation to music (workout routines,
+// tutorials, recipe videos), so starting every single one immediately,
+// with no way to leave anything out, downloaded a lot nobody actually
+// wanted. The frontend shows this list with per-playlist track counts and
+// lets the user pick before anything is fetched; POST /youtube/confirm
+// is what actually starts it.
 router.post('/youtube', upload.array('files', 50), async (req, res) => {
   const files = req.files;
   if (!files || files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
 
-  const invalid = files.find(f => !f.originalname.toLowerCase().match(/\.(zip|json)$/));
-  if (invalid) return res.status(400).json({ error: 'Only .zip and .json files are accepted' });
+  const invalid = files.find(f => !f.originalname.toLowerCase().match(/\.(zip|csv|json)$/));
+  if (invalid) return res.status(400).json({ error: 'Only .zip, .csv and .json files are accepted' });
 
   const existing = importJobs.get(req.user.id);
   if (existing && existing.status === 'running') {
@@ -410,26 +518,45 @@ router.post('/youtube', upload.array('files', 50), async (req, res) => {
     return res.status(400).json({ error: 'No tracks found — make sure this is a Google Takeout YouTube export' });
   }
 
-  const job = {
-    status: 'running',
-    done: 0,
-    total: 0,
-    currentTrack: null,
-    currentPlaylist: null,
-    playlists: playlists.map(p => p.playlistName),
-    errors: [],
-  };
-  importJobs.set(req.user.id, job);
-
-  runImport(req.user.id, playlists).catch(err => {
-    const j = importJobs.get(req.user.id);
-    if (j) { j.status = 'error'; j.errorMessage = err.message; }
-  });
+  sweepStalePreviews();
+  const previewId = uuidv4();
+  importPreviews.set(previewId, { userId: req.user.id, playlists, createdAt: Date.now() });
 
   res.json({
     ok: true,
-    playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length })),
+    previewId,
+    playlists: playlists.map(p => ({ name: p.playlistName, tracks: p.tracks.length, isLiked: p.isLiked })),
   });
+});
+
+// Starts the job for whichever playlists were selected out of a prior
+// preview. One-time: the preview is consumed whether this succeeds or not,
+// since re-confirming the same preview twice would otherwise double-queue
+// a user's own selection if, say, a slow network made them press the button
+// again.
+router.post('/youtube/confirm', (req, res) => {
+  const { previewId, selected } = req.body;
+  const preview = importPreviews.get(previewId);
+  importPreviews.delete(previewId);
+
+  // Same response either way (expired vs. never existed vs. someone else's)
+  // — nothing about why it's unavailable is any of the caller's business.
+  if (!preview || preview.userId !== req.user.id) {
+    return res.status(400).json({ error: 'This selection has expired — please upload the export again' });
+  }
+
+  const existing = importJobs.get(req.user.id);
+  if (existing && existing.status === 'running') {
+    return res.status(409).json({ error: 'An import is already running' });
+  }
+
+  const chosen = new Set(Array.isArray(selected) ? selected : []);
+  const playlists = preview.playlists.filter(p => chosen.has(p.playlistName));
+  if (!playlists.length) {
+    return res.status(400).json({ error: 'No playlists selected' });
+  }
+
+  res.json(startImportJob(req.user.id, playlists));
 });
 
 router.post('/pause', (req, res) => {
@@ -484,6 +611,16 @@ router.post('/cancel', (req, res) => {
     return res.status(400).json({ error: 'No active import to cancel' });
   }
   job.control = 'cancel_requested';
+  // Setting job.control alone only stops the NEXT track from starting — the
+  // loop only checks it between tracks, so whatever is downloading right now
+  // (an accidentally-queued hours-long video, say) would otherwise keep
+  // running untouched until it finished, timed out, or failed entirely on
+  // its own. This reaches it directly: downloadAudio kills the yt-dlp
+  // process immediately and deletes everything it had written so far for
+  // that one track (see services/ytdlp.js — every download writes to its own
+  // disposable folder for exactly this). A no-op if nothing is actually
+  // downloading right now (e.g. cancelling from a paused state).
+  jobAbortControllers.get(req.user.id)?.abort();
   res.json({ ok: true });
 });
 

@@ -7,6 +7,7 @@ const path = require('path');
 const mm = require('music-metadata');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db');
+const { SONG_LIST_COLUMNS } = require('../lib/songColumns');
 const { requireAdmin } = require('../middleware/auth');
 const { asyncRoute } = require('../lib/asyncRoute');
 
@@ -113,7 +114,7 @@ router.delete('/featured/:id', (req, res) => {
 
 router.get('/featured/:id/songs', (req, res) => {
   const songs = getDb().prepare(`
-    SELECT s.* FROM songs s
+    SELECT ${SONG_LIST_COLUMNS} FROM songs s
     JOIN featured_playlist_songs fps ON s.id = fps.song_id
     WHERE fps.playlist_id = ? ORDER BY fps.position
   `).all(req.params.id);

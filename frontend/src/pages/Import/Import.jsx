@@ -138,7 +138,110 @@ function ExportSection() {
   );
 }
 
-function UploadSection({ accept, mimeTypes, endpoint, instructions, hint, onJobStart }) {
+// Shown after a YouTube Takeout upload parses, before anything downloads.
+// A real export is commonly dozens of playlists with nothing to do with
+// music — workout routines, tutorials, recipe videos — mixed in with actual
+// music playlists, so letting everything through unconditionally downloaded
+// a lot nobody actually wanted. This is the one chance to leave any of them
+// out; checked state here is the only thing that decides what gets fetched.
+function PlaylistSelector({ previewId, playlists, onCancel, onConfirm }) {
+  const { t } = useTranslation();
+  // Default to everything selected — someone who doesn't care just clicks
+  // Start, and gets exactly the old all-at-once behavior.
+  const [selected, setSelected] = useState(new Set(playlists.map(p => p.name)));
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState('');
+
+  const allSelected = playlists.length > 0 && playlists.every(p => selected.has(p.name));
+  const selectedTracks = playlists.filter(p => selected.has(p.name)).reduce((s, p) => s + p.tracks, 0);
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(playlists.map(p => p.name)));
+  }
+  function toggleOne(name) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  }
+
+  async function handleConfirm() {
+    if (selected.size === 0) return;
+    setConfirming(true);
+    setError('');
+    try {
+      const res = await fetch('/api/import/youtube/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ previewId, selected: [...selected] }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Could not start import'); setConfirming(false); return; }
+      onConfirm({
+        status: 'running',
+        done: 0,
+        total: data.playlists.reduce((s, p) => s + p.tracks, 0),
+        playlists: data.playlists.map(p => p.name),
+        currentTrack: null,
+        currentPlaylist: null,
+        errors: [],
+      });
+    } catch {
+      setError('Could not start import — check your connection');
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-zinc-900 rounded-xl p-4 space-y-1">
+        <p className="text-zinc-300 text-sm font-medium">{t('import.choosePlaylists')}</p>
+        <p className="text-zinc-500 text-xs">{t('import.choosePlaylistsHint')}</p>
+      </div>
+
+      <div className="bg-zinc-900 rounded-xl divide-y divide-zinc-800 max-h-80 overflow-y-auto">
+        <label className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-zinc-800/50">
+          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="shrink-0" />
+          <span className="text-sm font-medium text-white">{t('import.selectAll')}</span>
+        </label>
+
+        {playlists.map(p => (
+          <label key={p.name} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-zinc-800/50">
+            <input type="checkbox" checked={selected.has(p.name)} onChange={() => toggleOne(p.name)} className="shrink-0" />
+            {p.isLiked ? <Heart size={15} className="text-red-400 shrink-0" /> : <ListMusic size={15} className="text-zinc-500 shrink-0" />}
+            <span className="flex-1 text-sm text-zinc-200 truncate">{p.name}</span>
+            <span className="text-xs text-zinc-500">{p.tracks}</span>
+          </label>
+        ))}
+      </div>
+
+      {error && <p className="text-red-400 text-sm">{error}</p>}
+
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          disabled={confirming}
+          className="px-4 py-3 rounded-xl text-sm font-medium text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+        >
+          {t('import.back')}
+        </button>
+        <button
+          onClick={handleConfirm}
+          disabled={selected.size === 0 || confirming}
+          className="flex-1 bg-white text-black rounded-xl py-3 font-medium text-sm hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {confirming && <Loader2 size={16} className="animate-spin" />}
+          {confirming
+            ? t('import.starting')
+            : t('import.startImportTracks', { n: selectedTracks, count: playlists.filter(p => selected.has(p.name)).length })}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UploadSection({ accept, mimeTypes, endpoint, instructions, hint, onJobStart, preview, onPreview }) {
   const { t } = useTranslation();
   const [files, setFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
@@ -184,15 +287,21 @@ function UploadSection({ accept, mimeTypes, endpoint, instructions, hint, onJobS
       const res = await fetch(endpoint, { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Upload failed'); setUploading(false); return; }
-      onJobStart({
-        status: 'running',
-        done: 0,
-        total: data.playlists.reduce((s, p) => s + p.tracks, 0),
-        playlists: data.playlists.map(p => p.name),
-        currentTrack: null,
-        currentPlaylist: null,
-        errors: [],
-      });
+      if (preview) {
+        // Parsed, not started — the YouTube flow stops here and shows what
+        // was found so the user can choose, rather than starting right away.
+        onPreview({ previewId: data.previewId, playlists: data.playlists });
+      } else {
+        onJobStart({
+          status: 'running',
+          done: 0,
+          total: data.playlists.reduce((s, p) => s + p.tracks, 0),
+          playlists: data.playlists.map(p => p.name),
+          currentTrack: null,
+          currentPlaylist: null,
+          errors: [],
+        });
+      }
       setFiles([]);
     } catch {
       setError('Upload failed — check your connection');
@@ -267,6 +376,7 @@ export default function Import() {
   const { t } = useTranslation();
   const [tab, setTab] = useState('spotify');
   const [job, setJob] = useState(null);
+  const [preview, setPreview] = useState(null); // { previewId, playlists } — YouTube only, between upload and confirm
   const pollRef = useRef(null);
   const pollCountRef = useRef(0);
   const loadUserData = useUserDataStore((s) => s.load);
@@ -377,13 +487,14 @@ export default function Import() {
         />
       )}
 
-      {!job && tab === 'youtube' && (
+      {!job && !preview && tab === 'youtube' && (
         <UploadSection
-          accept=".zip,.json"
-          mimeTypes={['application/zip', 'application/x-zip-compressed', 'application/json', 'text/json']}
+          accept=".zip,.csv,.json"
+          mimeTypes={['application/zip', 'application/x-zip-compressed', 'text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel', 'application/json', 'text/json', 'text/plain']}
           endpoint="/api/import/youtube"
           hint={t('import.youtubeHint')}
-          onJobStart={setJob}
+          preview
+          onPreview={setPreview}
           instructions={
             <>
               <p className="text-zinc-300 text-sm font-medium">{t('import.youtubeInstructions')}</p>
@@ -397,6 +508,15 @@ export default function Import() {
               <p className="text-zinc-500 text-xs mt-1">{t('import.youtubeNote')}</p>
             </>
           }
+        />
+      )}
+
+      {!job && preview && tab === 'youtube' && (
+        <PlaylistSelector
+          previewId={preview.previewId}
+          playlists={preview.playlists}
+          onCancel={() => setPreview(null)}
+          onConfirm={(j) => { setJob(j); setPreview(null); }}
         />
       )}
 

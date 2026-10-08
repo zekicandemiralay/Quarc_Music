@@ -125,7 +125,8 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
     # players use it to read trailing tags. The old parser read "-64" as a
     # start of NaN, sent a 206 with a nonsense Content-Length, and then broke
     # the connection when the read stream threw.
-    SUFFIX_HDRS=$(api -b "$COOKIE" -o /dev/null -D - -H "Range: bytes=-64" "${BASE}/api/music/${FIRST_ID}/stream" 2>/dev/null | tr -d '')
+    SUFFIX_HDRS=$(api -b "$COOKIE" -o /dev/null -D - -H "Range: bytes=-64" "${BASE}/api/music/${FIRST_ID}/stream" 2>/dev/null | tr -d '
+')
     SUFFIX_CODE=$(echo "$SUFFIX_HDRS" | head -1 | awk '{print $2}')
     SUFFIX_LEN=$(echo "$SUFFIX_HDRS" | grep -i '^content-length:' | awk '{print $2}')
     if [ "$SUFFIX_CODE" = "206" ] && [ "$SUFFIX_LEN" = "64" ]; then
@@ -379,6 +380,22 @@ import sys, json
 s = json.load(sys.stdin)
 print(json.dumps({'artist': s.get('artist') or '', 'title': s.get('title') or ''}))
 " 2>/dev/null || echo "")
+
+# The library list is cached in localStorage so the app works offline, and
+# localStorage caps out around 5MB. Shipping every song's full lyrics in this
+# response blew past that, every cache write threw QuotaExceededError into a
+# silent catch, and offline mode quietly had nothing to show. Lyrics are
+# fetched per-song from /api/music/:id/lyrics, so they have no business here.
+LIB_BYTES=$(api -b "$COOKIE" "${BASE}/api/music" | wc -c)
+LIB_LYRICS=$(api -b "$COOKIE" "${BASE}/api/music" | grep -c 'lyrics_plain' || true)
+LIB_MB=$(python3 -c "print(f'{$LIB_BYTES/1048576:.1f}')" 2>/dev/null || echo "?")
+if [ "$LIB_LYRICS" -gt 0 ] 2>/dev/null; then
+  fail "GET /api/music includes lyrics text — payload is ${LIB_MB}MB and will overflow the offline cache"
+elif [ "$LIB_BYTES" -gt 4194304 ] 2>/dev/null; then
+  warn "GET /api/music is ${LIB_MB}MB — approaching localStorage's ~5MB ceiling, offline caching will start failing"
+else
+  pass "GET /api/music → ${LIB_MB}MB, no lyrics text (fits the offline cache)"
+fi
 
 # Seeding on the song's own YouTube id is what makes suggestions reliable
 # rather than a name-search guess. The column is populated at download time,
