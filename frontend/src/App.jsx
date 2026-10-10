@@ -12,9 +12,13 @@ import Stats from './pages/Stats/Stats';
 import Home from './pages/Home/Home';
 import Import from './pages/Import/Import';
 import Radio from './pages/Radio/Radio';
+import Friends from './pages/Friends/Friends';
+import SharedPlaylist from './pages/SharedPlaylist/SharedPlaylist';
 import useOfflineStore from './store/useOfflineStore';
 import useMixStore from './store/useMixStore';
 import useFeaturedStore from './store/useFeaturedStore';
+import useFriendsStore from './store/useFriendsStore';
+import useSharedPlaylistsStore from './store/useSharedPlaylistsStore';
 import usePlayerStore from './store/playerStore';
 
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -34,6 +38,9 @@ export default function App() {
   const resetMixes = useMixStore((s) => s.reset);
   const loadFeatured = useFeaturedStore((s) => s.load);
   const resetFeatured = useFeaturedStore((s) => s.reset);
+  const loadFriends = useFriendsStore((s) => s.load);
+  const resetFriends = useFriendsStore((s) => s.reset);
+  const resetSharedPlaylists = useSharedPlaylistsStore((s) => s.reset);
 
   useEffect(() => {
     checkSession();
@@ -47,8 +54,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user) { loadUserData(); loadMixes(); loadFeatured(); }
-    else { resetUserData(); resetMixes(); resetFeatured(); }
+    if (user) { loadUserData(); loadMixes(); loadFeatured(); loadFriends(); }
+    else { resetUserData(); resetMixes(); resetFeatured(); resetFriends(); resetSharedPlaylists(); }
   }, [user?.id]);
 
   // Play a shared song once the user is authenticated
@@ -94,6 +101,8 @@ export default function App() {
                 <Route path="/radio" element={<Radio />} />
                 <Route path="/import" element={<Import />} />
                 <Route path="/stats" element={<Stats />} />
+                <Route path="/friends" element={<Friends />} />
+                <Route path="/shared-playlist/:playlistId" element={<SharedPlaylist />} />
                 <Route path="/admin" element={
                   <ProtectedRoute adminOnly>
                     <Admin />

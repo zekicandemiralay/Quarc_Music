@@ -337,6 +337,43 @@ function flushPlay(songId) {
   }).catch(() => {});
 }
 
+// ── Friends: "currently playing" heartbeat ──────────────────────────────────
+// A lightweight presence signal for the friend activity feed (see
+// routes/friends.js's now_playing table) — not remote control, just "tell
+// the server what I'm playing so friends can see it." Runs only while audio
+// is actually playing; an explicit clear on pause/end is snappier than
+// waiting ~30s for the heartbeat to go stale server-side.
+const NOW_PLAYING_HEARTBEAT_MS = 15000;
+let nowPlayingTimer = null;
+
+function reportNowPlaying(songId) {
+  if (!songId) return;
+  fetch('/api/friends/now-playing', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ songId }),
+  }).catch(() => {});
+}
+
+function clearNowPlaying() {
+  // keepalive lets this fire-and-forget request survive a tab close
+  // (beforeunload) that would otherwise abort it mid-flight.
+  fetch('/api/friends/now-playing', { method: 'DELETE', keepalive: true }).catch(() => {});
+}
+
+function startNowPlayingHeartbeat(songId) {
+  if (nowPlayingTimer) clearInterval(nowPlayingTimer);
+  reportNowPlaying(songId);
+  nowPlayingTimer = setInterval(() => {
+    reportNowPlaying(usePlayerStore.getState().currentSong?.id);
+  }, NOW_PLAYING_HEARTBEAT_MS);
+}
+
+function stopNowPlayingHeartbeat() {
+  if (nowPlayingTimer) { clearInterval(nowPlayingTimer); nowPlayingTimer = null; }
+  clearNowPlaying();
+}
+
 function applyMediaSessionMeta(song) {
   if (!('mediaSession' in navigator) || !song) return;
   navigator.mediaSession.metadata = new MediaMetadata({
@@ -700,6 +737,7 @@ audio.addEventListener('play', () => {
   usePlayerStore.setState({ isPlaying: true });
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
   const { currentSong } = usePlayerStore.getState();
+  if (currentSong) startNowPlayingHeartbeat(currentSong.id);
   const title = currentSong?.title ?? 'Quarc Music';
   const artist = currentSong?.artist ?? '';
   // Set MediaMetadata once per song after audio is active (iOS ignores it before play).
@@ -748,6 +786,7 @@ audio.addEventListener('pause', () => {
   if (pausedByUser) {
     // Intentional pause — update notification to paused state but keep service alive
     pausedByUser = false;
+    stopNowPlayingHeartbeat();
     usePlayerStore.setState({ isPlaying: false });
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     const { currentSong } = usePlayerStore.getState();
@@ -764,8 +803,13 @@ audio.addEventListener('ended', () => {
   const sid = playTrack.songId;
   flushPlay(sid);
   playTrack = { songId: null, accumulated: 0, resumeAt: null };
+  // Cleared unconditionally; if next() finds something to play, that song's
+  // own 'play' event reports it again right away.
+  stopNowPlayingHeartbeat();
   usePlayerStore.getState().next();
 });
+
+window.addEventListener('beforeunload', stopNowPlayingHeartbeat);
 
 // When the stream stalls while the screen is locked, immediately switch to the
 // pre-buffered blob so music keeps playing without waiting for screen unlock.

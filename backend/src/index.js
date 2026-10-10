@@ -14,6 +14,8 @@ const featuredRoutes = require('./routes/featured');
 const importRoutes = require('./routes/import');
 const radioRoutes = require('./routes/radio');
 const exportRoutes = require('./routes/export');
+const friendsRoutes = require('./routes/friends');
+const sharedPlaylistsRoutes = require('./routes/sharedPlaylists');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -102,6 +104,8 @@ app.use('/api/featured', featuredRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/radio', radioRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/friends', friendsRoutes);
+app.use('/api/shared-playlists', sharedPlaylistsRoutes);
 
 // Anything a route throws, or hands to next(err), lands here instead of
 // Express's default HTML error page (which leaks a stack trace to the

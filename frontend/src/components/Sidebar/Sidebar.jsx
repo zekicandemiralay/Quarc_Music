@@ -1,12 +1,13 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink, Radio, ArrowDownToLine } from 'lucide-react';
+import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink, Radio, ArrowDownToLine, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
 import useOfflineStore from '../../store/useOfflineStore';
 import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
+import useFriendsStore from '../../store/useFriendsStore';
 
 const REPO = 'zekicandemiralay/Quarc_Music';
 
@@ -312,6 +313,7 @@ export default function Sidebar({ onNavigate }) {
   const cachedIds = useOfflineStore((s) => s.cachedIds);
   const mixes = useMixStore((s) => s.mixes);
   const featured = useFeaturedStore((s) => s.playlists);
+  const incomingRequests = useFriendsStore((s) => s.incomingRequests);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
@@ -387,6 +389,13 @@ export default function Sidebar({ onNavigate }) {
           <NavLink to="/stats" className={linkClass} onClick={onNavigate}>
             <BarChart2 size={18} className="text-blue-400" />
             {t('nav.stats')}
+          </NavLink>
+          <NavLink to="/friends" className={linkClass} onClick={onNavigate}>
+            <Users size={18} className="text-violet-400" />
+            {t('nav.friends')}
+            {incomingRequests.length > 0 && (
+              <span className="ml-auto text-xs bg-violet-500 text-white rounded-full w-5 h-5 flex items-center justify-center">{incomingRequests.length}</span>
+            )}
           </NavLink>
           <NavLink to="/import" className={linkClass} onClick={onNavigate}>
             <Download size={18} className="text-green-400" />

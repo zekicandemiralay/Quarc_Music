@@ -166,6 +166,77 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_downloads_user  ON downloads(user_id);
   `);
 
+  // One row per unordered pair: 'pending' while only from_user_id has asked,
+  // flipped to 'accepted' in place once to_user_id agrees — never a second
+  // row for the same pair. A decline or an unfriend is just deleting the row;
+  // either side can ask again afterward since nothing remembers a decline.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS friend_requests (
+      id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL,
+      to_user_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE (from_user_id, to_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_fr_to   ON friend_requests(to_user_id, status);
+    CREATE INDEX IF NOT EXISTS idx_fr_from ON friend_requests(from_user_id, status);
+  `);
+
+  // One row per user, upserted on every playback heartbeat (~every 15-20s
+  // from the frontend) and deleted outright on pause/stop/song-end for a
+  // snappy "stopped listening" signal — heartbeat_at going stale (no explicit
+  // delete) is only the fallback for a closed tab or a crashed client.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS now_playing (
+      user_id TEXT PRIMARY KEY,
+      song_id TEXT NOT NULL,
+      heartbeat_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Collaborative playlists — deliberately a separate, real relational
+  // model from the per-user JSON blob personal playlists live in (user_data,
+  // data_key='playlists'), which has no owner field at all and can't
+  // represent "visible/editable by more than one account." Mirrors the
+  // featured_playlists/featured_playlist_songs shape already used for
+  // admin-curated collections, plus a members table since membership here is
+  // per-playlist and admin-curated collections have no such concept. Any
+  // member may add/remove songs; only created_by may add/remove members or
+  // delete the playlist (enforced in routes, not here).
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS shared_playlists (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS shared_playlist_members (
+      playlist_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      added_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (playlist_id, user_id),
+      FOREIGN KEY (playlist_id) REFERENCES shared_playlists(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS shared_playlist_songs (
+      playlist_id TEXT NOT NULL,
+      song_id TEXT NOT NULL,
+      position INTEGER DEFAULT 0,
+      added_by TEXT,
+      added_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (playlist_id, song_id),
+      FOREIGN KEY (playlist_id) REFERENCES shared_playlists(id) ON DELETE CASCADE,
+      FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_spm_user ON shared_playlist_members(user_id);
+  `);
+
   ensureAdmin(database);
 }
 
