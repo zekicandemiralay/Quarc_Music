@@ -97,6 +97,7 @@ export default function App() {
                 <Route path="/playlist/:playlistId" element={<Library view="playlist" />} />
                 <Route path="/mix/:mixId" element={<Library view="mix" />} />
                 <Route path="/featured/:featuredId" element={<Library view="featured" />} />
+                <Route path="/artist/:artistName" element={<Library view="artist" />} />
                 <Route path="/youtube" element={<YouTube />} />
                 <Route path="/radio" element={<Radio />} />
                 <Route path="/import" element={<Import />} />

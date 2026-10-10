@@ -4,6 +4,7 @@ import { Play, Music, Trash2, WifiOff, HardDrive } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
 import useOfflineStore from '../../store/useOfflineStore';
 import { coverUrl } from '../../lib/apiUrl';
+import ArtistLink from '../../components/ArtistLink/ArtistLink';
 
 function fmtDuration(s) {
   if (!s) return '--:--';
@@ -111,9 +112,7 @@ export default function Downloaded() {
                 <p className={`text-sm truncate ${isCurrent ? 'text-green-400' : 'text-white'}`}>
                   {song.title || t('downloaded.unknownTitle')}
                 </p>
-                <p className="text-xs text-zinc-500 truncate">
-                  {song.artist || t('downloaded.unknownArtist')}
-                </p>
+                <ArtistLink artist={song.artist} fallback={t('downloaded.unknownArtist')} className="text-xs text-zinc-500 truncate block" />
               </div>
               <span className="text-xs text-zinc-600 tabular-nums shrink-0">{fmtDuration(song.duration)}</span>
               <button

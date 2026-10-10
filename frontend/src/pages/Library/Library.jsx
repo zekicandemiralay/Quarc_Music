@@ -14,6 +14,7 @@ import useBackableOverlay from '../../hooks/useBackableOverlay';
 import useContextMenu from '../../hooks/useContextMenu';
 import { shareSong } from '../../lib/share';
 import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
+import ArtistLink from '../../components/ArtistLink/ArtistLink';
 import { loadCachedSongs, saveCachedSongs } from '../../lib/songCache';
 
 // Whether this device has a real pointer that can hover.
@@ -305,7 +306,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
             </div>
             <div className="min-w-0">
               <p className="text-white font-semibold text-sm truncate">{song.title}</p>
-              <p className="text-zinc-400 text-xs truncate">{song.artist || 'Unknown'}</p>
+              <ArtistLink artist={song.artist} fallback="Unknown" onNavigate={onClose} className="text-zinc-400 text-xs truncate block" />
             </div>
           </div>
         </div>
@@ -414,7 +415,8 @@ const MIX_ICONS = {
 
 export default function Library({ view = 'all' }) {
   const { t } = useTranslation();
-  const { playlistId, mixId, featuredId } = useParams();
+  const { playlistId, mixId, featuredId, artistName } = useParams();
+  const decodedArtist = view === 'artist' ? decodeURIComponent(artistName || '') : null;
   const mixData = useMixStore((s) => view === 'mix' ? s.getMix(mixId) : null);
   const featuredData = useFeaturedStore((s) => view === 'featured' ? s.getPlaylist(featuredId) : null);
   const [songs, setSongs] = useState(loadCachedSongs);
@@ -443,7 +445,10 @@ export default function Library({ view = 'all' }) {
   const { cachedIds, downloading } = useOfflineStore();
   const { likedSongs, playlists, toggleLike, removeFromPlaylist } = useUserDataStore();
   const radioMode = useRadioStore((s) => s.radioMode);
-  const isPlaylist = view === 'playlist' || view === 'liked';
+  // Artist pages play like a playlist too — queue every song by this artist
+  // in order and start at the one clicked, rather than library browsing's
+  // "move clicked song to front" behaviour.
+  const isPlaylist = view === 'playlist' || view === 'liked' || view === 'artist';
   // Which group's remembered Shuffle/Radio settings this view plays under.
   // Mixes and Collections are curated lists too, so they share the playlist
   // group — only free library browsing counts as 'library'. Kept separate
@@ -594,6 +599,7 @@ export default function Library({ view = 'all' }) {
   }
   if (view === 'mix') visibleSongs = mixData ? mixData.songs : [];
   if (view === 'featured') visibleSongs = featuredData ? featuredData.songs : [];
+  if (view === 'artist') visibleSongs = decodedArtist ? songs.filter((s) => s.artist === decodedArtist) : [];
 
   const normSearch = norm(debouncedSearch);
   const filtered = visibleSongs.filter(
@@ -609,6 +615,7 @@ export default function Library({ view = 'all' }) {
     view === 'playlist' ? (currentPlaylist?.name || t('library.playlist')) :
     view === 'mix' ? (mixData?.name || t('library.mix')) :
     view === 'featured' ? (featuredData?.name || t('library.collection')) :
+    view === 'artist' ? decodedArtist :
     t('library.title');
 
   const subheading =
@@ -616,6 +623,7 @@ export default function Library({ view = 'all' }) {
     view === 'playlist' ? t('home.songs', { n: filtered.length }) :
     view === 'mix' ? (mixData?.description || t('home.songs', { n: filtered.length })) :
     view === 'featured' ? (featuredData?.description || t('home.songs', { n: filtered.length })) :
+    view === 'artist' ? t('home.songs', { n: filtered.length }) :
     t('home.songs', { n: songs.length });
 
   return (
@@ -629,6 +637,11 @@ export default function Library({ view = 'all' }) {
               <div className="w-full h-full rounded-lg flex items-center justify-center" style={{ color: featuredData.color }}>
                 <Music size={20} />
               </div>
+            </div>
+          )}
+          {view === 'artist' && (
+            <div className="w-10 h-10 md:w-14 md:h-14 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0 text-violet-400">
+              <Mic2 size={22} />
             </div>
           )}
           <div>
@@ -818,12 +831,12 @@ export default function Library({ view = 'all' }) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className={`text-sm truncate font-medium ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-                    <p className={`text-xs truncate md:hidden ${active ? 'text-green-400/70' : 'text-zinc-400'}`}>{song.artist}</p>
+                    <ArtistLink artist={song.artist} className={`text-xs truncate md:hidden block ${active ? 'text-green-400/70' : 'text-zinc-400'}`} />
                   </div>
                 </div>
 
                 {/* Artist — desktop only */}
-                <span className="hidden md:block text-zinc-400 text-sm truncate">{song.artist}</span>
+                <ArtistLink artist={song.artist} className="hidden md:block text-zinc-400 text-sm truncate" />
 
                 {/* Album — desktop only */}
                 <span className="hidden md:block text-zinc-400 text-sm truncate">{song.album}</span>

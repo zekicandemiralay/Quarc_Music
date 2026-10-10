@@ -9,6 +9,7 @@ import useAuthStore from '../../store/authStore';
 import { coverUrl } from '../../lib/apiUrl';
 import useContextMenu from '../../hooks/useContextMenu';
 import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
+import ArtistLink from '../../components/ArtistLink/ArtistLink';
 
 function fmt(s) {
   if (!s) return '--:--';
@@ -234,7 +235,7 @@ export default function SharedPlaylist() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className={`text-sm truncate font-medium ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-                  <p className="text-xs truncate text-zinc-400">{song.artist}</p>
+                  <ArtistLink artist={song.artist} className="text-xs truncate text-zinc-400 block" />
                 </div>
                 <span className="text-zinc-500 text-xs shrink-0">{fmt(song.duration)}</span>
                 <button

@@ -7,8 +7,9 @@ import useRadioStore from '../../store/useRadioStore';
 import { coverUrl } from '../../lib/apiUrl';
 import useContextMenu from '../../hooks/useContextMenu';
 import SongContextMenu from '../ContextMenu/SongContextMenu';
+import ArtistLink from '../ArtistLink/ArtistLink';
 
-function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, onPlay, onContextMenu }) {
+function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, onPlay, onContextMenu, onNavigateAway }) {
   const { t } = useTranslation();
   return (
     <div
@@ -25,7 +26,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
       </div>
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-medium truncate ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-        <p className="text-xs text-zinc-400 truncate">{song.artist || t('common.unknown')}</p>
+        <ArtistLink artist={song.artist} fallback={t('common.unknown')} onNavigate={onNavigateAway} className="text-xs text-zinc-400 truncate block" />
       </div>
       {isManual && (
         <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -184,7 +185,7 @@ export default function QueuePanel({ onClose }) {
             {currentSong && (
               <section className="px-4 pt-5 pb-3">
                 <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-2 px-2">{t('queue.nowPlaying')}</p>
-                <QueueSongRow song={currentSong} active onContextMenu={(e) => openCtxMenu(e, { song: currentSong, onAddToQueue: () => addToQueue(currentSong) })} />
+                <QueueSongRow song={currentSong} active onContextMenu={(e) => openCtxMenu(e, { song: currentSong, onAddToQueue: () => addToQueue(currentSong) })} onNavigateAway={onClose} />
               </section>
             )}
 
@@ -217,6 +218,7 @@ export default function QueuePanel({ onClose }) {
                         onAddToQueue: () => addToQueue(song),
                         onRemoveFromQueue: () => removeFromManualQueue(i),
                       })}
+                      onNavigateAway={onClose}
                     />
                   );
                 })}
@@ -234,7 +236,7 @@ export default function QueuePanel({ onClose }) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-zinc-300 truncate">{d.title}</p>
-                      <p className="text-xs text-zinc-500 truncate">{d.artist}</p>
+                      <ArtistLink artist={d.artist} onNavigate={onClose} className="text-xs text-zinc-500 truncate block" />
                       <div className="mt-1.5 h-1 bg-zinc-800 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-green-500 rounded-full transition-all duration-500"
@@ -265,6 +267,7 @@ export default function QueuePanel({ onClose }) {
                       song={song}
                       onPlay={playThis}
                       onContextMenu={(e) => openCtxMenu(e, { song, onPlay: playThis, onAddToQueue: () => addToQueue(song) })}
+                      onNavigateAway={onClose}
                     />
                   );
                 })}

@@ -9,6 +9,7 @@ import useOfflineStore from '../../store/useOfflineStore';
 import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
 import { coverUrl } from '../../lib/apiUrl';
+import ArtistLink from '../ArtistLink/ArtistLink';
 
 function norm(s) {
   return (s || '').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -221,7 +222,12 @@ function GlobalSearch() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-white truncate">{song.title}</p>
-                  <p className="text-xs text-zinc-400 truncate">{song.artist || 'Unknown'}</p>
+                  <ArtistLink
+                    artist={song.artist}
+                    fallback="Unknown"
+                    onNavigate={() => { setQuery(''); setOpen(false); }}
+                    className="text-xs text-zinc-400 truncate block"
+                  />
                 </div>
               </div>
             </div>

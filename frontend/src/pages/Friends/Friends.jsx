@@ -6,6 +6,7 @@ import useFriendsStore from '../../store/useFriendsStore';
 import useSharedPlaylistsStore from '../../store/useSharedPlaylistsStore';
 import usePlayerStore from '../../store/playerStore';
 import { coverUrl } from '../../lib/apiUrl';
+import ArtistLink from '../../components/ArtistLink/ArtistLink';
 
 const STATUS_LABEL_KEY = {
   friends: 'friends.alreadyFriends',
@@ -140,7 +141,7 @@ function ActivityFeed() {
                 {song ? (
                   <p className="text-zinc-400 text-xs truncate flex items-center gap-1.5">
                     {a.nowPlaying && <span className="w-1.5 h-1.5 bg-green-400 rounded-full shrink-0 animate-pulse" />}
-                    {song.title} — {song.artist}
+                    {song.title} — <ArtistLink artist={song.artist} />
                     {!a.nowPlaying && <span className="text-zinc-600">· {timeAgo(t, song.played_at)}</span>}
                   </p>
                 ) : (

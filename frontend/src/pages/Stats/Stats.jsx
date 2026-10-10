@@ -5,6 +5,7 @@ import { coverUrl } from '../../lib/apiUrl';
 import usePlayerStore from '../../store/playerStore';
 import useContextMenu from '../../hooks/useContextMenu';
 import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
+import ArtistLink from '../../components/ArtistLink/ArtistLink';
 
 // Stats rows come from aggregate queries keyed by song_id, not the `id` shape
 // the rest of the app's song objects use — normalize before handing one to
@@ -87,14 +88,14 @@ function LibraryOverview({ data }) {
             <div className="bg-zinc-700/40 rounded-lg p-3">
               <p className="text-zinc-500 text-xs mb-1">{t('stats.shortestSong')}</p>
               <p className="text-white text-sm font-medium truncate">{shortest_song.title}</p>
-              <p className="text-zinc-400 text-xs truncate">{shortest_song.artist} · {fmt(Math.floor(shortest_song.duration))}</p>
+              <p className="text-zinc-400 text-xs truncate"><ArtistLink artist={shortest_song.artist} /> · {fmt(Math.floor(shortest_song.duration))}</p>
             </div>
           )}
           {longest_song && (
             <div className="bg-zinc-700/40 rounded-lg p-3">
               <p className="text-zinc-500 text-xs mb-1">{t('stats.longestSong')}</p>
               <p className="text-white text-sm font-medium truncate">{longest_song.title}</p>
-              <p className="text-zinc-400 text-xs truncate">{longest_song.artist} · {fmt(Math.floor(longest_song.duration))}</p>
+              <p className="text-zinc-400 text-xs truncate"><ArtistLink artist={longest_song.artist} /> · {fmt(Math.floor(longest_song.duration))}</p>
             </div>
           )}
         </div>
@@ -262,7 +263,7 @@ export default function Stats() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm truncate">{s.title || t('common.unknown')}</p>
-                        <p className="text-zinc-500 text-xs truncate">{s.artist || t('common.unknown')}</p>
+                        <ArtistLink artist={s.artist} fallback={t('common.unknown')} className="text-zinc-500 text-xs truncate block" />
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-white text-sm font-medium">{s.play_count}×</p>
@@ -284,7 +285,7 @@ export default function Stats() {
                   {topArtists.map((a) => (
                     <div key={a.artist}>
                       <div className="flex justify-between items-baseline mb-1">
-                        <span className="text-white text-sm truncate mr-3">{a.artist}</span>
+                        <ArtistLink artist={a.artist} className="text-white text-sm truncate mr-3" />
                         <span className="text-zinc-500 text-xs shrink-0">
                           {a.play_count} plays · {fmtTime(a.total_seconds)}
                         </span>
@@ -320,7 +321,7 @@ export default function Stats() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-white text-sm truncate">{s.title || t('common.unknown')}</p>
-                      <p className="text-zinc-500 text-xs truncate">{s.artist || t('common.unknown')}</p>
+                      <ArtistLink artist={s.artist} fallback={t('common.unknown')} className="text-zinc-500 text-xs truncate block" />
                     </div>
                   </div>
                 ))}

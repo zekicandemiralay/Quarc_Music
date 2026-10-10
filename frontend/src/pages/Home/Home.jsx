@@ -10,6 +10,7 @@ import useFeaturedStore from '../../store/useFeaturedStore';
 import { coverUrl } from '../../lib/apiUrl';
 import useContextMenu from '../../hooks/useContextMenu';
 import SongContextMenu from '../../components/ContextMenu/SongContextMenu';
+import ArtistLink from '../../components/ArtistLink/ArtistLink';
 
 const MIX_STYLES = {
   your_mix:     { icon: Sparkles, bg: 'from-purple-900/60 to-purple-800/30', border: 'border-purple-700/30', iconColor: 'text-purple-400' },
@@ -51,7 +52,7 @@ function SongCard({ song, queue, queueIndex, onPlay, onContextMenu }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-medium truncate ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-        <p className="text-xs text-zinc-400 truncate">{song.artist}</p>
+        <ArtistLink artist={song.artist} className="text-xs text-zinc-400 truncate block" />
       </div>
     </button>
   );

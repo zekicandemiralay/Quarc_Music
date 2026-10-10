@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import usePlayerStore from '../../store/playerStore';
 import { coverUrl } from '../../lib/apiUrl';
 import { parseLrc, activeLrcIndex } from '../../lib/lrc';
+import ArtistLink from '../ArtistLink/ArtistLink';
 
 // In-memory cache so re-opening the panel for a song already viewed this
 // session doesn't refetch — the backend itself caches in the DB after the
@@ -144,7 +145,9 @@ export default function LyricsPanel({ onClose }) {
         <div className="min-w-0">
           <h2 className="text-white font-bold text-lg">{t('lyrics.title')}</h2>
           {currentSong && (
-            <p className="text-zinc-400 text-xs truncate">{currentSong.title} — {currentSong.artist}</p>
+            <p className="text-zinc-400 text-xs truncate">
+              {currentSong.title} — <ArtistLink artist={currentSong.artist} onNavigate={onClose} />
+            </p>
           )}
         </div>
         <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white transition-colors shrink-0">
