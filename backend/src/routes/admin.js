@@ -1,7 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const mm = require('music-metadata');
@@ -28,48 +26,100 @@ function letterBucket(filepath) {
 
 router.use(requireAdmin);
 
-router.get('/users', (_req, res) => {
-  const users = getDb()
-    .prepare('SELECT id, username, role, created_at FROM users ORDER BY created_at')
-    .all();
-  res.json(users);
-});
+// The local table only ever gets a row for a user once they've made an
+// authenticated request against THIS app (see ensureLocalUser() in
+// middleware/auth.js) — someone who signed up but only ever used a sibling
+// Quarc app would be invisible here otherwise. quarc-auth holds every
+// account regardless of which app anyone's actually opened.
+router.get('/users', asyncRoute(async (req, res) => {
+  const authRes = await fetch('http://quarc-auth:3002/api/auth/admin/users', {
+    headers: { Cookie: `token=${req.cookies.token}` },
+  });
+  const data = await authRes.json().catch(() => ({}));
+  if (!authRes.ok) {
+    return res.status(authRes.status).json({ error: data.error || 'Could not reach quarc-auth' });
+  }
+  res.json(data);
+}));
 
-router.post('/users', async (req, res) => {
+// Used to only INSERT into the local table, which nothing authenticates
+// against since the shared-login cutover — same root cause as the
+// password-reset fix below, just on account creation instead. Delegates to
+// quarc-auth's own /register so the account is real everywhere; the local
+// mirror row still gets created, lazily, by ensureLocalUser() (see
+// middleware/auth.js) the first time this user makes an authenticated
+// request — same path any self-service signup already goes through.
+router.post('/users', asyncRoute(async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'username and password required' });
   if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-  const salt = crypto.randomBytes(32).toString('hex');
-  const hash = await bcrypt.hash(password, 12);
-
-  try {
-    const id = uuidv4();
-    getDb().prepare(
-      'INSERT INTO users (id, username, password_hash, salt, role) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, username, hash, salt, 'user');
-    res.json({ id, username, role: 'user' });
-  } catch {
-    res.status(409).json({ error: 'Username already taken' });
+  const authRes = await fetch('http://quarc-auth:3002/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const data = await authRes.json().catch(() => ({}));
+  if (!authRes.ok) {
+    return res.status(authRes.status).json({ error: data.error || 'Could not reach quarc-auth' });
   }
-});
+  res.json({ id: data.id, username: data.username, role: data.role });
+}));
 
-router.delete('/users/:id', (req, res) => {
+// Used to only delete the local mirror row — the real account in quarc-auth
+// was untouched, so the "deleted" user could still log in everywhere, and
+// ensureLocalUser() (middleware/auth.js) silently recreated this row (empty,
+// losing their playlists/history) the next time they made a request. Deletes
+// there first: if that fails, bail out before touching local data, rather
+// than wiping someone's playlists/history while their account still exists.
+router.delete('/users/:id', asyncRoute(async (req, res) => {
   if (req.params.id === req.user.id) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
+
+  const authRes = await fetch(`http://quarc-auth:3002/api/auth/admin/users/${req.params.id}`, {
+    method: 'DELETE',
+    headers: { Cookie: `token=${req.cookies.token}` },
+  });
+  if (!authRes.ok) {
+    const data = await authRes.json().catch(() => ({}));
+    return res.status(authRes.status).json({ error: data.error || 'Could not reach quarc-auth' });
+  }
+
+  // Cascades to this user's playlists/likes/history (ON DELETE CASCADE on
+  // user_data and listening_history) — unchanged from before this fix.
   getDb().prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
-});
+}));
 
-// Reset password — data is preserved since there is no encryption key tied to the password
+// Resetting a password here used to just UPDATE the local users table and
+// report success — which it genuinely was, for a column nothing has read
+// since the shared-login cutover (see middleware/auth.js: this table's
+// password_hash is a 'managed-by-quarc-auth' placeholder now). The real
+// credential lives in quarc-auth's own database, so the reset has to happen
+// there. req.user is already verified as admin by requireAdmin above, via
+// the same JWT_SECRET quarc-auth checks, so forwarding this request's own
+// token is enough to prove it to quarc-auth too — no separate internal
+// secret needed. Requires the backend container on the quarcnet-shared
+// network (see docker-compose.yml) to reach quarc-auth by its service name.
 router.post('/users/:id/reset-password', asyncRoute(async (req, res) => {
   const { newPassword } = req.body;
   if (!newPassword || newPassword.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
-  const newHash = await bcrypt.hash(newPassword, 12);
-  getDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.params.id);
+
+  const authRes = await fetch(`http://quarc-auth:3002/api/auth/admin/users/${req.params.id}/reset-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: `token=${req.cookies.token}`,
+    },
+    body: JSON.stringify({ newPassword }),
+  });
+  const data = await authRes.json().catch(() => ({}));
+  if (!authRes.ok) {
+    return res.status(authRes.status).json({ error: data.error || 'Could not reach quarc-auth' });
+  }
   res.json({ ok: true });
 }));
 

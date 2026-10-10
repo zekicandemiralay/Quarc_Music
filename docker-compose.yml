@@ -88,6 +88,10 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+      # Lets this container reach quarc-auth by name — admin.js forwards
+      # password-reset/create-user to it server-to-server, since that's
+      # where accounts actually live now. See MIGRATION.md / Quarc_Notes.
+      - quarcnet-shared
 
   frontend:
     build:
