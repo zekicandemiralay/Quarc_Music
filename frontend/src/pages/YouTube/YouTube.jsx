@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search, X, Download, CheckCircle, AlertCircle, Play, ListPlus, Library } from 'lucide-react';
+import { Search, X, Download, CheckCircle, AlertCircle, Play, ListPlus, Library, ListOrdered } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useUserDataStore from '../../store/userDataStore';
 import usePlayerStore from '../../store/playerStore';
@@ -93,6 +93,7 @@ function DownloadBtn({ videoId, title }) {
   const [songId, setSongId] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [queued, setQueued] = useState(false);
 
   async function playNow() {
     if (!songId || playing) return;
@@ -107,6 +108,18 @@ function DownloadBtn({ videoId, title }) {
     } finally {
       setPlaying(false);
     }
+  }
+
+  async function addToQueueNow() {
+    if (!songId || queued) return;
+    try {
+      const r = await fetch(`/api/music/${songId}`);
+      if (r.ok) {
+        usePlayerStore.getState().addToQueue(await r.json());
+        setQueued(true);
+        setTimeout(() => setQueued(false), 1500);
+      }
+    } catch {}
   }
 
   useEffect(() => {
@@ -162,6 +175,13 @@ function DownloadBtn({ videoId, title }) {
             >
               <Play size={12} className="fill-current" />
               {t('youtube.playNow')}
+            </button>
+            <button
+              onClick={addToQueueNow}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white rounded-full text-xs font-medium transition-colors"
+            >
+              {queued ? <CheckCircle size={12} className="text-green-400" /> : <ListOrdered size={13} />}
+              {queued ? t('common.addedToQueue') : t('library.addToQueue')}
             </button>
             <button
               onClick={() => navigate(`/library?highlight=${songId}`)}
