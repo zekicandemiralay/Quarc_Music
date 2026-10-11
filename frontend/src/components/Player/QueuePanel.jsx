@@ -26,7 +26,7 @@ function QueueSongRow({ song, active, isManual, onRemove, onMoveUp, onMoveDown, 
       </div>
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-medium truncate ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-        <ArtistLink artist={song.artist} fallback={t('common.unknown')} onNavigate={onNavigateAway} className="text-xs text-zinc-400 truncate block" />
+        <ArtistLink artist={song.artist} fallback={t('common.unknown')} onNavigate={onNavigateAway} className="text-xs text-zinc-400 truncate inline-block max-w-full" />
       </div>
       {isManual && (
         <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -236,7 +236,7 @@ export default function QueuePanel({ onClose }) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-zinc-300 truncate">{d.title}</p>
-                      <ArtistLink artist={d.artist} onNavigate={onClose} className="text-xs text-zinc-500 truncate block" />
+                      <ArtistLink artist={d.artist} onNavigate={onClose} className="text-xs text-zinc-500 truncate inline-block max-w-full" />
                       <div className="mt-1.5 h-1 bg-zinc-800 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-green-500 rounded-full transition-all duration-500"

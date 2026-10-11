@@ -235,7 +235,7 @@ export default function SharedPlaylist() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className={`text-sm truncate font-medium ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-                  <ArtistLink artist={song.artist} className="text-xs truncate text-zinc-400 block" />
+                  <ArtistLink artist={song.artist} className="text-xs truncate text-zinc-400 inline-block max-w-full" />
                 </div>
                 <span className="text-zinc-500 text-xs shrink-0">{fmt(song.duration)}</span>
                 <button

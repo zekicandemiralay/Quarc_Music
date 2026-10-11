@@ -112,7 +112,7 @@ export default function Downloaded() {
                 <p className={`text-sm truncate ${isCurrent ? 'text-green-400' : 'text-white'}`}>
                   {song.title || t('downloaded.unknownTitle')}
                 </p>
-                <ArtistLink artist={song.artist} fallback={t('downloaded.unknownArtist')} className="text-xs text-zinc-500 truncate block" />
+                <ArtistLink artist={song.artist} fallback={t('downloaded.unknownArtist')} className="text-xs text-zinc-500 truncate inline-block max-w-full" />
               </div>
               <span className="text-xs text-zinc-600 tabular-nums shrink-0">{fmtDuration(song.duration)}</span>
               <button

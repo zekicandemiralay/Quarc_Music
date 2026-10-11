@@ -453,7 +453,7 @@ function CollectionItem({ playlist, onUpdate }) {
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-xs truncate">{s.title}</p>
-                    <ArtistLink artist={s.artist} className="text-zinc-500 text-xs truncate block" />
+                    <ArtistLink artist={s.artist} className="text-zinc-500 text-xs truncate inline-block max-w-full" />
                   </div>
                   <button onClick={() => removeSong(s.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-zinc-600 hover:text-red-400 transition-colors">

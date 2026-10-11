@@ -263,7 +263,7 @@ export default function Stats() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm truncate">{s.title || t('common.unknown')}</p>
-                        <ArtistLink artist={s.artist} fallback={t('common.unknown')} className="text-zinc-500 text-xs truncate block" />
+                        <ArtistLink artist={s.artist} fallback={t('common.unknown')} className="text-zinc-500 text-xs truncate inline-block max-w-full" />
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-white text-sm font-medium">{s.play_count}×</p>
@@ -321,7 +321,7 @@ export default function Stats() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-white text-sm truncate">{s.title || t('common.unknown')}</p>
-                      <ArtistLink artist={s.artist} fallback={t('common.unknown')} className="text-zinc-500 text-xs truncate block" />
+                      <ArtistLink artist={s.artist} fallback={t('common.unknown')} className="text-zinc-500 text-xs truncate inline-block max-w-full" />
                     </div>
                   </div>
                 ))}

@@ -312,7 +312,7 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
               {currentSong && <EqBars isPlaying={isPlaying} size="lg" />}
               <h2 className="text-2xl font-bold text-green-400 truncate">{currentSong?.title ?? t('player.nothingPlaying')}</h2>
             </div>
-            <ArtistLink artist={currentSong?.artist} onNavigate={onClose} className="text-zinc-400 text-base truncate block" />
+            <ArtistLink artist={currentSong?.artist} onNavigate={onClose} className="text-zinc-400 text-base truncate inline-block max-w-full" />
             {currentSong?.album && <p className="text-zinc-600 text-sm truncate mt-0.5">{currentSong.album}</p>}
           </div>
           <button
@@ -558,7 +558,7 @@ export default function Player() {
                   className={`text-base font-semibold ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}
                 />
               </div>
-              <ArtistLink artist={currentSong?.artist} className="text-sm text-zinc-400 truncate block" />
+              <ArtistLink artist={currentSong?.artist} className="text-sm text-zinc-400 truncate inline-block max-w-full" />
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <button
@@ -625,7 +625,7 @@ export default function Player() {
                       <EqBars isPlaying={isPlaying} />
                       <div className="min-w-0 overflow-hidden">
                         <p className="text-green-400 text-base font-semibold truncate">{currentSong.title}</p>
-                        <ArtistLink artist={currentSong.artist} className="text-zinc-400 text-sm truncate block" />
+                        <ArtistLink artist={currentSong.artist} className="text-zinc-400 text-sm truncate inline-block max-w-full" />
                       </div>
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">

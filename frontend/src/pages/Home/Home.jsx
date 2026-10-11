@@ -52,7 +52,7 @@ function SongCard({ song, queue, queueIndex, onPlay, onContextMenu }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-medium truncate ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-        <ArtistLink artist={song.artist} className="text-xs text-zinc-400 truncate block" />
+        <ArtistLink artist={song.artist} className="text-xs text-zinc-400 truncate inline-block max-w-full" />
       </div>
     </button>
   );

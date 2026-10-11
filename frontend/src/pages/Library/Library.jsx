@@ -306,7 +306,7 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
             </div>
             <div className="min-w-0">
               <p className="text-white font-semibold text-sm truncate">{song.title}</p>
-              <ArtistLink artist={song.artist} fallback="Unknown" onNavigate={onClose} className="text-zinc-400 text-xs truncate block" />
+              <ArtistLink artist={song.artist} fallback="Unknown" onNavigate={onClose} className="text-zinc-400 text-xs truncate inline-block max-w-full" />
             </div>
           </div>
         </div>
@@ -831,12 +831,12 @@ export default function Library({ view = 'all' }) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className={`text-sm truncate font-medium ${active ? 'text-green-400' : 'text-white'}`}>{song.title}</p>
-                    <ArtistLink artist={song.artist} className={`text-xs truncate md:hidden block ${active ? 'text-green-400/70' : 'text-zinc-400'}`} />
+                    <ArtistLink artist={song.artist} className={`text-xs truncate md:hidden inline-block max-w-full ${active ? 'text-green-400/70' : 'text-zinc-400'}`} />
                   </div>
                 </div>
 
                 {/* Artist — desktop only */}
-                <ArtistLink artist={song.artist} className="hidden md:block text-zinc-400 text-sm truncate" />
+                <ArtistLink artist={song.artist} className="hidden md:inline-block max-w-full text-zinc-400 text-sm truncate" />
 
                 {/* Album — desktop only */}
                 <span className="hidden md:block text-zinc-400 text-sm truncate">{song.album}</span>
