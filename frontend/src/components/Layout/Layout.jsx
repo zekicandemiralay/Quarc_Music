@@ -226,7 +226,7 @@ function GlobalSearch() {
                     artist={song.artist}
                     fallback="Unknown"
                     onNavigate={() => { setQuery(''); setOpen(false); }}
-                    className="text-xs text-zinc-400 truncate block"
+                    className="text-xs text-zinc-400 truncate inline-block max-w-full"
                   />
                 </div>
               </div>
