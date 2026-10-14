@@ -151,7 +151,9 @@
     "playNow": "Play now",
     "showInLibrary": "Show in library",
     "failed": "Failed",
-    "openInYoutube": "Open in YouTube ↗"
+    "openInYoutube": "Open in YouTube ↗",
+    "cancelDownload": "Cancel download",
+    "downloadCancelled": "Download cancelled"
   },
   "stats": {
     "title": "Your Stats",
@@ -308,6 +310,7 @@
     "exportDone": "Downloaded {{filename}} — check your Downloads folder"
   },
   "sidebar": {
+    "downloading": "Downloading ({{n}})",
     "changePassword": "Change Password",
     "changePasswordBtn": "Change Password",
     "currentPassword": "Current password",

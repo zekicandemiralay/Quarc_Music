@@ -18,6 +18,13 @@ const BOT_CHECK_PATTERN = /sign in to confirm|login_required/i;
 
 router.use(requireAuth);
 
+// jobId → AbortController, for exactly as long as that job is actually in
+// flight. downloadAudioWithRetry already honours a signal all the way down
+// to killing the real yt-dlp process (see services/ytdlp.js) — it just
+// never had a route wired up to actually produce one for a single-song
+// download (only the CSV/bulk import path did).
+const activeDownloads = new Map();
+
 router.get('/search', async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'Query required' });
@@ -62,9 +69,16 @@ router.post('/download', (req, res) => {
     }
   };
 
-  downloadAudioWithRetry(videoId, MUSIC_DIR, onProgress)
+  const controller = new AbortController();
+  activeDownloads.set(jobId, controller);
+
+  downloadAudioWithRetry(videoId, MUSIC_DIR, onProgress, 3, controller.signal)
     .then(finish)
     .catch(async (err) => {
+      if (err.cancelled) {
+        db.prepare('UPDATE downloads SET status = ? WHERE id = ?').run('cancelled', jobId);
+        return;
+      }
       if (title && BOT_CHECK_PATTERN.test(err.message)) {
         try {
           const filepath = await downloadBySearch(title, MUSIC_DIR, onProgress);
@@ -76,15 +90,30 @@ router.post('/download', (req, res) => {
       db.prepare('UPDATE downloads SET status = ?, error = ? WHERE id = ?').run(
         'error', err.message, jobId
       );
-    });
+    })
+    .finally(() => activeDownloads.delete(jobId));
 
   res.json({ jobId });
 });
 
+// Scoped to req.user.id on both of these — jobId alone used to be enough to
+// read or cancel anyone's download (any authenticated user could poll or
+// abort any job just by knowing/guessing its id), which matters more now
+// that a job can be resumed across a login on a shared device (see
+// useDownloadsStore.js's resume()).
 router.get('/download/status/:jobId', (req, res) => {
-  const job = getDb().prepare('SELECT * FROM downloads WHERE id = ?').get(req.params.jobId);
+  const job = getDb().prepare('SELECT * FROM downloads WHERE id = ? AND user_id = ?').get(req.params.jobId, req.user.id);
   if (!job) return res.status(404).json({ error: 'Job not found' });
   res.json(job);
+});
+
+router.post('/download/:jobId/cancel', (req, res) => {
+  const job = getDb().prepare('SELECT id FROM downloads WHERE id = ? AND user_id = ?').get(req.params.jobId, req.user.id);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  const controller = activeDownloads.get(req.params.jobId);
+  if (!controller) return res.status(404).json({ error: 'No active download with that id' });
+  controller.abort();
+  res.json({ ok: true });
 });
 
 module.exports = router;

@@ -5,6 +5,7 @@ import { Search, X, Download, CheckCircle, AlertCircle, Play, ListPlus, Library,
 import { useTranslation } from 'react-i18next';
 import useUserDataStore from '../../store/userDataStore';
 import usePlayerStore from '../../store/playerStore';
+import useDownloadsStore from '../../store/useDownloadsStore';
 
 function fmtDur(s) {
   if (!s) return '';
@@ -86,14 +87,25 @@ function PlaylistPicker({ songId, onClose, anchorRef }) {
 function DownloadBtn({ videoId, title }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [status, setStatus] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [jobId, setJobId] = useState(null);
-  const [errorMsg, setErrorMsg] = useState(null);
-  const [songId, setSongId] = useState(null);
+  // Lives in a global store, not local state — see useDownloadsStore.js for
+  // why: a download is a real server-side job that already survives the
+  // page closing, but tracking it in a page component's local state didn't,
+  // so navigating away made it look like it had stopped. Looked up by
+  // videoId rather than carrying a jobId prop, so this renders the right
+  // thing immediately even for a video whose download was started earlier
+  // and is still running when this card is re-opened.
+  const job = useDownloadsStore((s) => s.jobs.find((j) => j.videoId === videoId));
+  const { startJob, cancelJob, dismissJob } = useDownloadsStore();
+  const status = job?.status ?? null;
+  const progress = job?.progress ?? 0;
+  const songId = job?.songId ?? null;
+  const errorMsg = job?.error ?? null;
   const [showPicker, setShowPicker] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [queued, setQueued] = useState(false);
+  // Only for the POST itself failing before a job (and thus a store entry)
+  // even exists — once there's a job, its own 'error' status covers this.
+  const [startFailed, setStartFailed] = useState(false);
 
   async function playNow() {
     if (!songId || playing) return;
@@ -122,40 +134,19 @@ function DownloadBtn({ videoId, title }) {
     } catch {}
   }
 
-  useEffect(() => {
-    if (!jobId || status === 'done' || status === 'error') return;
-    const timer = setInterval(async () => {
-      try {
-        const r = await fetch(`/api/youtube/download/status/${jobId}`);
-        const d = await r.json();
-        setProgress(d.progress);
-        setStatus(d.status);
-        if (d.status === 'done') {
-          setSongId(d.song_id ?? null);
-          try { localStorage.removeItem('quarc_songs'); } catch {}
-          clearInterval(timer);
-        }
-        if (d.status === 'error') { setErrorMsg(d.error || null); clearInterval(timer); }
-      } catch {}
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [jobId, status]);
-
   async function start() {
-    setStatus('pending');
-    setErrorMsg(null);
+    setStartFailed(false);
     try {
       const r = await fetch('/api/youtube/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ videoId, title }),
       });
-      if (!r.ok) { setStatus('error'); return; }
+      if (!r.ok) return setStartFailed(true);
       const d = await r.json();
-      if (!d.jobId) { setStatus('error'); return; }
-      setJobId(d.jobId);
-      setStatus('downloading');
-    } catch { setStatus('error'); }
+      if (!d.jobId) return setStartFailed(true);
+      startJob(d.jobId, videoId, title);
+    } catch { setStartFailed(true); }
   }
 
   const pickerBtnRef = useRef(null);
@@ -205,9 +196,21 @@ function DownloadBtn({ videoId, title }) {
     );
   if (status === 'error')
     return (
-      <div className="flex flex-col gap-0.5">
-        <span className="flex items-center gap-1.5 text-red-400 text-sm"><AlertCircle size={15} />{t('youtube.failed')}</span>
-        {errorMsg && <span className="text-xs text-zinc-500 max-w-xs truncate" title={errorMsg}>{errorMsg}</span>}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1.5 text-red-400 text-sm"><AlertCircle size={15} />{t('youtube.failed')}</span>
+          {errorMsg && <span className="text-xs text-zinc-500 max-w-xs truncate" title={errorMsg}>{errorMsg}</span>}
+        </div>
+        <button onClick={() => dismissJob(job.jobId)} className="text-zinc-500 hover:text-white transition-colors shrink-0" title={t('common.cancel')}>
+          <X size={14} />
+        </button>
+      </div>
+    );
+  if (status === 'cancelled')
+    return (
+      <div className="flex items-center gap-2 text-zinc-500 text-sm">
+        <span>{t('youtube.downloadCancelled')}</span>
+        <button onClick={start} className="text-zinc-400 hover:text-white text-xs underline">{t('youtube.downloadMp3')}</button>
       </div>
     );
   if (status === 'downloading' || status === 'pending') {
@@ -226,11 +229,22 @@ function DownloadBtn({ videoId, title }) {
           />
         </div>
         <span>{stillProcessing ? t('youtube.processing') : `${Math.round(progress)}%`}</span>
+        <button
+          onClick={() => cancelJob(job.jobId)}
+          className="text-zinc-500 hover:text-red-400 transition-colors"
+          title={t('youtube.cancelDownload')}
+        >
+          <X size={14} />
+        </button>
       </div>
     );
   }
 
   return (
+    <>
+    {startFailed && (
+      <p className="text-red-400 text-xs mb-1 flex items-center gap-1"><AlertCircle size={12} />{t('youtube.failed')}</p>
+    )}
     <button
       onClick={start}
       className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
@@ -238,6 +252,7 @@ function DownloadBtn({ videoId, title }) {
       <Download size={14} />
       {t('youtube.downloadMp3')}
     </button>
+    </>
   );
 }
 

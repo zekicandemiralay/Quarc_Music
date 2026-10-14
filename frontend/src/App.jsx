@@ -19,6 +19,7 @@ import useMixStore from './store/useMixStore';
 import useFeaturedStore from './store/useFeaturedStore';
 import useFriendsStore from './store/useFriendsStore';
 import useSharedPlaylistsStore from './store/useSharedPlaylistsStore';
+import useDownloadsStore from './store/useDownloadsStore';
 import usePlayerStore from './store/playerStore';
 
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -41,6 +42,8 @@ export default function App() {
   const loadFriends = useFriendsStore((s) => s.load);
   const resetFriends = useFriendsStore((s) => s.reset);
   const resetSharedPlaylists = useSharedPlaylistsStore((s) => s.reset);
+  const resumeDownloads = useDownloadsStore((s) => s.resume);
+  const resetDownloads = useDownloadsStore((s) => s.reset);
 
   useEffect(() => {
     checkSession();
@@ -54,8 +57,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user) { loadUserData(); loadMixes(); loadFeatured(); loadFriends(); }
-    else { resetUserData(); resetMixes(); resetFeatured(); resetFriends(); resetSharedPlaylists(); }
+    if (user) { loadUserData(); loadMixes(); loadFeatured(); loadFriends(); resumeDownloads(); }
+    else { resetUserData(); resetMixes(); resetFeatured(); resetFriends(); resetSharedPlaylists(); resetDownloads(); }
   }, [user?.id]);
 
   // Play a shared song once the user is authenticated

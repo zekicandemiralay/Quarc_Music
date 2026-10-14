@@ -8,6 +8,7 @@ import useOfflineStore from '../../store/useOfflineStore';
 import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
 import useFriendsStore from '../../store/useFriendsStore';
+import useDownloadsStore from '../../store/useDownloadsStore';
 
 const REPO = 'zekicandemiralay/Quarc_Music';
 
@@ -237,6 +238,53 @@ function ChangePasswordModal({ onClose }) {
   );
 }
 
+// A YouTube download is a real server-side job that keeps running on its
+// own — this just makes it visible from anywhere in the app instead of only
+// inside the YouTube page's own card, so navigating away (or the screen
+// locking) no longer makes it look like it stopped. Only ever shows jobs
+// still actually in flight; once one finishes/fails/is cancelled it drops
+// out on its own next poll — the YouTube page's own card still shows full
+// completion actions (Play, Add to playlist, etc.) if that's still open.
+function ActiveDownloads() {
+  const { t } = useTranslation();
+  const jobs = useDownloadsStore((s) => s.jobs.filter((j) => j.status === 'pending' || j.status === 'downloading'));
+  const cancelJob = useDownloadsStore((s) => s.cancelJob);
+  if (jobs.length === 0) return null;
+
+  return (
+    <div className="bg-zinc-900 rounded-lg p-3">
+      <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-1 mb-2">
+        {t('sidebar.downloading', { n: jobs.length })}
+      </p>
+      <div className="space-y-2.5">
+        {jobs.map((j) => {
+          const stillProcessing = j.progress >= 100;
+          return (
+            <div key={j.jobId} className="px-1">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-zinc-300 text-xs truncate">{j.title}</span>
+                <button
+                  onClick={() => cancelJob(j.jobId)}
+                  className="text-zinc-500 hover:text-red-400 transition-colors shrink-0"
+                  title={t('youtube.cancelDownload')}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+              <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full bg-red-500 transition-all ${stillProcessing ? 'animate-pulse' : ''}`}
+                  style={{ width: `${j.progress}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PlaylistItem({ playlist, onNavigate }) {
   const { t } = useTranslation();
   const [renaming, setRenaming] = useState(false);
@@ -409,6 +457,8 @@ export default function Sidebar({ onNavigate }) {
           )}
         </nav>
       </div>
+
+      <ActiveDownloads />
 
       {/* Playlists */}
       <div className="bg-zinc-900 rounded-lg p-3">

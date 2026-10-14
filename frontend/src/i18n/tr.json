@@ -151,7 +151,9 @@
     "playNow": "Şimdi çal",
     "showInLibrary": "Kütüphanede göster",
     "failed": "Başarısız",
-    "openInYoutube": "YouTube'da Aç ↗"
+    "openInYoutube": "YouTube'da Aç ↗",
+    "cancelDownload": "İndirmeyi iptal et",
+    "downloadCancelled": "İndirme iptal edildi"
   },
   "stats": {
     "title": "İstatistikleriniz",
@@ -308,6 +310,7 @@
     "exportDone": "{{filename}} indirildi — İndirilenler klasörünüzü kontrol edin"
   },
   "sidebar": {
+    "downloading": "İndiriliyor ({{n}})",
     "changePassword": "Şifreyi Değiştir",
     "changePasswordBtn": "Şifreyi Değiştir",
     "currentPassword": "Mevcut şifre",
