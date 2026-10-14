@@ -406,6 +406,10 @@ const usePlayerStore = create((set, get) => ({
 
   playSong: async (song, queue = null, queueIndex = 0, context, contextLabel, navigating = false) => {
     const state = get();
+    // Proactively, before anything else — see takeOverFromInternetRadio()'s
+    // own comment for why this can't just wait for this audio element's
+    // 'play' event to react to it instead.
+    takeOverFromInternetRadio();
     // Before the same-song check: explicitly playing a song — even the one
     // restored from last session — means start it fresh, not at the restored
     // timestamp. Only resume() (below) should honour that saved position.
@@ -519,6 +523,7 @@ const usePlayerStore = create((set, get) => ({
     // rewound to replay the last song in a playlist, then got abruptly
     // switched to a song never in that playlist once the background
     // download completed. See seek() below for the same fix.
+    takeOverFromInternetRadio();
     set({ isPlaying: true, waitingForRadio: false }); // optimistic — reverted below if play() rejects
     audio.play().catch(() => set({ isPlaying: false }));
   },
@@ -558,6 +563,9 @@ const usePlayerStore = create((set, get) => ({
     // If preloader already buffered this song, swap it in directly for instant start
     const nextSrc = streamUrl(queue[idx].id);
     if (preloader.src === nextSrc && !preloader.error) {
+      // This fast path bypasses playSong() entirely, so it needs its own
+      // call — see takeOverFromInternetRadio()'s comment.
+      takeOverFromInternetRadio();
       cancelPendingDeepSeek(); // starting a different song — don't let a stale seek target leak into it
       cancelPendingRestoreSeek();
       // Save current song to history (playSong normally does this but is bypassed here)
@@ -827,8 +835,15 @@ audio.addEventListener('waiting', () => {
   }, { once: true });
 });
 
-// Stop music when internet radio takes over
+// Stop music when internet radio takes over. Flushes listening time the same
+// way 'ended' does below — without this, a song interrupted by radio and
+// never returned to that session had its partial listening time silently
+// dropped (accumulated locally in playTrack, but nothing ever sent it to
+// /api/me/stats/play, which only otherwise happens from the next song
+// starting or this song actually ending).
 window.addEventListener('quarc-internet-radio-started', () => {
+  if (playTrack.songId) flushPlay(playTrack.songId);
+  playTrack = { songId: null, accumulated: 0, resumeAt: null };
   pausedByUser = true;
   audio.pause();
   usePlayerStore.setState({ isPlaying: false });
@@ -841,6 +856,7 @@ try {
     const state = usePlayerStore.getState();
     if (action === 'play') {
       const { currentSong, currentTime: storeTime } = state;
+      takeOverFromInternetRadio();
       usePlayerStore.setState({ isPlaying: true });
       if (currentSong && blobCache.has(currentSong.id)) {
         const blobUrl = blobCache.get(currentSong.id);
@@ -877,8 +893,16 @@ try {
   });
 } catch {}
 
-// Lock screen / headphone controls
-if ('mediaSession' in navigator) {
+// Lock screen / headphone controls. A function, not a one-time block: internet
+// radio (useInternetRadioStore.js) overwrites these same global mediaSession
+// handlers every time a station starts, including nulling 'seekto' out
+// entirely (radio has no seeking) — nothing previously re-asserted this app's
+// own handlers afterward, so once you'd played any station even once, the
+// lock screen/headphone buttons stayed bound to radio forever, even back on
+// normal library music. Re-called from takeOverFromInternetRadio() below
+// every time normal playback actually starts, to reclaim them.
+function registerMediaSessionHandlers() {
+  if (!('mediaSession' in navigator)) return;
   navigator.mediaSession.setActionHandler('play', () => {
     const { currentSong, currentTime: storeTime } = usePlayerStore.getState();
     if (!currentSong) return;
@@ -909,6 +933,25 @@ if ('mediaSession' in navigator) {
       usePlayerStore.setState({ currentTime: d.seekTime });
     }
   });
+}
+registerMediaSessionHandlers();
+
+// Internet radio plays through a completely separate <audio> element
+// (useInternetRadioStore.js's radioAudio) with no coordination beyond two
+// window events, and only one direction of that was ever proactive: starting
+// a station dispatches 'quarc-internet-radio-started' BEFORE it starts
+// playing, which pauses this audio element synchronously — correct. But
+// starting a normal song only dispatched 'quarc-music-started' reactively,
+// from this audio element's own native 'play' event, which doesn't fire
+// until playback has actually begun (buffering, quick-start's chunk fetch,
+// network latency). Internet radio kept streaming the whole time, so the two
+// were audibly overlapping for however long that took — confirmed by tracing
+// the two stores' only coupling (these window events), not by guessing.
+// Called proactively now, from playSong()/next()/resume(), instead of
+// waiting for 'play' to react to it after the fact.
+function takeOverFromInternetRadio() {
+  window.dispatchEvent(new Event('quarc-music-started'));
+  registerMediaSessionHandlers();
 }
 
 // Sync state on unlock: if the store says playing but audio is paused after
