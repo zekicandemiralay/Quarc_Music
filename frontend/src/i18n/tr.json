@@ -372,6 +372,13 @@
   },
   "friends": {
     "title": "Arkadaşlar",
+    "notifications": "Bildirimler",
+    "notificationsOn": "Yeni arkadaşlık isteklerinde bildirim alacaksınız",
+    "notificationsOff": "Biri size arkadaşlık isteği gönderdiğinde bildirim alın",
+    "notificationsBlocked": "Engellendi — tarayıcı ayarlarınızdan bu site için bildirimleri etkinleştirin",
+    "notificationsNeedInstall": "iPhone'da bildirimleri etkinleştirmek için önce bu uygulamayı ana ekranınıza ekleyin",
+    "enable": "Etkinleştir",
+    "disable": "Devre dışı bırak",
     "addFriend": "Arkadaş ekle",
     "searchPlaceholder": "Kullanıcı adıyla ara…",
     "noUsersFound": "Kullanıcı bulunamadı",

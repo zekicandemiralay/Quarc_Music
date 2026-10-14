@@ -5,6 +5,7 @@ const { getDb } = require('../db');
 const { SONG_LIST_COLUMNS } = require('../lib/songColumns');
 const { requireAuth, ensureLocalUser } = require('../middleware/auth');
 const { asyncRoute } = require('../lib/asyncRoute');
+const { sendPushToUser, ensureConfigured: pushConfigured, VAPID_PUBLIC_KEY } = require('../lib/webPush');
 
 // A friend's heartbeat (see POST /now-playing) older than this is treated as
 // "stopped" even if nothing explicitly told us so — covers a closed tab, a
@@ -97,12 +98,22 @@ router.post('/requests', (req, res) => {
     // They'd already asked us — treat this as accepting theirs rather than
     // creating a confusing second, reversed row.
     db.prepare("UPDATE friend_requests SET status = 'accepted' WHERE id = ?").run(existing.id);
+    sendPushToUser(existing.from_user_id, {
+      title: 'Friend request accepted',
+      body: `${req.user.username} accepted your friend request`,
+      url: '/friends',
+    });
     return res.json({ ok: true, status: 'accepted' });
   }
 
   db.prepare(
     'INSERT INTO friend_requests (id, from_user_id, to_user_id, status) VALUES (?, ?, ?, ?)'
   ).run(uuidv4(), req.user.id, toUserId, 'pending');
+  sendPushToUser(toUserId, {
+    title: 'New friend request',
+    body: `${req.user.username} wants to be friends`,
+    url: '/friends',
+  });
   res.json({ ok: true, status: 'pending' });
 });
 
@@ -112,6 +123,11 @@ router.post('/requests/:id/accept', (req, res) => {
   if (!row || row.to_user_id !== req.user.id) return res.status(404).json({ error: 'Request not found' });
   if (row.status !== 'pending') return res.status(400).json({ error: 'Request is not pending' });
   db.prepare("UPDATE friend_requests SET status = 'accepted' WHERE id = ?").run(row.id);
+  sendPushToUser(row.from_user_id, {
+    title: 'Friend request accepted',
+    body: `${req.user.username} accepted your friend request`,
+    url: '/friends',
+  });
   res.json({ ok: true });
 });
 
@@ -199,6 +215,37 @@ router.get('/activity', (req, res) => {
     recentlyPlayed: recentStmt.get(f.id) || null,
   }));
   res.json(activity);
+});
+
+// ── Web Push ──────────────────────────────────────────────────────────────
+
+// The public key isn't secret (browsers are meant to have it — it's how a
+// push service verifies a message really came from this server), but it's
+// served rather than baked into the frontend build so it can be configured
+// via env var without a rebuild, same as everything else VAPID-related.
+router.get('/push/public-key', (_req, res) => {
+  if (!pushConfigured()) return res.status(503).json({ error: 'Push notifications are not configured on this server' });
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+router.post('/push/subscribe', (req, res) => {
+  const { endpoint, keys } = req.body?.subscription || req.body || {};
+  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    return res.status(400).json({ error: 'Invalid subscription' });
+  }
+  getDb().prepare(`
+    INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth
+  `).run(endpoint, req.user.id, keys.p256dh, keys.auth);
+  res.json({ ok: true });
+});
+
+router.post('/push/unsubscribe', (req, res) => {
+  const { endpoint } = req.body || {};
+  if (!endpoint) return res.status(400).json({ error: 'endpoint required' });
+  getDb().prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?').run(endpoint, req.user.id);
+  res.json({ ok: true });
 });
 
 module.exports = router;

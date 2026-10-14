@@ -372,6 +372,13 @@
   },
   "friends": {
     "title": "Friends",
+    "notifications": "Notifications",
+    "notificationsOn": "You'll be notified of new friend requests",
+    "notificationsOff": "Get notified when someone sends you a friend request",
+    "notificationsBlocked": "Blocked — enable notifications for this site in your browser settings",
+    "notificationsNeedInstall": "Add this app to your home screen first to enable notifications on iPhone",
+    "enable": "Enable",
+    "disable": "Disable",
     "addFriend": "Add a friend",
     "searchPlaceholder": "Search by username…",
     "noUsersFound": "No users found",

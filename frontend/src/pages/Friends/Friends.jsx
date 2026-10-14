@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Search, UserPlus, Check, X, Music, Play, Plus, ListMusic, Users } from 'lucide-react';
+import { Search, UserPlus, Check, X, Music, Play, Plus, ListMusic, Users, Bell } from 'lucide-react';
 import useFriendsStore from '../../store/useFriendsStore';
 import useSharedPlaylistsStore from '../../store/useSharedPlaylistsStore';
 import usePlayerStore from '../../store/playerStore';
@@ -21,6 +21,45 @@ function timeAgo(t, iso) {
   if (secs < 3600) return t('friends.minutesAgo', { n: Math.floor(secs / 60) });
   if (secs < 86400) return t('friends.hoursAgo', { n: Math.floor(secs / 3600) });
   return t('friends.daysAgo', { n: Math.floor(secs / 86400) });
+}
+
+function NotificationsCard() {
+  const { t } = useTranslation();
+  const { pushStatus, checkPushStatus, enablePush, disablePush } = useFriendsStore();
+
+  useEffect(() => { checkPushStatus(); }, []);
+
+  if (pushStatus === 'checking' || pushStatus === 'unsupported') return null;
+
+  const statusText =
+    pushStatus === 'granted' ? t('friends.notificationsOn') :
+    pushStatus === 'denied' ? t('friends.notificationsBlocked') :
+    pushStatus === 'ios-needs-install' ? t('friends.notificationsNeedInstall') :
+    t('friends.notificationsOff');
+
+  return (
+    <div className="bg-zinc-800/60 rounded-xl p-4 md:p-5 mb-6 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-9 h-9 bg-violet-500/20 rounded-full flex items-center justify-center shrink-0 text-violet-400">
+          <Bell size={16} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-white text-sm font-medium">{t('friends.notifications')}</p>
+          <p className="text-zinc-500 text-xs">{statusText}</p>
+        </div>
+      </div>
+      {pushStatus === 'granted' && (
+        <button onClick={disablePush} className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-xs font-medium transition-colors shrink-0">
+          {t('friends.disable')}
+        </button>
+      )}
+      {pushStatus === 'default' && (
+        <button onClick={enablePush} className="px-3 py-1.5 bg-white text-black rounded-full text-xs font-semibold hover:bg-zinc-200 transition-colors shrink-0">
+          {t('friends.enable')}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function AddFriendSearch() {
@@ -274,6 +313,7 @@ export default function Friends() {
         <h1 className="text-2xl md:text-3xl font-bold text-white">{t('friends.title')}</h1>
       </div>
 
+      <NotificationsCard />
       <AddFriendSearch />
       <Requests />
       {loaded && (

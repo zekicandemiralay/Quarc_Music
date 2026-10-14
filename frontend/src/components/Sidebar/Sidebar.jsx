@@ -394,7 +394,7 @@ export default function Sidebar({ onNavigate }) {
             <Users size={18} className="text-violet-400" />
             {t('nav.friends')}
             {incomingRequests.length > 0 && (
-              <span className="ml-auto text-xs bg-violet-500 text-white rounded-full w-5 h-5 flex items-center justify-center">{incomingRequests.length}</span>
+              <span className="ml-auto text-xs bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center font-semibold">{incomingRequests.length}</span>
             )}
           </NavLink>
           <NavLink to="/import" className={linkClass} onClick={onNavigate}>

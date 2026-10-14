@@ -10,6 +10,7 @@ import usePlayerStore from '../../store/playerStore';
 import useUserDataStore from '../../store/userDataStore';
 import { coverUrl } from '../../lib/apiUrl';
 import ArtistLink from '../ArtistLink/ArtistLink';
+import useFriendsStore from '../../store/useFriendsStore';
 
 function norm(s) {
   return (s || '').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -345,6 +346,7 @@ export default function Layout({ children }) {
     dismissUpdate();
   }
   const hideSearch = useHideSearch();
+  const hasIncomingRequests = useFriendsStore((s) => s.incomingRequests.length > 0);
 
   return (
     <div className="flex flex-col overflow-hidden bg-black h-full">
@@ -384,8 +386,11 @@ export default function Layout({ children }) {
       <div className={`fixed top-0 left-0 right-0 ${dt('md:left-64')} z-30 flex items-center gap-3 px-4 py-3 bg-zinc-900 border-b border-zinc-800 ${
         hideSearch ? dt('md:hidden') : ''
       }`}>
-        <button onClick={() => setSidebarOpen(true)} className={`${dt('md:hidden')} text-zinc-400 hover:text-white transition-colors shrink-0`}>
+        <button onClick={() => setSidebarOpen(true)} className={`relative ${dt('md:hidden')} text-zinc-400 hover:text-white transition-colors shrink-0`}>
           <Menu size={22} />
+          {hasIncomingRequests && (
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-zinc-900" />
+          )}
         </button>
         {/* Always available, on every route — previously replaced with plain
             app-name text on Library/Playlist/YouTube/etc., which meant recent

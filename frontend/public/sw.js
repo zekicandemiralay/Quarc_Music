@@ -24,6 +24,43 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// Friend-request notifications (see backend/src/lib/webPush.js) — the push
+// payload is always JSON: { title, body, url }.
+self.addEventListener('push', (e) => {
+  let data = {};
+  try { data = e.data.json(); } catch {}
+  e.waitUntil(
+    self.registration.showNotification(data.title || 'Quarc Music', {
+      body: data.body || '',
+      icon: '/logo.png',
+      badge: '/logo.png',
+      data: { url: data.url || '/' },
+    })
+  );
+});
+
+// Reuse an already-open tab if there is one (navigating it to the right
+// place) rather than opening a second instance of the app.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url || '/';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+      for (const client of clientList) {
+        if ('navigate' in client) {
+          try {
+            const navigated = await client.navigate(url);
+            return navigated?.focus ? navigated.focus() : undefined;
+          } catch {
+            return client.focus();
+          }
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener('fetch', (e) => {
   const { pathname } = new URL(e.request.url);
   if (pathname.startsWith('/api/')) return;

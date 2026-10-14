@@ -237,6 +237,22 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_spm_user ON shared_playlist_members(user_id);
   `);
 
+  // One row per browser/device that's granted notification permission — a
+  // user can have several (phone + desktop both subscribed), so this is
+  // keyed by the push service's own endpoint URL (globally unique per
+  // registration), not by user_id alone.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+  `);
+
   ensureAdmin(database);
 }
 
