@@ -224,7 +224,21 @@ function downloadAudio(videoId, outputDir, onProgress, signal) {
       killAndReject(new Error(`Download stalled — no response for ${STALL_MS / 1000}s (VPN/proxy likely down)`));
     }
     let stallTimer = setTimeout(onStall, STALL_MS);
-    const bumpStallTimer = () => { clearTimeout(stallTimer); stallTimer = setTimeout(onStall, STALL_MS); };
+    // Silence past 100% isn't a dead connection — it's ffmpeg quietly
+    // transcoding/embedding, which produces no stdout for long stretches on
+    // a long file. Stop treating silence as a stall once that phase starts;
+    // the hard timer below still protects against a truly hung process.
+    let postProcessing = false;
+    const bumpStallTimer = () => {
+      if (postProcessing) return;
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(onStall, STALL_MS);
+    };
+    const enterPostProcessing = () => {
+      if (postProcessing) return;
+      postProcessing = true;
+      clearTimeout(stallTimer);
+    };
 
     let hardTimer = setTimeout(() => {
       killAndReject(new Error(`Download exceeded the ${HARD_TIMEOUT_MS / 60000}-minute limit`));
@@ -244,16 +258,24 @@ function downloadAudio(videoId, outputDir, onProgress, signal) {
       bumpStallTimer();
       for (const line of chunk.toString().split('\n')) {
         const pct = line.match(/\[download\]\s+([\d.]+)%/);
-        if (pct) onProgress(parseFloat(pct[1]));
+        if (pct) {
+          onProgress(parseFloat(pct[1]));
+          if (parseFloat(pct[1]) >= 100) enterPostProcessing();
+        }
 
         const dest = line.match(/\[(?:ExtractAudio|download|Merger)\] Destination: (.+)/);
         if (dest) lastFile = dest[1].trim();
+        // Only ExtractAudio/Merger mark the post-download phase — a plain
+        // "[download] Destination:" line fires at the START of the
+        // download itself, so treating it as post-processing would disable
+        // the stall watchdog before any data has even flowed.
+        if (dest && /^\[(?:ExtractAudio|Merger)\]/.test(line)) enterPostProcessing();
 
         const moved = line.match(/\[MoveFiles\] Moving file "(.+)" to "(.+)"/);
         if (moved) lastFile = moved[2].trim();
 
         const already = line.match(/\[download\] (.+) has already been downloaded/);
-        if (already) { lastFile = already[1].trim().replace(/\.\w+$/, '.mp3'); onProgress(100); }
+        if (already) { lastFile = already[1].trim().replace(/\.\w+$/, '.mp3'); onProgress(100); enterPostProcessing(); }
       }
     });
 
