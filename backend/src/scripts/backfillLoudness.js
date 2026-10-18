@@ -12,10 +12,21 @@
 //
 // Idempotent and resumable — safe to re-run or Ctrl+C and continue later,
 // since already-analyzed songs (loudness_gain_db set) are skipped by default.
+//
+// Paced with a short delay between songs — confirmed in production that
+// running this back-to-back with no gap starved concurrent song streaming
+// of CPU/disk I/O badly enough that playback of anything not already
+// cached offline stopped working for the whole library's duration. Each
+// ffmpeg pass also now runs at low scheduling priority (see
+// services/loudness.js), but the two mitigations are complementary, not
+// redundant — this one paces the server's I/O duty cycle, not just CPU.
 const { getDb, initDb } = require('../db');
 const { analyzeLoudness } = require('../services/loudness');
 
 const RECHECK = process.argv.includes('--recheck');
+const DELAY_MS = 1000;
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
 async function main() {
   initDb();
@@ -48,6 +59,7 @@ async function main() {
     if ((i + 1) % 25 === 0 || i === songs.length - 1) {
       console.log(`[${i + 1}/${songs.length}] done=${done} failed=${failed}`);
     }
+    await sleep(DELAY_MS);
   }
 
   console.log(`\nDone. analyzed=${done} failed=${failed}`);

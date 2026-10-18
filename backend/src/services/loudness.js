@@ -1,4 +1,5 @@
 const { spawn } = require('child_process');
+const os = require('os');
 
 // Spotify/YouTube/Apple Music all play tracks back at a fixed target
 // loudness instead of however loud the original master happens to be —
@@ -21,11 +22,19 @@ const HEADROOM_DB = 1;
 function runLoudnormMeasure(filepath) {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', [
+      '-threads', '1', // this is a single-track audio filter pass, not a video transcode — no need to compete for every core
       '-i', filepath,
       '-af', `loudnorm=I=${TARGET_LUFS}:TP=-${HEADROOM_DB}:LRA=11:print_format=json`,
       '-f', 'null',
       '-',
     ]);
+    // Lower scheduling priority (a direct setpriority(2) call, not a shell-
+    // out to `nice` — no extra binary to depend on) so this never competes
+    // with anything else for CPU, especially a bulk backfill running many
+    // of these back-to-back. Confirmed in production: a backfill run
+    // starved concurrent song streaming badly enough that playback of
+    // anything not already cached offline stopped working entirely.
+    try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_LOW); } catch {}
     let stderr = '';
     proc.stderr.on('data', (c) => { stderr += c.toString(); });
     proc.on('error', reject);
