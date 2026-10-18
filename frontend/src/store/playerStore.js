@@ -50,6 +50,46 @@ audio.volume = getVolume(); // remembered across sessions — see lib/playbackPr
 // lock screen media session to activate (Apple's MediaSession API spec).
 document.body.appendChild(audio);
 
+// ── Loudness normalization ──────────────────────────────────────────────
+// Spotify/YouTube/etc. play every track back at a fixed target loudness
+// instead of however loud its original master happens to be (see backend's
+// services/loudness.js, which measures each file once with ffmpeg and
+// stores the gain needed to reach that target). Applied via a GainNode
+// layered between the <audio> element and the speakers — deliberately
+// separate from audio.volume (the user's own volume control) below it,
+// so this only ever corrects for the SONG's loudness, never what the
+// user chose to listen at.
+//
+// createMediaElementSource can only ever be called once per <audio>
+// element for its whole lifetime (a second call throws) — safe here only
+// because `audio` above is itself a module-level singleton, created once.
+let audioCtx = null;
+let loudnessGain = null;
+function ensureAudioGraph() {
+  if (audioCtx) {
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return;
+  }
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaElementSource(audio);
+    loudnessGain = audioCtx.createGain();
+    source.connect(loudnessGain);
+    loudnessGain.connect(audioCtx.destination);
+  } catch {
+    // Web Audio unavailable for some reason — playback still works via the
+    // <audio> element directly, just without normalization.
+  }
+}
+
+// loudness_gain_db is clamped and clipping-protected server-side already
+// (see services/loudness.js); missing (not analyzed yet) is treated as
+// neutral (0dB), not silence.
+function applyLoudnessGain(song) {
+  if (!loudnessGain) return;
+  const db = song?.loudness_gain_db;
+  loudnessGain.gain.value = typeof db === 'number' ? 10 ** (db / 20) : 1;
+}
 
 // Native foreground service — keeps CPU/network alive when screen locks on Android.
 // window.Capacitor is injected by the native WebView; no-op in a regular browser.
@@ -783,6 +823,11 @@ audio.addEventListener('durationchange', () => usePlayerStore.setState({ duratio
 audio.addEventListener('error', () => usePlayerStore.setState({ isPlaying: false }));
 
 audio.addEventListener('play', () => {
+  // Lazy on purpose: the very first 'play' only ever fires after a
+  // successful audio.play() call, which itself requires a user gesture —
+  // exactly the condition AudioContext needs to start running rather than
+  // suspended. A no-op on every call after the first (see ensureAudioGraph).
+  ensureAudioGraph();
   window.dispatchEvent(new Event('quarc-music-started'));
   playTrack.resumeAt = Date.now();
   usePlayerStore.setState({ isPlaying: true });
@@ -793,9 +838,11 @@ audio.addEventListener('play', () => {
   const artist = currentSong?.artist ?? '';
   // Set MediaMetadata once per song after audio is active (iOS ignores it before play).
   // Don't recreate on resumes — rebuilding MediaMetadata resets the lock screen widget.
+  // Loudness gain is re-applied on the same "genuinely new song" condition.
   if (currentSong?.id !== lastMetadataSongId) {
     lastMetadataSongId = currentSong?.id ?? null;
     applyMediaSessionMeta(currentSong);
+    applyLoudnessGain(currentSong);
   }
   const isNewSong = currentSong?.id !== lastNativeStartSongId;
   if (isNewSong) {

@@ -106,6 +106,19 @@ function initDb() {
   // where "sometimes perfect, sometimes half-random" came from: a wrong-but-
   // similar hit (a cover, a live cut, a different song sharing a title) seeds
   // a radio queue that looks valid and isn't.
+  // Add loudness normalization columns if missing (migration). Spotify/
+  // YouTube/etc. all play songs back at a fixed target loudness instead of
+  // whatever volume the original master happens to be — see
+  // services/loudness.js. gain_db is what playback actually applies; lufs
+  // is kept alongside it only so the gain could be recomputed later
+  // without re-running ffmpeg if the target ever changes.
+  if (!songCols.includes('loudness_gain_db')) {
+    database.exec(`
+      ALTER TABLE songs ADD COLUMN loudness_lufs REAL;
+      ALTER TABLE songs ADD COLUMN loudness_gain_db REAL;
+    `);
+  }
+
   if (!songCols.includes('video_id')) {
     database.exec('ALTER TABLE songs ADD COLUMN video_id TEXT');
     // The downloads table already knows the answer for everything fetched

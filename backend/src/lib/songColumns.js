@@ -22,7 +22,7 @@
 const SONG_LIST_COLUMNS = [
   's.id', 's.filename', 's.title', 's.artist', 's.album',
   's.duration', 's.track', 's.year', 's.has_cover', 's.added_at',
-  's.genre', 's.lyrics_status', 's.video_id',
+  's.genre', 's.lyrics_status', 's.video_id', 's.loudness_gain_db',
 ].join(', ');
 
 module.exports = { SONG_LIST_COLUMNS };
