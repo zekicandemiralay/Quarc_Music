@@ -26,19 +26,34 @@ import android.os.Looper;
 
 public class MusicForegroundService extends Service {
 
-    static final String CHANNEL_ID      = "quarc_music_playback";
-    static final String ACTION_START    = "com.quarc.music.START";
-    static final String ACTION_UPDATE   = "com.quarc.music.UPDATE";
-    static final String ACTION_STOP     = "com.quarc.music.STOP";
+    static final String CHANNEL_ID          = "quarc_music_playback";
+    static final String DOWNLOAD_CHANNEL_ID = "quarc_music_download";
+    static final String ACTION_START          = "com.quarc.music.START";
+    static final String ACTION_UPDATE         = "com.quarc.music.UPDATE";
+    static final String ACTION_STOP           = "com.quarc.music.STOP";
+    // Offline downloads (caching a song for offline listening) need the same
+    // "keep running when the screen locks / app is switched away from"
+    // treatment as playback, tracked independently — a download can be
+    // active with nothing playing, and vice versa.
+    static final String ACTION_DOWNLOAD_START = "com.quarc.music.DOWNLOAD_START";
+    static final String ACTION_DOWNLOAD_STOP  = "com.quarc.music.DOWNLOAD_STOP";
     static final String EXTRA_TITLE     = "title";
     static final String EXTRA_ARTIST    = "artist";
     static final String EXTRA_PLAYING   = "isPlaying";
     static final String EXTRA_COVER_BASE64 = "coverBase64";
-    static final int    NOTIF_ID        = 1;
+    static final int    NOTIF_ID          = 1;
 
     private PowerManager.WakeLock wakeLock;
     private MediaSessionCompat mediaSession;
-    private boolean isPlaying    = true;
+    private boolean isPlaying    = false;
+    // Whether a song has ever actually started this service lifetime — once
+    // true, a dormant "paused" notification legitimately keeps the service
+    // (and its mediaPlayback type) alive even with isPlaying false, same as
+    // before this file tracked downloads too. A download-only session (never
+    // played anything) has no such dormant state to fall back to, so it's
+    // tracked separately rather than reusing isPlaying for both purposes.
+    private boolean hasPlaybackSession = false;
+    private boolean isDownloading = false;
     private String currentTitle  = "Quarc Music";
     private String currentArtist = "";
     private Bitmap currentArtBitmap = null;
@@ -46,7 +61,7 @@ public class MusicForegroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        createNotificationChannel();
+        createNotificationChannels();
         setupMediaSession();
     }
 
@@ -78,7 +93,62 @@ public class MusicForegroundService extends Service {
         String action = intent.getAction();
 
         if (ACTION_STOP.equals(action)) {
+            isPlaying = false;
+            hasPlaybackSession = false;
+            return reconcileState();
+        }
+        if (ACTION_DOWNLOAD_STOP.equals(action)) {
+            isDownloading = false;
+            return reconcileState();
+        }
+        if (ACTION_DOWNLOAD_START.equals(action)) {
+            isDownloading = true;
+            return reconcileState();
+        }
+
+        String title  = intent.getStringExtra(EXTRA_TITLE);
+        String artist = intent.getStringExtra(EXTRA_ARTIST);
+        if (title  != null) currentTitle  = title;
+        if (artist != null) currentArtist = artist;
+
+        if (ACTION_START.equals(action)) {
+            isPlaying = true;
+            hasPlaybackSession = true;
+            // Clear old art when a new song starts; cover arrives via ACTION_UPDATE shortly after
+            currentArtBitmap = null;
+        } else if (ACTION_UPDATE.equals(action)) {
+            isPlaying = intent.getBooleanExtra(EXTRA_PLAYING, isPlaying);
+        }
+
+        // Decode cover art if provided (sent from JS after fetching + resizing to 512×512 JPEG)
+        String coverBase64 = intent.getStringExtra(EXTRA_COVER_BASE64);
+        if (coverBase64 != null) {
+            decodeArtBase64(coverBase64);
+        }
+
+        return reconcileState();
+    }
+
+    // Re-derives wake lock / notification / foreground-service type from the
+    // current (isPlaying, hasPlaybackSession, isDownloading) combination —
+    // called after every action so playback and downloads can independently
+    // start/stop without stepping on each other's state.
+    private int reconcileState() {
+        if (isPlaying || isDownloading) {
+            if (wakeLock == null) {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "QuarcMusic::Active");
+                wakeLock.acquire();
+            }
+        } else {
             releaseWakeLock();
+        }
+
+        // Nothing left to justify a foreground service: a download-only
+        // session (no song ever played) has no dormant "paused" state to
+        // fall back to the way playback does, so fully tear down here —
+        // matches ACTION_STOP's teardown exactly.
+        if (!isPlaying && !isDownloading && !hasPlaybackSession) {
             if (mediaSession != null) {
                 mediaSession.setActive(false);
                 mediaSession.release();
@@ -93,40 +163,20 @@ public class MusicForegroundService extends Service {
             return START_NOT_STICKY;
         }
 
-        String title  = intent.getStringExtra(EXTRA_TITLE);
-        String artist = intent.getStringExtra(EXTRA_ARTIST);
-        if (title  != null) currentTitle  = title;
-        if (artist != null) currentArtist = artist;
+        int types = 0;
+        if (hasPlaybackSession) types |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+        if (isDownloading) types |= ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
 
-        if (ACTION_START.equals(action)) {
-            isPlaying = true;
-            // Clear old art when a new song starts; cover arrives via ACTION_UPDATE shortly after
-            currentArtBitmap = null;
-        } else if (ACTION_UPDATE.equals(action)) {
-            isPlaying = intent.getBooleanExtra(EXTRA_PLAYING, isPlaying);
-        }
-
-        // Decode cover art if provided (sent from JS after fetching + resizing to 512×512 JPEG)
-        String coverBase64 = intent.getStringExtra(EXTRA_COVER_BASE64);
-        if (coverBase64 != null) {
-            decodeArtBase64(coverBase64);
-        }
-
-        if (isPlaying) {
-            if (wakeLock == null) {
-                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "QuarcMusic::Playback");
-                wakeLock.acquire();
-            }
+        Notification notification;
+        if (hasPlaybackSession) {
+            updateMediaSession();
+            notification = buildPlaybackNotification();
         } else {
-            releaseWakeLock();
+            notification = buildDownloadNotification();
         }
-
-        updateMediaSession();
-        Notification notification = buildNotification();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            startForeground(NOTIF_ID, notification, types);
         } else {
             startForeground(NOTIF_ID, notification);
         }
@@ -171,6 +221,9 @@ public class MusicForegroundService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
+        isPlaying = false;
+        hasPlaybackSession = false;
+        isDownloading = false;
         releaseWakeLock();
         if (mediaSession != null) {
             mediaSession.setActive(false);
@@ -201,17 +254,27 @@ public class MusicForegroundService extends Service {
         wakeLock = null;
     }
 
-    private void createNotificationChannel() {
-        NotificationChannel channel = new NotificationChannel(
+    private void createNotificationChannels() {
+        NotificationChannel playback = new NotificationChannel(
             CHANNEL_ID, "Music Playback", NotificationManager.IMPORTANCE_LOW);
-        channel.setDescription("Keeps music streaming in the background");
-        channel.setShowBadge(false);
-        channel.setSound(null, null);
+        playback.setDescription("Keeps music streaming in the background");
+        playback.setShowBadge(false);
+        playback.setSound(null, null);
+
+        NotificationChannel download = new NotificationChannel(
+            DOWNLOAD_CHANNEL_ID, "Offline Downloads", NotificationManager.IMPORTANCE_LOW);
+        download.setDescription("Keeps offline downloads running in the background");
+        download.setShowBadge(false);
+        download.setSound(null, null);
+
         NotificationManager nm = getSystemService(NotificationManager.class);
-        if (nm != null) nm.createNotificationChannel(channel);
+        if (nm != null) {
+            nm.createNotificationChannel(playback);
+            nm.createNotificationChannel(download);
+        }
     }
 
-    private Notification buildNotification() {
+    private Notification buildPlaybackNotification() {
         Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
         PendingIntent launchPi = PendingIntent.getActivity(
             this, 0, launch,
@@ -247,5 +310,26 @@ public class MusicForegroundService extends Service {
         }
 
         return builder.build();
+    }
+
+    // Used only for a download-only session (no song ever played this
+    // service lifetime) — no media session/transport controls to show,
+    // just enough of a notification to justify staying alive in the
+    // background until the download(s) finish.
+    private Notification buildDownloadNotification() {
+        Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        PendingIntent launchPi = PendingIntent.getActivity(
+            this, 0, launch,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        return new NotificationCompat.Builder(this, DOWNLOAD_CHANNEL_ID)
+            .setContentTitle("Quarc Music")
+            .setContentText("Downloading for offline listening…")
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentIntent(launchPi)
+            .setOngoing(true)
+            .setSilent(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build();
     }
 }

@@ -3,10 +3,22 @@ import { saveAudio, getAudioBlob, removeAudio, getAllCachedSongs, getStorageEsti
 import { loadCachedSongs, saveCachedSongs } from '../lib/songCache';
 import { streamUrl } from '../lib/apiUrl';
 
+// window.Capacitor is injected by the native WebView; no-op in a regular
+// browser. Keeps the Android foreground service (and the wake lock/process
+// liveness it buys) running for the duration of a download — the Screen
+// Wake Lock below only ever stops the SCREEN from auto-locking; it does
+// nothing once the user switches away to a different app, which is the
+// actual background-throttling Android applies to this one. See
+// MusicForegroundService.java's isDownloading tracking.
+function nativeService(method) {
+  try { window?.Capacitor?.Plugins?.MusicService?.[method]?.(); } catch {}
+}
+
 // ── Wake Lock ────────────────────────────────────────────────────────────
 let wakeLock = null;
 
 async function acquireWakeLock() {
+  nativeService('startDownload');
   if (wakeLock || !('wakeLock' in navigator)) return;
   try {
     wakeLock = await navigator.wakeLock.request('screen');
@@ -19,6 +31,7 @@ async function acquireWakeLock() {
 }
 
 async function releaseWakeLock() {
+  nativeService('stopDownload');
   try { await wakeLock?.release(); } catch {}
   wakeLock = null;
   useOfflineStore.setState({ wakeLockActive: false });

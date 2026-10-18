@@ -75,6 +75,27 @@ public class MusicServicePlugin extends Plugin {
         call.resolve();
     }
 
+    // Offline downloads need the same background-survival treatment as
+    // playback (screen-lock, app switched away) — tracked independently in
+    // the service so a download with nothing playing still keeps the
+    // process alive, and finishing a download while music IS playing
+    // doesn't disturb the playback notification/session at all.
+    @PluginMethod
+    public void startDownload(PluginCall call) {
+        Intent intent = new Intent(getContext(), MusicForegroundService.class);
+        intent.setAction(MusicForegroundService.ACTION_DOWNLOAD_START);
+        startService(intent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopDownload(PluginCall call) {
+        Intent intent = new Intent(getContext(), MusicForegroundService.class);
+        intent.setAction(MusicForegroundService.ACTION_DOWNLOAD_STOP);
+        startService(intent);
+        call.resolve();
+    }
+
     // ── In-app update download + install ─────────────────────────────────────
 
     @PluginMethod
