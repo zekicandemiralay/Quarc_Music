@@ -1,5 +1,5 @@
 ﻿import { create } from 'zustand';
-import usePlayerStore, { schedulePreload } from './playerStore';
+import usePlayerStore, { schedulePreload, startPrebuffering } from './playerStore';
 import { contextGroup, getRadio, setRadio } from '../lib/playbackPrefs';
 
 // Module-level: not reactive, just dedup guards
@@ -302,6 +302,11 @@ function insertSongIntoQueue(song, { allowRepeat = false, onTheme = true } = {})
       ...s.queue.slice(insertAt),
     ];
     schedulePreload(newQueue, s.queueIndex);
+    // A radio-filled song is just as likely to be the one playing when the
+    // screen locks as any other — without this it never got a head start on
+    // its blob (see resolveNextSrc in playerStore.js), only this lightweight
+    // DOM preload, which doesn't survive the same background-network gap.
+    startPrebuffering(newQueue, s.queueIndex);
     return { queue: newQueue };
   });
   if (wasWaiting) {

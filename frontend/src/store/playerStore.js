@@ -150,6 +150,37 @@ function prefetchBlob(songId) {
   return p;
 }
 
+// Decides where audio.src should point for `song`, then calls `onReady`
+// with that URL. If a blob is already cached, or the tab is visible, this
+// happens synchronously (same as before this existed) — but if the tab is
+// hidden and no blob is ready yet, it waits for the prebuffer already in
+// flight instead of immediately handing the audio element a brand-new
+// network load.
+//
+// That distinction is the actual fix for a real report: music auto-advancing
+// to the next song while the screen was locked would sometimes just stop,
+// resuming the instant the app was reopened. Root cause, confirmed against
+// WebKit's documented behaviour: Safari (especially iOS) only keeps a hidden
+// page's network/JS execution alive while audio is *actively playing* —
+// the brief gap between songs (old audio stopped at 'ended', new one hasn't
+// started yet) can lose that grace period right as a fresh network request
+// is kicked off, stalling it until the app is foregrounded. A blob fetch
+// that was already in flight before the tab was hidden doesn't hit this —
+// only a load *started* while hidden does — so waiting for it instead of
+// racing straight to the network sidesteps the gap entirely in the common
+// case (PREBUFFER_COUNT means it's usually long done by the time this runs).
+function resolveNextSrc(song, networkSrc, onReady) {
+  if (blobCache.has(song.id)) { onReady(blobCache.get(song.id)); return; }
+  if (document.visibilityState === 'hidden') {
+    prefetchBlob(song.id).then((url) => {
+      if (usePlayerStore.getState().currentSong?.id !== song.id) return; // superseded while waiting
+      onReady(url || networkSrc); // prefetch itself failed — nothing left to try but the stream
+    });
+    return;
+  }
+  onReady(networkSrc);
+}
+
 // Runs `fn` once real audible playback begins (the 'playing' event fires
 // whether that's via quickStart's blob swap or the native stream buffering
 // on its own), instead of immediately — kicking off startPrebuffering/
@@ -485,10 +516,15 @@ const usePlayerStore = create((set, get) => ({
     // If this song was pre-buffered as a blob, use it from the very first frame
     // (no stutter, no network needed). Otherwise stream normally as a guaranteed
     // fallback, and race a quick-start chunk in parallel — see quickStart().
-    const preBuffered = blobCache.has(song.id);
-    audio.src = preBuffered ? blobCache.get(song.id) : streamUrl(song.id);
-    audio.play().catch(() => set({ isPlaying: false }));
-    if (!preBuffered) quickStart(song.id);
+    // resolveNextSrc only makes this async when hidden AND uncached (see its
+    // own comment) — the common visible/cached cases behave exactly as before.
+    const networkSrc = streamUrl(song.id);
+    resolveNextSrc(song, networkSrc, (src) => {
+      if (get().currentSong?.id !== song.id) return; // superseded while resolving
+      audio.src = src;
+      audio.play().catch(() => set({ isPlaying: false }));
+      if (src === networkSrc && document.visibilityState !== 'hidden') quickStart(song.id);
+    });
     deferUntilPlaying(() => {
       schedulePreload(finalQueue, finalIndex);
       startPrebuffering(finalQueue, finalIndex);
@@ -561,7 +597,8 @@ const usePlayerStore = create((set, get) => ({
       return;
     }
     // If preloader already buffered this song, swap it in directly for instant start
-    const nextSrc = streamUrl(queue[idx].id);
+    const nextSong = queue[idx];
+    const nextSrc = streamUrl(nextSong.id);
     if (preloader.src === nextSrc && !preloader.error) {
       // This fast path bypasses playSong() entirely, so it needs its own
       // call — see takeOverFromInternetRadio()'s comment.
@@ -577,11 +614,17 @@ const usePlayerStore = create((set, get) => ({
         }
       }
       if (playTrack.songId) flushPlay(playTrack.songId);
-      playTrack = { songId: queue[idx].id, accumulated: 0, resumeAt: null };
-      set({ currentSong: queue[idx], isPlaying: true, currentTime: 0, queueIndex: idx, waitingForRadio: false });
-      applyMediaSessionMeta(queue[idx]);
-      audio.src = blobCache.has(queue[idx].id) ? blobCache.get(queue[idx].id) : nextSrc;
-      audio.play().catch(() => {});
+      playTrack = { songId: nextSong.id, accumulated: 0, resumeAt: null };
+      set({ currentSong: nextSong, isPlaying: true, currentTime: 0, queueIndex: idx, waitingForRadio: false });
+      applyMediaSessionMeta(nextSong);
+      // See resolveNextSrc's comment (same reasoning as playSong()'s own use
+      // of it) — this is the auto-advance path 'ended' actually calls, so
+      // it's the one that matters most for music stopping while locked.
+      resolveNextSrc(nextSong, nextSrc, (src) => {
+        if (get().currentSong?.id !== nextSong.id) return; // superseded while resolving
+        audio.src = src;
+        audio.play().catch(() => {});
+      });
       deferUntilPlaying(() => {
         schedulePreload(queue, idx);
         startPrebuffering(queue, idx);
@@ -1065,5 +1108,5 @@ try {
   }
 } catch {}
 
-export { schedulePreload };
+export { schedulePreload, startPrebuffering };
 export default usePlayerStore;
