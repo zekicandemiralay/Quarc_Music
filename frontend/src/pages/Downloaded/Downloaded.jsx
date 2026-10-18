@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Music, Trash2, WifiOff, HardDrive } from 'lucide-react';
+import { Play, Shuffle, Music, Trash2, WifiOff, HardDrive } from 'lucide-react';
 import usePlayerStore from '../../store/playerStore';
 import useOfflineStore from '../../store/useOfflineStore';
 import { coverUrl } from '../../lib/apiUrl';
@@ -34,6 +34,7 @@ export default function Downloaded() {
   const { t } = useTranslation();
   const { cachedSongs, removeSong, storageEstimate, hydrateMeta } = useOfflineStore();
   const playSong = usePlayerStore((s) => s.playSong);
+  const shufflePlay = usePlayerStore((s) => s.shufflePlay);
   const currentSong = usePlayerStore((s) => s.currentSong);
   const [confirmId, setConfirmId] = useState(null);
 
@@ -84,6 +85,15 @@ export default function Downloaded() {
             <Play size={15} className="fill-current" />
             {t('common.play')}
           </button>
+          {songs.length > 1 && (
+            <button
+              onClick={() => shufflePlay(songs, 'playlist', t('nav.downloaded'))}
+              className="flex items-center gap-2 px-4 py-2.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
+            >
+              <Shuffle size={15} />
+              {t('library.shuffle')}
+            </button>
+          )}
         </div>
       </div>
 
