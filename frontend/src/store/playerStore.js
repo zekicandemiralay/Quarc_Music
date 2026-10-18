@@ -54,41 +54,38 @@ document.body.appendChild(audio);
 // Spotify/YouTube/etc. play every track back at a fixed target loudness
 // instead of however loud its original master happens to be (see backend's
 // services/loudness.js, which measures each file once with ffmpeg and
-// stores the gain needed to reach that target). Applied via a GainNode
-// layered between the <audio> element and the speakers — deliberately
-// separate from audio.volume (the user's own volume control) below it,
-// so this only ever corrects for the SONG's loudness, never what the
-// user chose to listen at.
+// stores the gain needed to reach that target).
 //
-// createMediaElementSource can only ever be called once per <audio>
-// element for its whole lifetime (a second call throws) — safe here only
-// because `audio` above is itself a module-level singleton, created once.
-let audioCtx = null;
-let loudnessGain = null;
-function ensureAudioGraph() {
-  if (audioCtx) {
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-    return;
-  }
-  try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaElementSource(audio);
-    loudnessGain = audioCtx.createGain();
-    source.connect(loudnessGain);
-    loudnessGain.connect(audioCtx.destination);
-  } catch {
-    // Web Audio unavailable for some reason — playback still works via the
-    // <audio> element directly, just without normalization.
-  }
+// This was originally a GainNode layered between the <audio> element and
+// the speakers via the Web Audio API, kept deliberately separate from
+// audio.volume. Reverted after a confirmed production regression: the
+// instant an <audio> element is routed through an AudioContext at all —
+// regardless of what the gain is actually set to — iOS Safari suspends
+// that context the moment the page is backgrounded, silencing playback
+// entirely until the app is reopened. That's specific to Web Audio; a
+// bare <audio> element (which is all this app used before loudness
+// normalization existed) keeps playing in the background normally, which
+// is exactly why this only broke once that GainNode was introduced.
+//
+// Folded into audio.volume instead — combined multiplicatively with the
+// user's own volume (see setVolume below), not a separate stage. The one
+// real tradeoff: audio.volume only ever attenuates (0..1), so a positive
+// loudness boost silently caps at "as loud as the user's current volume
+// allows" rather than genuinely amplifying past it — accepted deliberately
+// rather than reintroducing Web Audio for it.
+let loudnessMultiplier = 1; // linear; 1 = no change
+
+function effectiveVolume(userVolume) {
+  return Math.min(1, Math.max(0, userVolume * loudnessMultiplier));
 }
 
 // loudness_gain_db is clamped and clipping-protected server-side already
 // (see services/loudness.js); missing (not analyzed yet) is treated as
 // neutral (0dB), not silence.
 function applyLoudnessGain(song) {
-  if (!loudnessGain) return;
   const db = song?.loudness_gain_db;
-  loudnessGain.gain.value = typeof db === 'number' ? 10 ** (db / 20) : 1;
+  loudnessMultiplier = typeof db === 'number' ? 10 ** (db / 20) : 1;
+  audio.volume = effectiveVolume(usePlayerStore.getState().volume);
 }
 
 // Native foreground service — keeps CPU/network alive when screen locks on Android.
@@ -785,7 +782,7 @@ const usePlayerStore = create((set, get) => ({
     audio.currentTime = time;
     set({ currentTime: time });
   },
-  setVolume: (v) => { audio.volume = v; persistVolume(v); set({ volume: v }); },
+  setVolume: (v) => { audio.volume = effectiveVolume(v); persistVolume(v); set({ volume: v }); },
 
   // ── Manual queue management ──────────────────────────────────────────────
   addToQueue: (song) => set((s) => ({ manualQueue: [...s.manualQueue, song] })),
@@ -823,11 +820,6 @@ audio.addEventListener('durationchange', () => usePlayerStore.setState({ duratio
 audio.addEventListener('error', () => usePlayerStore.setState({ isPlaying: false }));
 
 audio.addEventListener('play', () => {
-  // Lazy on purpose: the very first 'play' only ever fires after a
-  // successful audio.play() call, which itself requires a user gesture —
-  // exactly the condition AudioContext needs to start running rather than
-  // suspended. A no-op on every call after the first (see ensureAudioGraph).
-  ensureAudioGraph();
   window.dispatchEvent(new Event('quarc-music-started'));
   playTrack.resumeAt = Date.now();
   usePlayerStore.setState({ isPlaying: true });
