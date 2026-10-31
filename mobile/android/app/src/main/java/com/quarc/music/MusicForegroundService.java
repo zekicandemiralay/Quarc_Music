@@ -124,6 +124,16 @@ public class MusicForegroundService extends Service {
             return reconcileState();
         }
         if (ACTION_RADIO_STOP.equals(action)) {
+            // A no-op stop (radio was never the one playing — overwhelmingly
+            // the common case, since the JS side sends this on every song
+            // play, not just when a station was actually active) must NOT
+            // run reconcileState(). On a fresh service lifetime, with
+            // nothing else active either, that would run the full teardown
+            // branch — destroying the media session and calling
+            // stopForeground()/stopSelf() — for a stop that had nothing to
+            // stop, racing against whatever legitimately started this
+            // service moments later. Confirmed crashing exactly this way.
+            if (!isRadioActive) return START_STICKY;
             isRadioActive = false;
             return reconcileState();
         }

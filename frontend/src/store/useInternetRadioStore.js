@@ -179,11 +179,23 @@ const useInternetRadioStore = create((set, get) => ({
   setVolume: (v) => { radioAudio.volume = v; set({ volume: v }); },
 }));
 
-// Stop radio when the music player starts playing
+// Stop radio when the music player starts playing. This fires on EVERY
+// song play, including the overwhelming majority where radio was never
+// touched at all — so the native call is conditional on radio actually
+// having a session to stop. Calling it unconditionally caused a real crash:
+// on the very first song of a fresh app launch, the resulting
+// ACTION_RADIO_STOP reached MusicForegroundService before isPlaying/
+// hasPlaybackSession had ever been set, so its teardown path (nothing else
+// was keeping the service alive either) fully destroyed the media session
+// and called stopForeground()/stopSelf() — a race against that same song's
+// own 'start' call arriving right after. Once a song had played once,
+// hasPlaybackSession stayed true and protected against it, which is why
+// this only ever hit the first song, every time (or every time after a
+// crash sent it back to a fresh state).
 window.addEventListener('quarc-music-started', () => {
   clearReconnect();
   clearStallTimer();
-  nativeRadio('stopRadio'); // music's own 'play' event starts the service for itself right after
+  if (useInternetRadioStore.getState().currentStation) nativeRadio('stopRadio');
   if (!radioAudio.paused) radioAudio.pause();
   useInternetRadioStore.setState({ isPlaying: false, reconnecting: false, currentStation: null });
 });
