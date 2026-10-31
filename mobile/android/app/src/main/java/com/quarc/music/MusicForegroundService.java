@@ -37,6 +37,22 @@ public class MusicForegroundService extends Service {
     // active with nothing playing, and vice versa.
     static final String ACTION_DOWNLOAD_START = "com.quarc.music.DOWNLOAD_START";
     static final String ACTION_DOWNLOAD_STOP  = "com.quarc.music.DOWNLOAD_STOP";
+    // Internet radio (useInternetRadioStore.js) plays through a completely
+    // separate <audio> element from normal song playback, and NOTHING
+    // previously told this service a radio session was active — so Android
+    // suspended the WebView process shortly after the screen locked, same as
+    // it would any other background page with no declared reason to stay
+    // alive. Tracked independently of isPlaying/hasPlaybackSession for the
+    // same reason isDownloading is: a radio session has no "paused, resumable
+    // with saved position" concept the way a song does, so it doesn't belong
+    // in that state machine. Deliberately no transport controls on its own
+    // notification (see buildRadioNotification) — a live stream has no
+    // next/previous/seek, and wiring that up would mean tangling this with
+    // isPlaying's song-specific semantics for very little real gain. Lock
+    // screen controls for radio still come from the web MediaSession API,
+    // which useInternetRadioStore.js already registers on its own.
+    static final String ACTION_RADIO_START = "com.quarc.music.RADIO_START";
+    static final String ACTION_RADIO_STOP  = "com.quarc.music.RADIO_STOP";
     static final String EXTRA_TITLE     = "title";
     static final String EXTRA_ARTIST    = "artist";
     static final String EXTRA_PLAYING   = "isPlaying";
@@ -54,8 +70,10 @@ public class MusicForegroundService extends Service {
     // tracked separately rather than reusing isPlaying for both purposes.
     private boolean hasPlaybackSession = false;
     private boolean isDownloading = false;
+    private boolean isRadioActive = false;
     private String currentTitle  = "Quarc Music";
     private String currentArtist = "";
+    private String currentRadioName = "Radio";
     private Bitmap currentArtBitmap = null;
 
     @Override
@@ -105,6 +123,16 @@ public class MusicForegroundService extends Service {
             isDownloading = true;
             return reconcileState();
         }
+        if (ACTION_RADIO_STOP.equals(action)) {
+            isRadioActive = false;
+            return reconcileState();
+        }
+        if (ACTION_RADIO_START.equals(action)) {
+            isRadioActive = true;
+            String name = intent.getStringExtra(EXTRA_TITLE);
+            if (name != null) currentRadioName = name;
+            return reconcileState();
+        }
 
         String title  = intent.getStringExtra(EXTRA_TITLE);
         String artist = intent.getStringExtra(EXTRA_ARTIST);
@@ -134,7 +162,7 @@ public class MusicForegroundService extends Service {
     // called after every action so playback and downloads can independently
     // start/stop without stepping on each other's state.
     private int reconcileState() {
-        if (isPlaying || isDownloading) {
+        if (isPlaying || isDownloading || isRadioActive) {
             if (wakeLock == null) {
                 PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
                 wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "QuarcMusic::Active");
@@ -144,11 +172,11 @@ public class MusicForegroundService extends Service {
             releaseWakeLock();
         }
 
-        // Nothing left to justify a foreground service: a download-only
-        // session (no song ever played) has no dormant "paused" state to
-        // fall back to the way playback does, so fully tear down here —
-        // matches ACTION_STOP's teardown exactly.
-        if (!isPlaying && !isDownloading && !hasPlaybackSession) {
+        // Nothing left to justify a foreground service: a download-only or
+        // radio-only session (no song ever played) has no dormant "paused"
+        // state to fall back to the way playback does, so fully tear down
+        // here — matches ACTION_STOP's teardown exactly.
+        if (!isPlaying && !isDownloading && !hasPlaybackSession && !isRadioActive) {
             if (mediaSession != null) {
                 mediaSession.setActive(false);
                 mediaSession.release();
@@ -164,11 +192,21 @@ public class MusicForegroundService extends Service {
         }
 
         int types = 0;
-        if (hasPlaybackSession) types |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+        if (hasPlaybackSession || isRadioActive) types |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
         if (isDownloading) types |= ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
 
+        // Radio first: the rest of the app guarantees only one of {a song,
+        // a radio station} is ever actually making sound at a time (see
+        // the quarc-music-started/quarc-internet-radio-started handoff in
+        // playerStore.js/useInternetRadioStore.js) — but hasPlaybackSession
+        // stays true across that handoff (it means "a song session has
+        // EVER started," not "is audible right now"), so without this a
+        // stale paused-song notification would outrank the station that's
+        // actually playing.
         Notification notification;
-        if (hasPlaybackSession) {
+        if (isRadioActive) {
+            notification = buildRadioNotification();
+        } else if (hasPlaybackSession) {
             updateMediaSession();
             notification = buildPlaybackNotification();
         } else {
@@ -224,6 +262,7 @@ public class MusicForegroundService extends Service {
         isPlaying = false;
         hasPlaybackSession = false;
         isDownloading = false;
+        isRadioActive = false;
         releaseWakeLock();
         if (mediaSession != null) {
             mediaSession.setActive(false);
@@ -310,6 +349,31 @@ public class MusicForegroundService extends Service {
         }
 
         return builder.build();
+    }
+
+    // Deliberately as simple as buildDownloadNotification() — no media
+    // session, no transport controls. Its entire job is to justify the
+    // foreground service (and the wake lock reconcileState() grants
+    // alongside it) that keeps this process from being suspended once the
+    // screen locks; actual play/pause/stop for radio is handled in JS via
+    // the web MediaSession API and useInternetRadioStore.js's own stall/
+    // reconnect logic, neither of which needs anything from this
+    // notification's buttons to keep working.
+    private Notification buildRadioNotification() {
+        Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        PendingIntent launchPi = PendingIntent.getActivity(
+            this, 0, launch,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(currentRadioName)
+            .setContentText("Live Radio")
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentIntent(launchPi)
+            .setOngoing(true)
+            .setSilent(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build();
     }
 
     // Used only for a download-only session (no song ever played this

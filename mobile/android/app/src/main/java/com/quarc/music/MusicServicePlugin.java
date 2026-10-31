@@ -96,6 +96,31 @@ public class MusicServicePlugin extends Plugin {
         call.resolve();
     }
 
+    // Internet radio plays through its own <audio> element, entirely
+    // separate from song playback — nothing previously told this service a
+    // radio session was active, so Android suspended the WebView process
+    // shortly after the screen locked, same as any backgrounded page with
+    // no declared reason to stay alive. See ACTION_RADIO_START/STOP in
+    // MusicForegroundService for why this is tracked independently rather
+    // than reusing start()/stop().
+    @PluginMethod
+    public void startRadio(PluginCall call) {
+        String name = call.getString("name", "Radio");
+        Intent intent = new Intent(getContext(), MusicForegroundService.class);
+        intent.setAction(MusicForegroundService.ACTION_RADIO_START);
+        intent.putExtra(MusicForegroundService.EXTRA_TITLE, name);
+        startService(intent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopRadio(PluginCall call) {
+        Intent intent = new Intent(getContext(), MusicForegroundService.class);
+        intent.setAction(MusicForegroundService.ACTION_RADIO_STOP);
+        startService(intent);
+        call.resolve();
+    }
+
     // ── In-app update download + install ─────────────────────────────────────
 
     @PluginMethod

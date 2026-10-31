@@ -3,6 +3,20 @@ import { create } from 'zustand';
 const radioAudio = new Audio();
 radioAudio.preload = 'none';
 
+// Internet radio plays through this <audio> element with nothing else
+// involved — no Capacitor plugin call, unlike normal song playback, which
+// is exactly why it used to die shortly after the screen locked. Android
+// suspends a backgrounded WebView process once nothing has told it an
+// audio session is active; the main player avoids that by starting a
+// foreground service (see playerStore.js's own nativeService()), and radio
+// simply never did the same. No-ops safely on web/desktop/iOS, same as the
+// main player's copy of this helper — kept as a separate local copy rather
+// than importing playerStore.js's, so the two stores stay decoupled (they
+// otherwise only ever talk to each other through window events).
+function nativeRadio(method, data) {
+  try { window?.Capacitor?.Plugins?.MusicService?.[method]?.(data ?? {}); } catch {}
+}
+
 // Live radio streams (Icecast/Shoutcast, mostly) drop and hiccup routinely —
 // a brief network blip, the station's own encoder restarting, a mid-stream
 // metadata change some servers handle by momentarily closing the
@@ -54,10 +68,14 @@ function attemptReconnect(station) {
   clearStallTimer();
   reconnectAttempts++;
   if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+    nativeRadio('stopRadio'); // genuinely done — no reason to keep the wake lock for a dead stream
     useInternetRadioStore.setState({ isPlaying: false, reconnecting: false, error: 'Stream unavailable — try another station' });
     return;
   }
   useInternetRadioStore.setState({ reconnecting: true, error: null });
+  // Not stopped here — a reconnect attempt is still the SAME ongoing radio
+  // session as far as the native side needs to know; it only cares about
+  // the overall start/stop, not individual retries.
 
   // 1s, 2s, 4s, 8s — enough room for a genuinely transient drop to clear up
   // on its own without hammering a station that's actually gone for good.
@@ -92,11 +110,13 @@ const useInternetRadioStore = create((set, get) => ({
       if (isPlaying) {
         clearReconnect();
         clearStallTimer();
+        nativeRadio('stopRadio');
         radioAudio.pause();
         set({ isPlaying: false, reconnecting: false });
       } else {
         clearReconnect();
         set({ error: null });
+        nativeRadio('startRadio', { name: station.name });
         radioAudio.play()
           .then(() => armStallTimer(station))
           .catch(() => set({ isPlaying: false, error: 'Stream failed to start' }));
@@ -110,6 +130,7 @@ const useInternetRadioStore = create((set, get) => ({
 
     clearReconnect();
     clearStallTimer();
+    nativeRadio('startRadio', { name: station.name });
     set({ currentStation: station, isPlaying: true, reconnecting: false, error: null });
     radioAudio.volume = get().volume;
     radioAudio.src = station.url_resolved || station.url;
@@ -126,12 +147,14 @@ const useInternetRadioStore = create((set, get) => ({
         artwork: station.favicon ? [{ src: station.favicon, sizes: '96x96' }] : [],
       });
       navigator.mediaSession.setActionHandler('play', () => {
+        nativeRadio('startRadio', { name: station.name });
         radioAudio.play().then(() => armStallTimer(station)).catch(() => {});
         set({ isPlaying: true });
       });
       navigator.mediaSession.setActionHandler('pause', () => {
         clearReconnect();
         clearStallTimer();
+        nativeRadio('stopRadio');
         radioAudio.pause();
         set({ isPlaying: false, reconnecting: false });
       });
@@ -144,6 +167,7 @@ const useInternetRadioStore = create((set, get) => ({
   stop: () => {
     clearReconnect();
     clearStallTimer();
+    nativeRadio('stopRadio');
     radioAudio.pause();
     radioAudio.src = '';
     set({ currentStation: null, isPlaying: false, reconnecting: false, error: null });
@@ -159,6 +183,7 @@ const useInternetRadioStore = create((set, get) => ({
 window.addEventListener('quarc-music-started', () => {
   clearReconnect();
   clearStallTimer();
+  nativeRadio('stopRadio'); // music's own 'play' event starts the service for itself right after
   if (!radioAudio.paused) radioAudio.pause();
   useInternetRadioStore.setState({ isPlaying: false, reconnecting: false, currentStation: null });
 });
