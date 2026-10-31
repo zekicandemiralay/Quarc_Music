@@ -346,7 +346,8 @@
     "noResults": "İstasyon bulunamadı",
     "loading": "İstasyonlar yükleniyor…",
     "loadMore": "Daha fazla yükle",
-    "streamError": "Yayın kullanılamıyor — başka bir istasyon deneyin"
+    "streamError": "Yayın kullanılamıyor — başka bir istasyon deneyin",
+    "reconnecting": "Yeniden bağlanılıyor…"
   },
   "updates": {
     "title": "Güncelleme Kontrol Et",

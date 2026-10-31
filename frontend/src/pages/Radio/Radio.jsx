@@ -174,7 +174,7 @@ function StationCard({ station, isActive, isPlaying, isFavorite, onPlay, onToggl
 
 export default function Radio() {
   const { t } = useTranslation();
-  const { currentStation, isPlaying, error, play } = useInternetRadioStore();
+  const { currentStation, isPlaying, reconnecting, error, play } = useInternetRadioStore();
   const { radioFavorites, toggleRadioFavorite } = useUserDataStore();
 
   const [stations, setStations] = useState([]);
@@ -283,6 +283,14 @@ export default function Radio() {
       </div>
 
       <div className="p-4 space-y-6">
+        {/* Stream reconnecting — a drop is being recovered from automatically,
+            so this is informational, not an error state */}
+        {reconnecting && (
+          <div className="text-zinc-400 text-sm text-center py-2 bg-zinc-800/60 rounded-xl px-4">
+            {t('radio.reconnecting')}
+          </div>
+        )}
+
         {/* Stream error */}
         {error && (
           <div className="text-red-400 text-sm text-center py-2 bg-red-500/10 rounded-xl px-4">

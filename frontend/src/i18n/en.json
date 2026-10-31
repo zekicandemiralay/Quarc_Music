@@ -346,7 +346,8 @@
     "noResults": "No stations found",
     "loading": "Loading stations…",
     "loadMore": "Load more",
-    "streamError": "Stream unavailable — try another station"
+    "streamError": "Stream unavailable — try another station",
+    "reconnecting": "Reconnecting…"
   },
   "updates": {
     "title": "Check for Updates",

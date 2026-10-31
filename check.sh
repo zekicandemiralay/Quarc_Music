@@ -534,12 +534,24 @@ hdr "Lyrics (lrclib.net)"
 # No API key/proxy needed — lrclib is a free, keyless service reached directly
 # (not through the VPN), so this just confirms basic outbound connectivity
 # from the backend container plus the endpoint's own caching round-trip.
-LRCLIB_CHECK=$(dexec backend sh -c 'wget -qO- --timeout=8 "https://lrclib.net/api/get?track_name=Never+Gonna+Give+You+Up&artist_name=Rick+Astley" 2>&1; echo "EXIT_CODE:$?"')
-LRCLIB_EXIT=$(echo "$LRCLIB_CHECK" | grep -oP 'EXIT_CODE:\K[0-9]+' || echo "")
-if [ "$LRCLIB_EXIT" = "0" ]; then
+#
+# node -e, not wget: curl isn't in this image (see the VPN check above), and
+# busybox's wget bundles its own minimal TLS stack that has a real history of
+# failing HTTPS handshakes against hosts that only speak modern/strict TLS —
+# a gap this check hit once already (reported "unreachable" here while the
+# app's own lyrics lookups, which go through Node's fetch, kept working fine).
+# Testing with the exact client the app actually uses is what makes this
+# check mean something — a failure here is now a failure the app would hit
+# too, not an artifact of the diagnostic tool's own weaker TLS support.
+LRCLIB_CHECK=$(dexec backend node -e "
+  fetch('https://lrclib.net/api/get?track_name=Never+Gonna+Give+You+Up&artist_name=Rick+Astley', { signal: AbortSignal.timeout(8000) })
+    .then(r => { console.log(r.ok ? 'ok' : 'fail:http' + r.status); process.exit(r.ok ? 0 : 1); })
+    .catch(e => { console.log('fail:' + e.message); process.exit(1); });
+" 2>/dev/null || echo "fail:dexec")
+if [ "$LRCLIB_CHECK" = "ok" ]; then
   ok "lrclib.net reachable from backend container"
 else
-  fail "lrclib.net unreachable from backend — lyrics lookups will fail (exit code ${LRCLIB_EXIT:-?})"
+  fail "lrclib.net unreachable from backend — lyrics lookups will fail (${LRCLIB_CHECK:-no response})"
 fi
 
 LYRICS_TEST_ID=$(echo "${SONGS_RESP:-}" | python3 -c "import sys,json; a=json.load(sys.stdin); print(a[0]['id'] if a else '')" 2>/dev/null || echo "")

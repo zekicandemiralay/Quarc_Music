@@ -3,9 +3,84 @@ import { create } from 'zustand';
 const radioAudio = new Audio();
 radioAudio.preload = 'none';
 
+// Live radio streams (Icecast/Shoutcast, mostly) drop and hiccup routinely —
+// a brief network blip, the station's own encoder restarting, a mid-stream
+// metadata change some servers handle by momentarily closing the
+// connection. None of that means the station is actually gone. There was no
+// retry at all here: one `error` event and the whole thing just stopped,
+// silently, with nothing attempting to pick it back up — which is exactly
+// what "radio stops suddenly and fast" looks like from the listening end.
+//
+// Two distinct failure shapes, both handled below:
+//   - an explicit `error` event (the connection was actively refused/reset)
+//   - going quiet with NO error at all — a live stream can simply stop
+//     delivering data while technically still "connected," which never
+//     fires `error` on its own. caught by a stall watchdog, same idea as
+//     the backend's yt-dlp stall-kill: reset on every sign of life, fire if
+//     it goes quiet too long.
+const STALL_MS = 10_000;
+const MAX_RECONNECT_ATTEMPTS = 4;
+
+let reconnectAttempts = 0;
+let reconnectTimer = null;
+let stallTimer = null;
+
+function clearStallTimer() {
+  clearTimeout(stallTimer);
+  stallTimer = null;
+}
+
+// Rearmed on every bit of evidence the stream is actually alive — progress
+// events, or a fresh play() attempt. Not on 'playing' alone: a station can
+// fire 'playing' once and then silently stop delivering bytes, which is
+// precisely the failure mode with no 'error' event to catch it otherwise.
+function armStallTimer(station) {
+  clearStallTimer();
+  stallTimer = setTimeout(() => {
+    const { currentStation, isPlaying } = useInternetRadioStore.getState();
+    if (currentStation?.stationuuid !== station.stationuuid || !isPlaying) return;
+    attemptReconnect(station);
+  }, STALL_MS);
+}
+
+function clearReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  reconnectAttempts = 0;
+}
+
+function attemptReconnect(station) {
+  if (!station) return;
+  clearStallTimer();
+  reconnectAttempts++;
+  if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+    useInternetRadioStore.setState({ isPlaying: false, reconnecting: false, error: 'Stream unavailable — try another station' });
+    return;
+  }
+  useInternetRadioStore.setState({ reconnecting: true, error: null });
+
+  // 1s, 2s, 4s, 8s — enough room for a genuinely transient drop to clear up
+  // on its own without hammering a station that's actually gone for good.
+  const delay = Math.min(1000 * 2 ** (reconnectAttempts - 1), 8000);
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => {
+    // The user may have switched stations, stopped radio, or started music
+    // during the backoff delay — only reconnect if this is still the thing
+    // that's supposed to be playing.
+    const { currentStation } = useInternetRadioStore.getState();
+    if (currentStation?.stationuuid !== station.stationuuid) return;
+    radioAudio.src = station.url_resolved || station.url;
+    radioAudio.play().then(() => {
+      useInternetRadioStore.setState({ reconnecting: false, isPlaying: true, error: null });
+      armStallTimer(station);
+    }).catch(() => attemptReconnect(station));
+  }, delay);
+}
+
 const useInternetRadioStore = create((set, get) => ({
   currentStation: null,
   isPlaying: false,
+  reconnecting: false,
   error: null,
   volume: 1,
 
@@ -15,11 +90,16 @@ const useInternetRadioStore = create((set, get) => ({
     // Same station → toggle play / stop
     if (currentStation?.stationuuid === station.stationuuid) {
       if (isPlaying) {
+        clearReconnect();
+        clearStallTimer();
         radioAudio.pause();
-        set({ isPlaying: false });
+        set({ isPlaying: false, reconnecting: false });
       } else {
+        clearReconnect();
         set({ error: null });
-        radioAudio.play().catch(() => set({ isPlaying: false, error: 'Stream failed to start' }));
+        radioAudio.play()
+          .then(() => armStallTimer(station))
+          .catch(() => set({ isPlaying: false, error: 'Stream failed to start' }));
         set({ isPlaying: true });
       }
       return;
@@ -28,10 +108,14 @@ const useInternetRadioStore = create((set, get) => ({
     // New station — tell the music player to stop first
     window.dispatchEvent(new Event('quarc-internet-radio-started'));
 
-    set({ currentStation: station, isPlaying: true, error: null });
+    clearReconnect();
+    clearStallTimer();
+    set({ currentStation: station, isPlaying: true, reconnecting: false, error: null });
     radioAudio.volume = get().volume;
     radioAudio.src = station.url_resolved || station.url;
-    radioAudio.play().catch(() => set({ isPlaying: false, error: 'Stream unavailable — try another station' }));
+    radioAudio.play()
+      .then(() => armStallTimer(station))
+      .catch(() => set({ isPlaying: false, error: 'Stream unavailable — try another station' }));
 
     if ('mediaSession' in navigator) {
       const tags = (station.tags || '').split(',').slice(0, 2).filter(Boolean).join(', ');
@@ -42,12 +126,14 @@ const useInternetRadioStore = create((set, get) => ({
         artwork: station.favicon ? [{ src: station.favicon, sizes: '96x96' }] : [],
       });
       navigator.mediaSession.setActionHandler('play', () => {
-        radioAudio.play().catch(() => {});
+        radioAudio.play().then(() => armStallTimer(station)).catch(() => {});
         set({ isPlaying: true });
       });
       navigator.mediaSession.setActionHandler('pause', () => {
+        clearReconnect();
+        clearStallTimer();
         radioAudio.pause();
-        set({ isPlaying: false });
+        set({ isPlaying: false, reconnecting: false });
       });
       navigator.mediaSession.setActionHandler('stop', () => get().stop());
       // Radio has no seeking — unregister seek handlers
@@ -56,9 +142,11 @@ const useInternetRadioStore = create((set, get) => ({
   },
 
   stop: () => {
+    clearReconnect();
+    clearStallTimer();
     radioAudio.pause();
     radioAudio.src = '';
-    set({ currentStation: null, isPlaying: false, error: null });
+    set({ currentStation: null, isPlaying: false, reconnecting: false, error: null });
     if ('mediaSession' in navigator) {
       try { navigator.mediaSession.metadata = null; } catch {}
     }
@@ -69,12 +157,33 @@ const useInternetRadioStore = create((set, get) => ({
 
 // Stop radio when the music player starts playing
 window.addEventListener('quarc-music-started', () => {
+  clearReconnect();
+  clearStallTimer();
   if (!radioAudio.paused) radioAudio.pause();
-  useInternetRadioStore.setState({ isPlaying: false, currentStation: null });
+  useInternetRadioStore.setState({ isPlaying: false, reconnecting: false, currentStation: null });
 });
 
+// An explicit error (connection actively refused/reset) — try to recover
+// rather than treating it as final. attemptReconnect itself gives up after
+// MAX_RECONNECT_ATTEMPTS and sets the same user-visible error this used to
+// set immediately.
 radioAudio.addEventListener('error', () => {
-  useInternetRadioStore.setState({ isPlaying: false, error: 'Stream unavailable — try another station' });
+  const { currentStation, isPlaying } = useInternetRadioStore.getState();
+  if (!currentStation || !isPlaying) return;
+  attemptReconnect(currentStation);
+});
+
+// Signs of life — anything that means bytes are actually arriving rearms
+// the stall watchdog so a station that's genuinely fine doesn't get
+// reconnected out from under itself.
+radioAudio.addEventListener('timeupdate', () => {
+  const { currentStation, isPlaying } = useInternetRadioStore.getState();
+  if (currentStation && isPlaying) armStallTimer(currentStation);
+});
+radioAudio.addEventListener('playing', () => {
+  reconnectAttempts = 0;
+  const { currentStation, isPlaying } = useInternetRadioStore.getState();
+  if (currentStation && isPlaying) armStallTimer(currentStation);
 });
 
 export { radioAudio };
