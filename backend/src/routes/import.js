@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const { requireAuth } = require('../middleware/auth');
 const { searchAndDownload, downloadAudioWithRetry, withTimeout } = require('../services/ytdlp');
 const { scanFile } = require('../services/scanner');
-const { analyzeLoudness } = require('../services/loudness');
+const { analyzeLoudness, applyGain } = require('../services/loudness');
 const { getDb, setSongVideoId } = require('../db');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -284,21 +284,23 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
         if (!song) {
           const filepath = await downloadWithRetry(track, 3, controller.signal);
           if (filepath) {
-            song = await scanFile(filepath);
-            setSongVideoId(song?.id, track.videoId); // no-op for CSV imports, which have none
             // Already a per-track background wait (the download itself), so
             // folding this in doesn't add a new kind of delay to the import,
             // just extends one it already has. See services/loudness.js.
-            if (song?.id) {
-              try {
-                const loudness = await analyzeLoudness(filepath);
-                if (loudness) {
-                  db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = ? WHERE id = ?')
-                    .run(loudness.lufs, loudness.gainDb, song.id);
-                }
-              } catch (err) {
-                console.error(`Loudness analysis failed for ${filepath}:`, err.message);
-              }
+            // Applied before scanFile so duration/cover get read from the
+            // final, gain-adjusted file rather than the pre-gain one.
+            let loudness = null;
+            try {
+              loudness = await analyzeLoudness(filepath);
+              if (loudness && loudness.gainDb > 0) await applyGain(filepath, loudness.gainDb);
+            } catch (err) {
+              console.error(`Loudness analysis failed for ${filepath}:`, err.message);
+            }
+            song = await scanFile(filepath);
+            setSongVideoId(song?.id, track.videoId); // no-op for CSV imports, which have none
+            if (song?.id && loudness) {
+              db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = 0 WHERE id = ?')
+                .run(loudness.lufs, song.id);
             }
             // Keep lookup current so later tracks in the same import don't re-download
             if (song) {

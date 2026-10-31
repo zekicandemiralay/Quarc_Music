@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { searchYoutube, downloadAudioWithRetry, downloadBySearch } = require('../services/ytdlp');
 const { getDb, setSongVideoId } = require('../db');
 const { scanFile } = require('../services/scanner');
-const { analyzeLoudness } = require('../services/loudness');
+const { analyzeLoudness, applyGain } = require('../services/loudness');
 const { requireAuth } = require('../middleware/auth');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
@@ -54,22 +54,26 @@ router.post('/download', (req, res) => {
   };
 
   const finish = async (filepath) => {
-    const song = filepath ? await scanFile(filepath) : null;
-    setSongVideoId(song?.id, videoId); // so radio can seed on it exactly, not by name
     // Runs here (still inside the job, before it's marked 'done') rather than
     // lazily on first play — the frontend already shows a "processing"
     // state past 100% for the download's own post-processing, so folding
     // this in doesn't add a new wait, just extends one the user already sees.
-    if (song?.id) {
+    // Applied before scanFile so duration/cover get read from the final,
+    // gain-adjusted file rather than the pre-gain one.
+    let loudness = null;
+    if (filepath) {
       try {
-        const loudness = await analyzeLoudness(filepath);
-        if (loudness) {
-          db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = ? WHERE id = ?')
-            .run(loudness.lufs, loudness.gainDb, song.id);
-        }
+        loudness = await analyzeLoudness(filepath);
+        if (loudness && loudness.gainDb > 0) await applyGain(filepath, loudness.gainDb);
       } catch (err) {
         console.error(`Loudness analysis failed for ${filepath}:`, err.message);
       }
+    }
+    const song = filepath ? await scanFile(filepath) : null;
+    setSongVideoId(song?.id, videoId); // so radio can seed on it exactly, not by name
+    if (song?.id && loudness) {
+      db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = 0 WHERE id = ?')
+        .run(loudness.lufs, song.id);
     }
     db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
       'done', song?.id || null, jobId

@@ -1,10 +1,15 @@
 // One-off/occasional bulk job — measures integrated loudness for every
-// library song that hasn't been analyzed yet and stores the gain needed to
-// bring it to Spotify's -14 LUFS target (see services/loudness.js; routes/
-// youtube.js and routes/import.js do the same analysis automatically for
-// newly downloaded/imported songs — this script is only for catching
-// everything already in the library before that existed, plus anything
-// that slips in through radio's own auto-downloads or the seed scripts).
+// library song that hasn't been analyzed yet and, where a boost is needed,
+// bakes the gain into the actual file via a real ffmpeg re-encode (see
+// services/loudness.js; routes/youtube.js, routes/import.js and
+// routes/radio.js do the same automatically for newly downloaded/imported
+// songs — this script is only for catching everything already in the
+// library from before that existed).
+//
+// Not run automatically and not part of any deploy step — this rewrites
+// every matching song's audio file in place (one lossy re-encode
+// generation each), which is a real, deliberate choice to make, not
+// something to do silently as a side effect of a routine backfill.
 //
 // Usage (run inside the backend container):
 //   node src/scripts/backfillLoudness.js
@@ -21,7 +26,7 @@
 // services/loudness.js), but the two mitigations are complementary, not
 // redundant — this one paces the server's I/O duty cycle, not just CPU.
 const { getDb, initDb } = require('../db');
-const { analyzeLoudness } = require('../services/loudness');
+const { analyzeLoudness, applyGain } = require('../services/loudness');
 
 const RECHECK = process.argv.includes('--recheck');
 const DELAY_MS = 1000;
@@ -38,14 +43,15 @@ async function main() {
   console.log(`Analyzing loudness for ${songs.length} song(s)${RECHECK ? ' (re-checking all)' : ''}...`);
 
   let done = 0, failed = 0;
-  const update = db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = ? WHERE id = ?');
+  const update = db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = 0 WHERE id = ?');
 
   for (let i = 0; i < songs.length; i++) {
     const song = songs[i];
     try {
       const result = await analyzeLoudness(song.filepath);
       if (result) {
-        update.run(result.lufs, result.gainDb, song.id);
+        if (result.gainDb > 0) await applyGain(song.filepath, result.gainDb);
+        update.run(result.lufs, song.id);
         done++;
       } else {
         failed++;

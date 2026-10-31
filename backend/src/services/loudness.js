@@ -1,13 +1,18 @@
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const os = require('os');
+const { v4: uuidv4 } = require('uuid');
 
-// Spotify/YouTube/Apple Music all play tracks back at a fixed target
-// loudness instead of however loud the original master happens to be —
-// the standard behind it is EBU R128 (ReplayGain works the same way): measure
-// each file's integrated loudness once, store the gain needed to reach the
-// target, and apply that gain at playback time rather than re-encoding the
-// file. -14 LUFS is Spotify's own published target.
-const TARGET_LUFS = -14;
+// Spotify/YouTube/Apple Music normalize tracks DOWN to a shared, fairly
+// quiet broadcast target (-14 LUFS for Spotify). This app's use case is the
+// opposite: the user wants everything as loud as a phone/laptop's 100%
+// volume can physically produce, for playback at parties — consistency
+// across tracks is not a goal here, maximum loudness is. -6 LUFS is an
+// aggressive-but-still-clip-safe "club" target (actual ceiling is still
+// enforced per-file via HEADROOM_DB/true-peak below, so this is a target,
+// not a guarantee every track lands exactly here).
+const TARGET_LUFS = -6;
 
 // A quiet-but-fine recording and a genuinely near-silent/broken file both
 // measure far below target — without a cap, the latter would compute an
@@ -18,6 +23,10 @@ const MAX_GAIN_DB = 12;
 // own loudest moment into clipping — checked against the file's measured
 // true peak below, not just assumed.
 const HEADROOM_DB = 1;
+
+// Below this, re-encoding the file just to apply the gain isn't worth the
+// generation loss (lossy re-encode) for a change nobody would hear.
+const MIN_APPLY_DB = 0.2;
 
 function runLoudnormMeasure(filepath) {
   return new Promise((resolve, reject) => {
@@ -54,22 +63,79 @@ function runLoudnormMeasure(filepath) {
   });
 }
 
-// Measures `filepath`'s integrated loudness and returns the gain (dB) to
-// apply at playback so it lands at TARGET_LUFS — clipping-protected against
-// the file's own measured true peak. Returns null for anything unmeasurable
-// (e.g. a near-silent file, which loudnorm reports as "-inf").
+// Measures `filepath`'s integrated loudness and returns the gain (dB)
+// needed to bring it up to TARGET_LUFS — clipping-protected against the
+// file's own measured true peak. Floored at 0: a track already louder than
+// TARGET_LUFS is left alone rather than turned down to match it, since the
+// goal here is maximum loudness, not cross-track consistency. Returns null
+// for anything unmeasurable (e.g. a near-silent file, which loudnorm
+// reports as "-inf").
 async function analyzeLoudness(filepath) {
   const result = await runLoudnormMeasure(filepath);
   const lufs = parseFloat(result.input_i);
   const truePeak = parseFloat(result.input_tp);
   if (!Number.isFinite(lufs)) return null;
 
-  let gainDb = TARGET_LUFS - lufs;
-  gainDb = Math.max(-MAX_GAIN_DB, Math.min(MAX_GAIN_DB, gainDb));
+  let gainDb = Math.max(0, TARGET_LUFS - lufs);
+  gainDb = Math.min(gainDb, MAX_GAIN_DB);
   if (Number.isFinite(truePeak)) {
-    gainDb = Math.min(gainDb, -HEADROOM_DB - truePeak);
+    // Can still pull this below what the LUFS target alone would give — a
+    // track with a low integrated loudness but one sharp loud peak (common
+    // in dynamic recordings) needs less boost than the target implies, or
+    // clipping protection would be defeated by the very gain meant to be
+    // safe. Floored at 0 regardless: a source that's already clipping on
+    // its own (true peak already above 0 dBFS, before any gain of ours) is
+    // a pre-existing problem this function has no business "fixing" by
+    // attenuating it — that would still violate "never attenuate," just
+    // for a different reason. Leaving it at 0 means we add no further
+    // boost to it, without actively turning it down either.
+    gainDb = Math.max(0, Math.min(gainDb, -HEADROOM_DB - truePeak));
   }
   return { lufs, gainDb };
 }
 
-module.exports = { analyzeLoudness, TARGET_LUFS };
+// Bakes `gainDb` into the actual audio data via a real ffmpeg re-encode,
+// rather than storing it as a number applied at playback time. Necessary
+// because playback-time gain here is just audio.volume (userVolume *
+// multiplier, see playerStore.js), which is hard-capped at 1.0 — any boost
+// is silently thrown away once the user's own volume slider is already at
+// its max, which is exactly the "even at full volume it's too quiet" case
+// this exists to fix. A real-time Web Audio GainNode would also solve the
+// ceiling, but was already tried for this app's loudness feature and
+// reverted after it broke iOS background playback (see playerStore.js) —
+// baking the gain into the file once avoids reintroducing that risk
+// entirely, at the cost of one lossy re-encode generation.
+async function applyGain(filepath, gainDb) {
+  if (!Number.isFinite(gainDb) || Math.abs(gainDb) < MIN_APPLY_DB) return;
+
+  const dir = path.dirname(filepath);
+  const ext = path.extname(filepath);
+  const tmpPath = path.join(dir, `.loudness-${uuidv4()}${ext}`);
+
+  await new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', [
+      '-y',
+      '-i', filepath,
+      '-map_metadata', '0',
+      '-c:v', 'copy', // embedded cover art, if any — passed through untouched
+      '-c:a', 'libmp3lame', '-q:a', '0', // matches yt-dlp's own --audio-quality 0 extraction
+      '-af', `volume=${gainDb}dB`,
+      tmpPath,
+    ]);
+    try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_LOW); } catch {}
+    let stderr = '';
+    proc.stderr.on('data', (c) => { stderr += c.toString(); });
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg gain apply exited ${code}: ${stderr.slice(-500)}`));
+    });
+  }).catch((err) => {
+    fs.rm(tmpPath, { force: true }, () => {});
+    throw err;
+  });
+
+  fs.renameSync(tmpPath, filepath);
+}
+
+module.exports = { analyzeLoudness, applyGain, TARGET_LUFS };

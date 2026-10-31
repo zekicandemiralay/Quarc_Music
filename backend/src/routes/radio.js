@@ -6,6 +6,7 @@ const { cleanTitle, primaryArtist, normalizeWords } = require('../services/textC
 const { relatedTracks, lastFailureReason } = require('../services/ytmusic');
 const { getDb, setSongVideoId } = require('../db');
 const { scanFile } = require('../services/scanner');
+const { analyzeLoudness, applyGain } = require('../services/loudness');
 const { requireAuth } = require('../middleware/auth');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
@@ -239,8 +240,26 @@ router.post('/download', (req, res) => {
 
   job
     .then(async (filepath) => {
+      // Radio downloads become permanent library songs (see setSongVideoId
+      // below) just like a manual YouTube download or an import — they get
+      // the same loudness treatment for the same reason, applied before
+      // scanFile so duration/cover get read from the final, gain-adjusted
+      // file rather than the pre-gain one.
+      let loudness = null;
+      if (filepath) {
+        try {
+          loudness = await analyzeLoudness(filepath);
+          if (loudness && loudness.gainDb > 0) await applyGain(filepath, loudness.gainDb);
+        } catch (err) {
+          console.error(`Loudness analysis failed for ${filepath}:`, err.message);
+        }
+      }
       const song = filepath ? await scanFile(filepath) : null;
       setSongVideoId(song?.id, videoId); // null when this came from a name-only suggestion
+      if (song?.id && loudness) {
+        db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = 0 WHERE id = ?')
+          .run(loudness.lufs, song.id);
+      }
       db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
         'done', song?.id ?? null, jobId
       );
