@@ -207,12 +207,18 @@ function AddToPlaylistMenu({ songId, song, onClose, onQueueAdded, position }) {
   );
 }
 
-function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPlaylistId, onRemoveFromPlaylist }) {
+// Exported (not just used locally) so the Downloaded page — which has its
+// own song list from IndexedDB rather than the server library — can give
+// its rows the same action surface without duplicating this.
+export function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPlaylistId, onRemoveFromPlaylist }) {
   const { t } = useTranslation();
   const { likedSongs, toggleLike, playlists, addToPlaylist, createPlaylist } = useUserDataStore();
   const { addToQueue } = usePlayerStore();
+  const { cachedIds, downloading, cacheSong, removeSong } = useOfflineStore();
   const navigate = useNavigate();
   const liked = likedSongs.includes(song.id);
+  const cached = cachedIds.has(song.id);
+  const isDownloading = typeof downloading[song.id] === 'number';
   const [newName, setNewName] = useState('');
 
   // Swipe-down to dismiss
@@ -339,6 +345,30 @@ function MobileSongActionSheet({ song, onClose, onQueueAdded, onShare, currentPl
             >
               <X size={20} className="text-red-400" />
               <span className="text-red-400 text-sm">{t('library.removeFromPlaylist')}</span>
+            </button>
+          )}
+
+          {/* Download / remove download */}
+          {isDownloading ? (
+            <button disabled className="w-full flex items-center gap-4 px-5 py-3.5 opacity-60">
+              <Download size={20} className="text-zinc-400" />
+              <span className="text-white text-sm">{t('contextMenu.download')}… {downloading[song.id]}%</span>
+            </button>
+          ) : cached ? (
+            <button
+              onClick={() => { removeSong(song.id); onClose(); }}
+              className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
+            >
+              <WifiOff size={20} className="text-zinc-400" />
+              <span className="text-white text-sm">{t('contextMenu.removeDownload')}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => { cacheSong(song); onClose(); }}
+              className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-800 transition-colors active:bg-zinc-800"
+            >
+              <Download size={20} className="text-zinc-400" />
+              <span className="text-white text-sm">{t('contextMenu.download')}</span>
             </button>
           )}
 
