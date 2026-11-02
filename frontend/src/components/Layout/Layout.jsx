@@ -11,6 +11,8 @@ import useUserDataStore from '../../store/userDataStore';
 import { coverUrl } from '../../lib/apiUrl';
 import ArtistLink from '../ArtistLink/ArtistLink';
 import useFriendsStore from '../../store/useFriendsStore';
+import useContextMenu from '../../hooks/useContextMenu';
+import SongContextMenu from '../ContextMenu/SongContextMenu';
 
 function norm(s) {
   return (s || '').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -23,6 +25,7 @@ function GlobalSearch() {
   const [songs, setSongs] = useState([]);
   const [dropdownStyle, setDropdownStyle] = useState({});
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastMsg, setToastMsg] = useState('Added to queue');
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -31,6 +34,7 @@ function GlobalSearch() {
   const { playSong, addToQueue } = usePlayerStore();
   const { librarySearchHistory, addSearchHistory, removeSearchHistoryItem, clearSearchHistory } = useUserDataStore();
   const navigate = useNavigate();
+  const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
 
   useEffect(() => {
     try { setSongs(JSON.parse(localStorage.getItem('quarc_songs') || '[]')); } catch {}
@@ -97,8 +101,9 @@ function GlobalSearch() {
   const showingHistory = open && !query.trim() && librarySearchHistory.length > 0;
   const showDropdown = open && (results.length > 0 || query.trim().length > 0 || showingHistory);
 
-  function showToast() {
+  function showToast(msg = 'Added to queue') {
     clearTimeout(toastTimer.current);
+    setToastMsg(msg);
     setToastVisible(true);
     toastTimer.current = setTimeout(() => setToastVisible(false), 2000);
   }
@@ -200,6 +205,7 @@ function GlobalSearch() {
               <div
                 className="relative flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors bg-zinc-900 hover:bg-zinc-800"
                 onClick={() => handleSelect(song)}
+                onContextMenu={(e) => openCtxMenu(e, song)}
                 onTouchStart={(e) => {
                   if (e.touches.length !== 1) return;
                   swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, song, el: e.currentTarget, isH: false, lastDx: 0 };
@@ -255,9 +261,22 @@ function GlobalSearch() {
       {/* Toast */}
       {toastVisible && createPortal(
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white text-black text-sm font-medium px-4 py-2 rounded-full shadow-xl z-[500] pointer-events-none queue-toast">
-          Added to queue
+          {toastMsg}
         </div>,
         document.body
+      )}
+
+      {/* Desktop right-click menu on a search result row */}
+      {ctxMenu && (
+        <SongContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          song={ctxMenu.data}
+          onClose={closeCtxMenu}
+          onPlay={() => handleSelect(ctxMenu.data)}
+          onAddToQueue={() => { addToQueue(ctxMenu.data); showToast(); }}
+          onToast={showToast}
+        />
       )}
     </div>
   );
