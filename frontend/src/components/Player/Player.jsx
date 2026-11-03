@@ -187,21 +187,8 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
   } = usePlayerStore();
   const { likedSongs, toggleLike } = useUserDataStore();
   const { radioMode, toggleRadioMode } = useRadioStore();
+  const { currentStation } = useInternetRadioStore();
   const liked = currentSong ? likedSongs.includes(currentSong.id) : false;
-
-  // 0 = off, 1 = shuffle, 2 = smart shuffle (shuffle + radio)
-  const shuffleMode = !shuffle ? 0 : !radioMode ? 1 : 2;
-  function cycleShuffleMode() {
-    if (shuffleMode === 0) {
-      if (!shuffle) toggleShuffle();
-      if (radioMode) toggleRadioMode();
-    } else if (shuffleMode === 1) {
-      if (!radioMode) toggleRadioMode();
-    } else {
-      if (shuffle) toggleShuffle();
-      if (radioMode) toggleRadioMode();
-    }
-  }
 
   // Was sharing only "Title — Artist" text, with no link in it at all — so
   // there was never anything to open, and on Android (no share sheet in the
@@ -364,14 +351,12 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
         {/* Main controls: SmartShuffle | Prev Play Next | spacer */}
         <div className="flex items-center justify-between">
           <button
-            onClick={cycleShuffleMode}
-            title={[t('player.shuffleOff'), t('player.shuffleOn'), t('player.smartShuffle')][shuffleMode]}
-            className={`p-2 transition-colors relative ${shuffleMode === 0 ? 'text-zinc-600 hover:text-zinc-400' : 'text-green-400'}`}
+            onClick={toggleShuffle}
+            disabled={!!currentStation}
+            title={shuffle ? t('player.shuffleOn') : t('player.shuffleOff')}
+            className={`p-2 transition-colors disabled:opacity-30 ${shuffle ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
           >
             <Shuffle size={22} />
-            {shuffleMode === 2 && (
-              <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-green-400 text-black text-[8px] font-bold rounded-full flex items-center justify-center leading-none">+</span>
-            )}
           </button>
           <button onClick={prev} disabled={!currentSong} className="p-2 text-zinc-300 hover:text-white disabled:opacity-30">
             <SkipBack size={32} className="fill-current" />
@@ -386,8 +371,14 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
           <button onClick={next} disabled={!currentSong} className="p-2 text-zinc-300 hover:text-white disabled:opacity-30">
             <SkipForward size={32} className="fill-current" />
           </button>
-          {/* spacer matches shuffle button width */}
-          <div className="w-10" />
+          <button
+            onClick={toggleRadioMode}
+            disabled={!!currentStation}
+            title={radioMode ? 'Radio on' : 'Radio off'}
+            className={`p-2 transition-colors disabled:opacity-30 ${radioMode ? 'text-green-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+          >
+            <Radio size={22} />
+          </button>
         </div>
 
         {/* Second row: Share | Queue + AddToPlaylist */}
