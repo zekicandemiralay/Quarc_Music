@@ -60,7 +60,13 @@ After this, the app works fully offline from the home screen icon for any conten
 | macOS (Intel) | `*_x64.dmg` |
 | Linux | `*_amd64.deb` or `*_amd64.AppImage` |
 
-> **macOS:** Right-click the app → Open the first time to bypass the unsigned app warning.
+> **macOS:** The app isn't code-signed, so macOS Gatekeeper will refuse to open it straight after downloading.
+> - If you see **"is damaged and can't be opened"** (common on Apple Silicon): this isn't real corruption — it's Gatekeeper's quarantine flag. Open Terminal and run:
+>   ```bash
+>   xattr -cr "/Applications/Quarc Music.app"
+>   ```
+>   (point it at wherever you installed the app, if not `/Applications`), then open it normally.
+> - If you instead see **"from an unidentified developer"**: right-click the app → Open, then confirm.
 
 1. Install the desktop app
 2. Make sure Tailscale is connected
