@@ -15,6 +15,7 @@ import ContextMenu, { MenuItem, MenuDivider, MenuLabel } from './ContextMenu';
 // apply to any song and are handled here directly.
 export default function SongContextMenu({
   x, y, song, onClose,
+  initialView = 'main', above = false,
   onPlay, onAddToQueue, onRemoveFromPlaylist, onRemoveFromQueue, onRemoveFromCollection,
   onToast,
 }) {
@@ -22,7 +23,12 @@ export default function SongContextMenu({
   const navigate = useNavigate();
   const { likedSongs, toggleLike, playlists, addToPlaylist, createPlaylist } = useUserDataStore();
   const { cachedIds, downloading, cacheSong, removeSong } = useOfflineStore();
-  const [view, setView] = useState('main'); // 'main' | 'playlists'
+  const [view, setView] = useState(initialView); // 'main' | 'playlists'
+  // Auto-focusing the "new playlist" box pops the on-screen keyboard over the
+  // menu on a phone — only do it where there's a physical keyboard, and only
+  // when the user navigated here, not when the menu opened straight onto it.
+  const autoFocusNewName = initialView !== 'playlists'
+    && !(typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches);
   const [newName, setNewName] = useState('');
 
   if (!song) return null;
@@ -50,7 +56,7 @@ export default function SongContextMenu({
   }
 
   return (
-    <ContextMenu x={x} y={y} onClose={onClose}>
+    <ContextMenu x={x} y={y} onClose={onClose} above={above}>
       {view === 'playlists' ? (
         <>
           <button
@@ -70,7 +76,7 @@ export default function SongContextMenu({
           </div>
           <div className="flex items-center gap-1 px-3 py-1.5">
             <input
-              autoFocus
+              autoFocus={autoFocusNewName}
               type="text"
               placeholder={t('library.newPlaylistPlaceholder')}
               value={newName}

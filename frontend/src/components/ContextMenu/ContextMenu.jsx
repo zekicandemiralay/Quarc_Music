@@ -4,7 +4,11 @@ import { createPortal } from 'react-dom';
 // Generic right-click popup: portal, clamped to the viewport so it never
 // renders off-screen near an edge/corner, closes on outside click, Escape,
 // or the page scrolling/resizing under it.
-export default function ContextMenu({ x, y, onClose, children }) {
+//
+// `above`: treat y as the TOP edge of an anchor (e.g. a player-bar button) and
+// open the menu upward from it, growing up rather than down — so switching
+// views inside the menu (which changes its height) never pushes it off-screen.
+export default function ContextMenu({ x, y, onClose, above = false, children }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ top: y, left: x });
 
@@ -15,10 +19,14 @@ export default function ContextMenu({ x, y, onClose, children }) {
     const maxLeft = window.innerWidth - rect.width - 8;
     const maxTop = window.innerHeight - rect.height - 8;
     setPos({
-      left: Math.min(x, Math.max(8, maxLeft)),
+      left: Math.max(8, Math.min(x, maxLeft)),
       top: Math.min(y, Math.max(8, maxTop)),
     });
   }, [x, y]);
+
+  const style = above
+    ? { bottom: Math.max(8, window.innerHeight - y + 8), left: pos.left }
+    : { top: pos.top, left: pos.left };
 
   useEffect(() => {
     function handleKey(e) { if (e.key === 'Escape') onClose(); }
@@ -45,7 +53,7 @@ export default function ContextMenu({ x, y, onClose, children }) {
       <div
         ref={ref}
         className="fixed z-[401] bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl w-56 py-1.5 max-h-[80vh] overflow-y-auto"
-        style={{ top: pos.top, left: pos.left }}
+        style={style}
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
