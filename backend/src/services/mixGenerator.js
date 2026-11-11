@@ -1,7 +1,76 @@
+const crypto = require('crypto');
 const { getDb } = require('../db');
 
 function slug(str) {
   return str.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/, '');
+}
+
+// ── Rediscovery tuning ──────────────────────────────────────────────────────
+const REDISCOVERY_SIZE = 30;      // songs in the mix
+const REDISCOVERY_MIN_DAYS = 15;  // not played for at least this long to qualify
+
+// How strongly a song is favoured, by how long since it was last played.
+// Only matters when more than REDISCOVERY_SIZE songs qualify (otherwise they
+// all go in): longer gone = more likely to be picked.
+//   15–30 days → 1, 30–60 days → 2, 60+ days → 3
+function rediscoveryWeight(daysAgo) {
+  if (daysAgo >= 60) return 3;
+  if (daysAgo >= 30) return 2;
+  return 1;
+}
+
+// Deterministic uniform number in (0, 1) from a string — so "random" choices
+// are the same on every request for the same seed.
+function hash01(str) {
+  const h = crypto.createHash('sha1').update(str).digest();
+  return (h.readUInt32BE(0) + 1) / 4294967297;
+}
+
+// A true rediscovery: songs this user has listened to before, whose last play
+// was REDISCOVERY_MIN_DAYS or more ago. (A brand-new account has no history,
+// so it gets no Rediscovery mix at all — rather than random library songs it
+// has never heard, which isn't "re-"discovering anything.)
+//
+// Stable for a whole day, then renews: the pick is a weighted random sample
+// seeded by (user, today's date), and "how long ago" is measured as of the
+// START of today (whole calendar days) and ignores today's own plays — so
+// listening to a song from the mix doesn't drop it out of the pool and
+// reshuffle the rest mid-day.
+// Weighted sampling without replacement is Efraimidis–Spirakis: give each
+// song key = u^(1/weight) with a seeded u, then take the largest keys.
+function pickRediscoverySongs(db, userId) {
+  const day = db.prepare(`SELECT date('now') AS day`).get().day; // UTC, same clock as played_at
+
+  const candidates = db.prepare(`
+    SELECT lh.song_id AS id,
+           julianday(date('now')) - julianday(date(MAX(lh.played_at))) AS days_ago
+    FROM listening_history lh
+    JOIN songs s ON s.id = lh.song_id
+    WHERE lh.user_id = ? AND lh.played_at < datetime('now', 'start of day')
+    GROUP BY lh.song_id
+    HAVING days_ago >= ?
+  `).all(userId, REDISCOVERY_MIN_DAYS);
+
+  const ids = candidates
+    .map((c) => ({
+      id: c.id,
+      key: Math.pow(hash01(`${userId}:${day}:${c.id}`), 1 / rediscoveryWeight(c.days_ago)),
+    }))
+    .sort((a, b) => b.key - a.key)
+    .slice(0, REDISCOVERY_SIZE)
+    .map((c) => c.id);
+
+  if (ids.length === 0) return [];
+
+  const rows = db.prepare(`
+    SELECT s.*,
+           (SELECT COUNT(*) FROM listening_history WHERE user_id = ? AND song_id = s.id) AS play_count
+    FROM songs s
+    WHERE s.id IN (${ids.map(() => '?').join(',')})
+  `).all(userId, ...ids);
+
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return ids.map((id) => byId.get(id)).filter(Boolean);
 }
 
 function generateMixesForUser(userId) {
@@ -33,17 +102,8 @@ function generateMixesForUser(userId) {
     });
   }
 
-  // ── Rediscovery: songs not played in 60+ days (or never) ─────────────────
-  const rediscoverySongs = db.prepare(`
-    SELECT s.*, 0 as play_count
-    FROM songs s
-    WHERE s.id NOT IN (
-      SELECT DISTINCT song_id FROM listening_history
-      WHERE user_id = ? AND played_at > datetime('now', '-60 days')
-    )
-    ORDER BY RANDOM()
-    LIMIT 30
-  `).all(userId);
+  // ── Rediscovery: songs YOU played before, but not lately ─────────────────
+  const rediscoverySongs = pickRediscoverySongs(db, userId);
 
   if (rediscoverySongs.length >= 5) {
     mixes.push({

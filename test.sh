@@ -213,6 +213,22 @@ else
   warn "GET /api/mixes → unexpected response (may be empty)"
 fi
 
+# Rediscovery is seeded by (user, date): it must not reshuffle between loads
+# within a day. (It only exists once the user has plays that are 15+ days old.)
+redisc_ids() { python3 -c "import sys,json; m=[x for x in json.load(sys.stdin) if x.get('id')=='rediscovery']; print(','.join(s['id'] for s in m[0]['songs']) if m else 'NONE')" 2>/dev/null; }
+MIXES_AGAIN=$(api -b "$COOKIE" "${BASE}/api/mixes")
+REDISC_1=$(echo "$MIXES" | redisc_ids)
+REDISC_2=$(echo "$MIXES_AGAIN" | redisc_ids)
+if [ -z "$REDISC_1" ] || [ -z "$REDISC_2" ]; then
+  warn "GET /api/mixes → couldn't read Rediscovery (python3 missing or bad response)"
+elif [ "$REDISC_1" = "NONE" ] && [ "$REDISC_2" = "NONE" ]; then
+  pass "GET /api/mixes → no Rediscovery for this account (needs plays 15+ days old) — consistent"
+elif [ "$REDISC_1" = "$REDISC_2" ]; then
+  pass "GET /api/mixes → Rediscovery stable across loads ($(echo "$REDISC_1" | tr ',' '\n' | wc -l | tr -d ' ') songs)"
+else
+  fail "GET /api/mixes → Rediscovery changed between two loads (should be stable all day)"
+fi
+
 # ════════════════════════════════════════════════════════════
 hdr "User Data (Likes & Playlists)"
 # ════════════════════════════════════════════════════════════
