@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink, Radio, ArrowDownToLine, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -570,8 +571,13 @@ export default function Sidebar({ onNavigate }) {
         </button>
       </div>
 
-      {changingPassword && <ChangePasswordModal onClose={() => setChangingPassword(false)} />}
-      {checkingUpdates && <UpdateCheckModal onClose={() => setCheckingUpdates(false)} />}
+      {/* Portaled to <body>: below the md breakpoint (and always in the Android
+          app) the sidebar's wrapper has a CSS transform, which makes it the
+          containing block for any `fixed` descendant — so these full-screen
+          dialogs were getting trapped inside the 256px sidebar box instead of
+          covering the screen. */}
+      {changingPassword && createPortal(<ChangePasswordModal onClose={() => setChangingPassword(false)} />, document.body)}
+      {checkingUpdates && createPortal(<UpdateCheckModal onClose={() => setCheckingUpdates(false)} />, document.body)}
     </div>
   );
 }
