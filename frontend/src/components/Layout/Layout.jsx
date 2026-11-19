@@ -1,5 +1,5 @@
 ﻿import StorePromo from '../StorePromo';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, WifiOff, ServerCrash, Download, Search, X, Music, Youtube, ListOrdered, RefreshCw } from 'lucide-react';
@@ -38,16 +38,39 @@ function GlobalSearch() {
   const navigate = useNavigate();
   const { menu: ctxMenu, open: openCtxMenu, close: closeCtxMenu } = useContextMenu();
 
+  // The library list used to be fetched exactly once, when this app shell
+  // mounted — which on a phone or in the Android app can be days ago, since
+  // the shell stays alive in the background. Every song added since (YouTube
+  // downloads, radio quietly downloading suggestions into the queue) was
+  // missing from search, so a song you could see playing right now answered
+  // "No matches in library". Now it refreshes whenever search is used, and
+  // whenever a search comes up empty — throttled so typing never hammers the
+  // server, and a failed fetch doesn't use up the throttle.
+  const lastFetchRef = useRef(0);
+  const refreshSongs = useCallback(() => {
+    const now = Date.now();
+    if (now - lastFetchRef.current < 15000) return;
+    lastFetchRef.current = now;
+    fetch('/api/music')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d)) setSongs(d); else lastFetchRef.current = 0; })
+      .catch(() => { lastFetchRef.current = 0; });
+  }, []);
+
   useEffect(() => {
     try { setSongs(JSON.parse(localStorage.getItem('quarc_songs') || '[]')); } catch {}
-    fetch('/api/music').then((r) => r.ok ? r.json() : []).then((d) => { if (Array.isArray(d)) setSongs(d); }).catch(() => {});
-  }, []);
+    refreshSongs();
+  }, [refreshSongs]);
 
   useEffect(() => {
     if (!query.trim()) { setResults([]); return; }
     const q = norm(query);
-    setResults(songs.filter((s) => [s.title, s.artist, s.album].some((f) => norm(f).includes(q))).slice(0, 20));
-  }, [query, songs]);
+    const found = songs.filter((s) => [s.title, s.artist, s.album].some((f) => norm(f).includes(q))).slice(0, 20);
+    setResults(found);
+    // Nothing found: maybe the song just isn't in our (possibly old) list yet.
+    // Refetch; if it arrives, `songs` changes and this effect re-runs.
+    if (found.length === 0) refreshSongs();
+  }, [query, songs, refreshSongs]);
 
   useEffect(() => {
     if (!open || !inputRef.current) return;
@@ -135,7 +158,7 @@ function GlobalSearch() {
           placeholder="Search your library…"
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { setOpen(true); refreshSongs(); }}
           onKeyDown={(e) => {
             if (e.key === 'Escape') { setQuery(''); setOpen(false); inputRef.current?.blur(); }
             if (e.key === 'Enter' && query.trim()) handleYouTube();
