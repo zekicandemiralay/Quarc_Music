@@ -1,4 +1,5 @@
 ﻿import StorePromo from '../StorePromo';
+import DownloadNotice from '../DownloadNotice/DownloadNotice';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -494,6 +495,8 @@ export default function Layout({ children }) {
       <div className={`fixed ${dt('md:static')} bottom-0 left-0 right-0 z-30 ${dt('md:z-auto')} ${dt('md:shrink-0')}`}>
         <Player />
       </div>
+
+      <DownloadNotice />
 
     </div>
   );

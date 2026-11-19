@@ -134,7 +134,10 @@ function DownloadBtn({ videoId, title }) {
     } catch {}
   }
 
-  async function start() {
+  // then: null (just download) | 'play' | 'queue' — carried out by the
+  // downloads store when the job finishes, so it works even if this modal
+  // is closed or you leave the page in the meantime.
+  async function start(then = null) {
     setStartFailed(false);
     try {
       const r = await fetch('/api/youtube/download', {
@@ -145,7 +148,7 @@ function DownloadBtn({ videoId, title }) {
       if (!r.ok) return setStartFailed(true);
       const d = await r.json();
       if (!d.jobId) return setStartFailed(true);
-      startJob(d.jobId, videoId, title);
+      startJob(d.jobId, videoId, title, then);
     } catch { setStartFailed(true); }
   }
 
@@ -210,7 +213,7 @@ function DownloadBtn({ videoId, title }) {
     return (
       <div className="flex items-center gap-2 text-zinc-500 text-sm">
         <span>{t('youtube.downloadCancelled')}</span>
-        <button onClick={start} className="text-zinc-400 hover:text-white text-xs underline">{t('youtube.downloadMp3')}</button>
+        <button onClick={() => start()} className="text-zinc-400 hover:text-white text-xs underline">{t('youtube.downloadMp3')}</button>
       </div>
     );
   if (status === 'downloading' || status === 'pending') {
@@ -229,6 +232,11 @@ function DownloadBtn({ videoId, title }) {
           />
         </div>
         <span>{stillProcessing ? t('youtube.processing') : `${Math.round(progress)}%`}</span>
+        {job?.then && (
+          <span className="text-zinc-500 text-xs">
+            · {job.then === 'play' ? t('youtube.willPlay') : t('youtube.willQueue')}
+          </span>
+        )}
         <button
           onClick={() => cancelJob(job.jobId)}
           className="text-zinc-500 hover:text-red-400 transition-colors"
@@ -245,13 +253,31 @@ function DownloadBtn({ videoId, title }) {
     {startFailed && (
       <p className="text-red-400 text-xs mb-1 flex items-center gap-1"><AlertCircle size={12} />{t('youtube.failed')}</p>
     )}
-    <button
-      onClick={start}
-      className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
-    >
-      <Download size={14} />
-      {t('youtube.downloadMp3')}
-    </button>
+    {/* Pick what should happen when it's ready, up front — no waiting around
+        for the Play button to appear. Same download either way. */}
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        onClick={() => start('play')}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-full text-sm font-medium transition-colors"
+      >
+        <Play size={13} className="fill-current" />
+        {t('youtube.downloadAndPlay')}
+      </button>
+      <button
+        onClick={() => start('queue')}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
+      >
+        <ListOrdered size={14} />
+        {t('youtube.downloadAndQueue')}
+      </button>
+      <button
+        onClick={() => start()}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
+      >
+        <Download size={14} />
+        {t('youtube.downloadMp3')}
+      </button>
+    </div>
     </>
   );
 }
@@ -296,6 +322,21 @@ async function openExternal(url) {
 
 function Modal({ video, onClose }) {
   const { t } = useTranslation();
+  const iframeRef = useRef(null);
+  const notice = useDownloadsStore((s) => s.notice);
+  const seenNoticeRef = useRef(notice?.id);
+  // The preview video autoplays in this modal. When "Download & play" then
+  // starts the song, pause the preview — otherwise the two play over each
+  // other. Only reacts to a notice that appears while the modal is open.
+  useEffect(() => {
+    if (!notice || notice.id === seenNoticeRef.current) return;
+    seenNoticeRef.current = notice.id;
+    if (notice.kind === 'playing') {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*',
+      );
+    }
+  }, [notice]);
   if (!video) return null;
   return (
     // Full-screen on mobile, centred card on desktop
@@ -314,7 +355,8 @@ function Modal({ video, onClose }) {
 
         <div className="aspect-video bg-black w-full shrink-0">
           <iframe
-            src={`https://www.youtube.com/embed/${video.id}?autoplay=1`}
+            ref={iframeRef}
+            src={`https://www.youtube.com/embed/${video.id}?autoplay=1&enablejsapi=1`}
             title={video.title}
             className="w-full h-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"

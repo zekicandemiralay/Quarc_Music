@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import usePlayerStore from './playerStore';
 
 // The actual download is a genuine server-side job (backend/src/routes/
 // youtube.js fires it and responds immediately) — it already keeps running
@@ -13,6 +14,20 @@ const POLL_MS = 1200;
 const LS_KEY = 'quarc_active_downloads';
 const pollers = new Map(); // jobId -> intervalId — module-level, survives store resets
 
+// "Download & play" / "Download & add to queue": the choice is made up front
+// and rides along on the job (`then`), so nobody has to sit watching a
+// progress bar and wait for the Play button to appear. It's carried out HERE,
+// when the job completes, rather than in the YouTube page — the page may be
+// long gone by then (that's the whole point of not waiting).
+//
+// An intent is only honoured for a while after the click. If the app was
+// closed and reopened much later, the song suddenly starting to play (or
+// queueing itself) with no connection to anything you just did would be a
+// surprise, not a feature — it then just finishes as a normal download.
+const THEN_MAX_AGE_MS = 10 * 60 * 1000;
+
+let noticeTimer = null;
+
 function loadPersisted() {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
 }
@@ -21,20 +36,56 @@ function loadPersisted() {
 function persist(jobs) {
   try {
     const active = jobs.filter((j) => j.status === 'pending' || j.status === 'downloading');
-    localStorage.setItem(LS_KEY, JSON.stringify(active.map((j) => ({ jobId: j.jobId, videoId: j.videoId, title: j.title }))));
+    localStorage.setItem(LS_KEY, JSON.stringify(active.map((j) => ({
+      jobId: j.jobId, videoId: j.videoId, title: j.title, then: j.then ?? null, startedAt: j.startedAt ?? null,
+    }))));
   } catch {}
 }
 
 const useDownloadsStore = create((set, get) => ({
-  jobs: [], // [{jobId, videoId, title, status, progress, songId, error}]
+  jobs: [], // [{jobId, videoId, title, status, progress, songId, error, then, startedAt, handled}]
+  // Brief "Playing X" / "Added X to queue" message for when the download
+  // finishes while you're somewhere else in the app — { id, kind, title } | null
+  notice: null,
 
-  startJob: (jobId, videoId, title) => {
+  // then: null (just download) | 'play' | 'queue'
+  startJob: (jobId, videoId, title, then = null) => {
     set((s) => {
-      const jobs = [...s.jobs.filter((j) => j.jobId !== jobId), { jobId, videoId, title, status: 'pending', progress: 0, songId: null, error: null }];
+      const jobs = [...s.jobs.filter((j) => j.jobId !== jobId), {
+        jobId, videoId, title, status: 'pending', progress: 0, songId: null, error: null,
+        then, startedAt: Date.now(), handled: false,
+      }];
       persist(jobs);
       return { jobs };
     });
     get()._poll(jobId);
+  },
+
+  // Carries out the job's `then` once its song exists. `queue` with nothing
+  // loaded in the player has nothing to queue behind — adding it would leave
+  // the app silent with the song parked in a list, so it just plays instead.
+  _runThen: async ({ then, songId }) => {
+    try {
+      const r = await fetch(`/api/music/${songId}`);
+      if (!r.ok) return;
+      const song = await r.json();
+      const player = usePlayerStore.getState();
+      const kind = then === 'play' || !player.currentSong ? 'playing' : 'queued';
+      if (kind === 'playing') {
+        // Same entry as "Play now" on the finished card: a free library play,
+        // so it uses the library group's remembered Shuffle/Radio settings.
+        await player.playSong(song, null, 0, 'single', 'Your Library');
+      } else {
+        player.addToQueue(song);
+      }
+      get()._notify(kind, song.title);
+    } catch {}
+  },
+
+  _notify: (kind, title) => {
+    clearTimeout(noticeTimer);
+    set({ notice: { id: Date.now(), kind, title } });
+    noticeTimer = setTimeout(() => set({ notice: null }), 3000);
   },
 
   // Resumes polling for jobs that were still active when the page was last
@@ -43,7 +94,7 @@ const useDownloadsStore = create((set, get) => ({
     const persisted = loadPersisted();
     if (!persisted.length) return;
     set((s) => ({
-      jobs: [...s.jobs, ...persisted.map((p) => ({ ...p, status: 'pending', progress: 0, songId: null, error: null }))],
+      jobs: [...s.jobs, ...persisted.map((p) => ({ ...p, status: 'pending', progress: 0, songId: null, error: null, handled: false }))],
     }));
     persisted.forEach((p) => get()._poll(p.jobId));
   },
@@ -55,13 +106,24 @@ const useDownloadsStore = create((set, get) => ({
         const r = await fetch(`/api/youtube/download/status/${jobId}`);
         if (!r.ok) return; // might not exist in the DB yet, microseconds after creation — keep trying
         const d = await r.json();
+        // Claimed inside the update so it happens exactly once even if two
+        // polls overlap (a slow response + the next interval tick) and both
+        // see 'done'.
+        let claimed = null;
         set((s) => {
-          const jobs = s.jobs.map((j) => j.jobId === jobId
-            ? { ...j, status: d.status, progress: d.progress, songId: d.song_id ?? j.songId, error: d.error ?? j.error }
-            : j);
+          const jobs = s.jobs.map((j) => {
+            if (j.jobId !== jobId) return j;
+            const next = { ...j, status: d.status, progress: d.progress, songId: d.song_id ?? j.songId, error: d.error ?? j.error };
+            if (d.status === 'done' && next.songId && next.then && !j.handled) {
+              next.handled = true;
+              if (j.startedAt && Date.now() - j.startedAt < THEN_MAX_AGE_MS) claimed = { then: next.then, songId: next.songId };
+            }
+            return next;
+          });
           persist(jobs);
           return { jobs };
         });
+        if (claimed) get()._runThen(claimed);
         if (d.status === 'done' || d.status === 'error' || d.status === 'cancelled') {
           clearInterval(pollers.get(jobId));
           pollers.delete(jobId);
@@ -97,7 +159,8 @@ const useDownloadsStore = create((set, get) => ({
     pollers.forEach((id) => clearInterval(id));
     pollers.clear();
     try { localStorage.removeItem(LS_KEY); } catch {}
-    set({ jobs: [] });
+    clearTimeout(noticeTimer);
+    set({ jobs: [], notice: null });
   },
 }));
 
