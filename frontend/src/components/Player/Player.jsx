@@ -442,10 +442,13 @@ export default function Player() {
 
   useEffect(() => {
     if (!expanded) return;
+    // Queue and Lyrics sit on top of this screen and have their own Escape
+    // handlers — leave Escape to them, or one press closes both layers.
+    if (showQueue || showLyrics) return;
     const onKey = (e) => { if (e.key === 'Escape') closeExpanded(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [expanded]);
+  }, [expanded, showQueue, showLyrics]);
 
   useEffect(() => {
     const onKey = (e) => {

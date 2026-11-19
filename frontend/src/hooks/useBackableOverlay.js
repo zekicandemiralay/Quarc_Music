@@ -31,8 +31,20 @@ import { useEffect, useRef } from 'react';
 //    immediately closes whatever had just opened. Confirmed reproducing on
 //    iPhone from exactly that transition; WebKit's timing apparently hits
 //    this race where Chromium (Android) didn't.
+//
+// One more trap, the reason for `ownPopRef`: when an overlay is closed from
+// the UI (its X / back arrow) rather than by a back gesture, we remove its
+// history entry ourselves with history.go(-n) — and the browser answers that
+// with a `popstate` exactly like it would for a real back press. The handler
+// below can't tell them apart by looking at the stack, so with TWO overlays
+// open (player + queue), closing the queue from its own button made our own
+// history.back() look like a user back-press and closed the player underneath
+// it as well. (With only one overlay the old `pushedCount <= 0` check happened
+// to swallow it, which is why this only showed up when they were stacked.)
+// So every pop WE trigger is recorded, and the matching popstate is ignored.
 export default function useBackableOverlay(overlays) {
   const pushedCountRef = useRef(0);
+  const ownPopRef = useRef({ n: 0, expires: 0 }); // popstates we caused and must ignore
   const overlaysRef = useRef(overlays);
   overlaysRef.current = overlays;
 
@@ -43,14 +55,25 @@ export default function useBackableOverlay(overlays) {
       window.history.pushState({ quarcOverlay: true }, '');
       pushedCountRef.current++;
     }
-    while (pushedCountRef.current > openCount) {
-      pushedCountRef.current--;
-      window.history.back();
+    const excess = pushedCountRef.current - openCount;
+    if (excess > 0) {
+      pushedCountRef.current = openCount;
+      // One traversal = one popstate, however many entries it removes — unlike
+      // N back() calls in a row, whose event count differs between engines.
+      // Expiry guards against a popstate that never arrives leaving a stale
+      // "ignore" behind that would swallow a genuine back press later.
+      const now = Date.now();
+      const prev = ownPopRef.current;
+      ownPopRef.current = { n: (prev.n > 0 && now < prev.expires ? prev.n : 0) + 1, expires: now + 1500 };
+      window.history.go(-excess);
     }
   }, [openCount]);
 
   useEffect(() => {
     const onPopState = () => {
+      const own = ownPopRef.current;
+      if (own.n > 0 && Date.now() < own.expires) { own.n--; return; } // our own pop, not the user's
+      own.n = 0;
       if (pushedCountRef.current <= 0) return; // not ours to handle
       pushedCountRef.current--;
       // Close only the topmost currently-open overlay — the LAST one in
