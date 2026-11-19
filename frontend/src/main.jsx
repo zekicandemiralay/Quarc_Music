@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import RequiredUpdateGate from './components/RequiredUpdateGate';
+import StorePromo from './components/StorePromo';
 import './index.css';
 import './i18n';
 import { API_BASE } from './lib/apiUrl';
@@ -37,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <App />
       <RequiredUpdateGate packageName="com.quarc.music" />
+      <StorePromo dialog />
     </BrowserRouter>
   </React.StrictMode>
 );
