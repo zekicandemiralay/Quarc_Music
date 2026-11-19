@@ -45,7 +45,10 @@ router.get('/users', asyncRoute(async (req, res) => {
 // Used to only INSERT into the local table, which nothing authenticates
 // against since the shared-login cutover — same root cause as the
 // password-reset fix below, just on account creation instead. Delegates to
-// quarc-auth's own /register so the account is real everywhere; the local
+// quarc-auth's admin endpoint (with this admin's own token, like the other
+// admin calls here) so the account is real everywhere — not to the public
+// /register, which would leave a stray login session behind for the new
+// user and stop working if self sign-up is ever turned off. The local
 // mirror row still gets created, lazily, by ensureLocalUser() (see
 // middleware/auth.js) the first time this user makes an authenticated
 // request — same path any self-service signup already goes through.
@@ -54,9 +57,12 @@ router.post('/users', asyncRoute(async (req, res) => {
   if (!username || !password) return res.status(400).json({ error: 'username and password required' });
   if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-  const authRes = await fetch('http://quarc-auth:3002/api/auth/register', {
+  const authRes = await fetch('http://quarc-auth:3002/api/auth/admin/users', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: `token=${req.cookies.token}`,
+    },
     body: JSON.stringify({ username, password }),
   });
   const data = await authRes.json().catch(() => ({}));

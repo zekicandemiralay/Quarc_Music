@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useRef } from 'react';
+﻿import StorePromo from '../StorePromo';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, WifiOff, ServerCrash, Download, Search, X, Music, Youtube, ListOrdered, RefreshCw } from 'lucide-react';
@@ -13,6 +14,7 @@ import ArtistLink from '../ArtistLink/ArtistLink';
 import useFriendsStore from '../../store/useFriendsStore';
 import useContextMenu from '../../hooks/useContextMenu';
 import SongContextMenu from '../ContextMenu/SongContextMenu';
+import { updateViaStore } from '../../lib/storeSso';
 
 function norm(s) {
   return (s || '').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -356,7 +358,12 @@ export default function Layout({ children }) {
 
   function handleInstallUpdate() {
     if (update.platform === 'android') {
-      window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url: update.url, version: update.version });
+      // Quarc Store installed? Update there (it becomes this app's installer,
+      // so later updates can be silent); otherwise download the APK ourselves.
+      const { url, version } = update;
+      updateViaStore().then((viaStore) => {
+        if (!viaStore) window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url, version });
+      });
     } else {
       // Desktop: open the installer download in the system browser.
       // The NSIS installer updates in place — offline songs are preserved.
@@ -452,6 +459,7 @@ export default function Layout({ children }) {
             >
               Install now
             </button>
+            <StorePromo compact />
             <button onClick={dismissUpdate} className="ml-1 hover:text-emerald-200 transition-colors">
               <X size={13} />
             </button>

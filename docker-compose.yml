@@ -93,7 +93,7 @@ services:
       - app-network
       # Lets this container reach quarc-auth by name — admin.js forwards
       # password-reset/create-user to it server-to-server, since that's
-      # where accounts actually live now. See MIGRATION.md / Quarc_Notes.
+      # where accounts actually live now. See Quarc_Store/auth.
       - quarcnet-shared
 
   frontend:
@@ -110,7 +110,7 @@ services:
     networks:
       - app-network
       # Lets nginx reach the quarc-auth container by name for /api/auth/* —
-      # see MIGRATION.md / the Quarc_Notes repo for how quarc-auth is deployed.
+      # see the Quarc_Store repo (auth/) for how quarc-auth is deployed.
       - quarcnet-shared
 
 networks:

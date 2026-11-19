@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next';
 import useAuthStore from '../../store/authStore';
 import useUserDataStore from '../../store/userDataStore';
+import StoreLoginButton from '../../components/StoreLoginButton';
 
 export default function Login() {
   const { t } = useTranslation();
@@ -68,6 +69,13 @@ export default function Login() {
             {isLogin ? t('auth.signInToAccount') : t('auth.createYourAccount')}
           </p>
         </div>
+
+        <StoreLoginButton
+          onSignedIn={async () => {
+            await useAuthStore.getState().checkSession();
+            await loadUserData();
+          }}
+        />
 
         {/* Mode toggle */}
         <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 mb-4">

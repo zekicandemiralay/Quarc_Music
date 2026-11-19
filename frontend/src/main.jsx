@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import RequiredUpdateGate from './components/RequiredUpdateGate';
 import './index.css';
 import './i18n';
 import { API_BASE } from './lib/apiUrl';
@@ -35,6 +36,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <App />
+      <RequiredUpdateGate packageName="com.quarc.music" />
     </BrowserRouter>
   </React.StrictMode>
 );

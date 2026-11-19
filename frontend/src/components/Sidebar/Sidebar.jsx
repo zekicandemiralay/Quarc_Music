@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import StorePromo from '../StorePromo';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Youtube, Library, Heart, ListMusic, Plus, ShieldCheck, LogOut, Trash2, Check, KeyRound, X, BarChart2, Sparkles, Clock, Mic2, Music, Home, Download, RefreshCw, CheckCircle, ExternalLink, Radio, ArrowDownToLine, Users } from 'lucide-react';
@@ -10,6 +11,7 @@ import useMixStore from '../../store/useMixStore';
 import useFeaturedStore from '../../store/useFeaturedStore';
 import useFriendsStore from '../../store/useFriendsStore';
 import useDownloadsStore from '../../store/useDownloadsStore';
+import { updateViaStore } from '../../lib/storeSso';
 
 const REPO = 'zekicandemiralay/Quarc_Music';
 
@@ -73,7 +75,11 @@ function UpdateCheckModal({ onClose }) {
     if (!url) return;
     setInstalling(true);
     if (platform === 'android') {
-      window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url, version });
+      // Prefer Quarc Store when installed; fall back to downloading the APK ourselves.
+      updateViaStore().then((viaStore) => {
+        if (viaStore) setInstalling(false);
+        else window?.Capacitor?.Plugins?.MusicService?.downloadUpdate({ url, version });
+      });
     } else if (platform === 'desktop') {
       window.__TAURI__.shell.open(url).catch(e => { setError(e.message); setInstalling(false); });
     } else {
@@ -148,6 +154,7 @@ function UpdateCheckModal({ onClose }) {
                 )}
               </div>
             )}
+            <StorePromo />
           </div>
         )}
 
