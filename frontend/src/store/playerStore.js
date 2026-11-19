@@ -682,6 +682,25 @@ const usePlayerStore = create((set, get) => ({
     goingBack = false;
   },
 
+  // Jump to a song that is already in the queue — tapping a row in the Queue
+  // screen's "Next from" list. This is advancing within the queue the user is
+  // looking at, NOT starting a new play context, so it must go through
+  // playSong as `navigating` like next() does: the order shown in the list is
+  // the order that plays. It used to be a plain playSong() call, which with
+  // shuffle on reshuffled the ENTIRE queue with the tapped song first — the
+  // songs the list promised would follow were replaced by a new random order,
+  // and everything already played this session went back in the pool. (With
+  // radio on it also collapsed the queue to just the tapped song.)
+  jumpToQueueIndex: (index) => {
+    const { queue, playContext, playContextLabel } = get();
+    const song = queue[index];
+    if (!song) return;
+    // A deliberate jump supersedes any "Next goes forward again" history left
+    // over from pressing Previous — same as every other non-navigating play.
+    forwardStack.length = 0;
+    get().playSong(song, queue, index, playContext, playContextLabel, true);
+  },
+
   shufflePlay: (songs, context = 'single', contextLabel = '') => {
     if (!songs.length) return;
     originalQueue = songs; // natural order, before shuffling — see toggleShuffle

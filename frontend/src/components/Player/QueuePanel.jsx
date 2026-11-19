@@ -68,7 +68,7 @@ export default function QueuePanel({ onClose }) {
   const {
     currentSong, isPlaying, queue, queueIndex,
     manualQueue, playContextLabel,
-    removeFromManualQueue, reorderManualQueue, clearManualQueue, playSong, addToQueue,
+    removeFromManualQueue, reorderManualQueue, clearManualQueue, jumpToQueueIndex, playSong, addToQueue,
   } = usePlayerStore();
   const { pendingDownloads } = useRadioStore();
 
@@ -202,7 +202,10 @@ export default function QueuePanel({ onClose }) {
                   const playThis = () => {
                     const { queue: q, queueIndex: qi, playContext, playContextLabel: pcl } = usePlayerStore.getState();
                     removeFromManualQueue(i);
-                    playSong(song, q, qi, playContext, pcl);
+                    // navigating=true, exactly like next() does for a manual item:
+                    // play it now without touching the auto-queue's order or
+                    // position (otherwise shuffle reshuffles the whole thing).
+                    playSong(song, q, qi, playContext, pcl, true);
                   };
                   return (
                     <QueueSongRow
@@ -260,7 +263,7 @@ export default function QueuePanel({ onClose }) {
                   <span className="ml-1.5 text-zinc-600 normal-case font-normal">({upNext.length})</span>
                 </p>
                 {upNext.slice(0, 100).map((song, i) => {
-                  const playThis = () => playSong(song, queue, queueIndex + 1 + i);
+                  const playThis = () => jumpToQueueIndex(queueIndex + 1 + i);
                   return (
                     <QueueSongRow
                       key={`auto-${queueIndex + 1 + i}-${song.id}`}
