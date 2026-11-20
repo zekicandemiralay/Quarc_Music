@@ -451,7 +451,13 @@ export default function Player() {
     play: playRadio, volume: radioVolume, setVolume: setRadioVolume,
   } = useInternetRadioStore();
   const liked = currentSong ? likedSongs.includes(currentSong.id) : false;
-  const swipe = useSongSwipe(!!currentSong && !currentStation);
+  // The phone-sized bar and the wide bar (tablets, desktop) are both in the page
+  // at once with CSS hiding one, and a swipe hook watches exactly ONE element —
+  // so each layout gets its own instance. (Sharing one would silently leave the
+  // first layout without swipe.)
+  const swipeEnabled = !!currentSong && !currentStation;
+  const swipe = useSongSwipe(swipeEnabled);
+  const swipeWide = useSongSwipe(swipeEnabled);
 
   const [expanded, setExpanded] = useState(false);
   const { menu: plMenu, open: openPlMenu, close: closePlMenu } = usePlaylistMenu();
@@ -589,8 +595,9 @@ export default function Player() {
         {/* ── Desktop player ── */}
         <div className="hidden md:flex items-center px-4 h-24 gap-6">
 
-          {/* Song info + actions — left section */}
-          <div className="flex items-center gap-3 min-w-0 w-1/3">
+          {/* Song info + actions — left section. Swipe left/right anywhere on this
+              block to skip (touch screens: tablets, touch laptops). */}
+          <div ref={swipeWide.zoneRef} className="flex items-center gap-3 min-w-0 w-1/3">
             {currentStation ? (
               <>
                 <StationAvatar station={currentStation} size="w-14 h-14" />
@@ -609,9 +616,11 @@ export default function Player() {
               </>
             ) : (
               <>
-                <Cover song={currentSong} className="w-14 h-14 rounded shrink-0" />
-                {currentSong ? (
-                  <>
+                {/* What follows the finger while swiping: the cover + title. The
+                    heart / add-to-playlist buttons stay where they are. */}
+                <div ref={swipeWide.moverRef} className="flex items-center gap-3 flex-1 min-w-0">
+                  <Cover song={currentSong} className="w-14 h-14 rounded shrink-0" />
+                  {currentSong ? (
                     <div
                       className="min-w-0 overflow-hidden flex items-center gap-2 flex-1"
                       onContextMenu={(e) => openCtxMenu(e, currentSong)}
@@ -622,23 +631,25 @@ export default function Player() {
                         <ArtistLink artist={currentSong.artist} className="text-zinc-400 text-sm truncate inline-block max-w-full" />
                       </div>
                     </div>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <button
-                        onClick={sp(() => toggleLike(currentSong.id))}
-                        className={`p-1.5 transition-colors ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-300'}`}
-                      >
-                        <Heart size={15} className={liked ? 'fill-current' : ''} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openPlMenu(e); }}
-                        className={`p-1.5 transition-colors ${plMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-300'}`}
-                      >
-                        <ListPlus size={15} />
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-zinc-600 text-sm">{t('player.nothingPlaying')}</p>
+                  ) : (
+                    <p className="text-zinc-600 text-sm">{t('player.nothingPlaying')}</p>
+                  )}
+                </div>
+                {currentSong && (
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={sp(() => toggleLike(currentSong.id))}
+                      className={`p-1.5 transition-colors ${liked ? 'text-red-400' : 'text-zinc-600 hover:text-zinc-300'}`}
+                    >
+                      <Heart size={15} className={liked ? 'fill-current' : ''} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openPlMenu(e); }}
+                      className={`p-1.5 transition-colors ${plMenu ? 'text-white' : 'text-zinc-600 hover:text-zinc-300'}`}
+                    >
+                      <ListPlus size={15} />
+                    </button>
+                  </div>
                 )}
               </>
             )}
