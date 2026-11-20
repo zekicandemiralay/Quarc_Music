@@ -11,6 +11,7 @@ import LyricsPanel from './LyricsPanel';
 import { coverUrl } from '../../lib/apiUrl';
 import { shareSong } from '../../lib/share';
 import useBackableOverlay from '../../hooks/useBackableOverlay';
+import useSwipeNav from '../../hooks/useSwipeNav';
 import useContextMenu from '../../hooks/useContextMenu';
 import SongContextMenu from '../ContextMenu/SongContextMenu';
 import ArtistLink from '../ArtistLink/ArtistLink';
@@ -112,6 +113,25 @@ function Cover({ song, className = '' }) {
   );
 }
 
+// Swipe the song area left/right to skip. Each skip reports whether the song
+// really changed, so the swipe animation knows to slide a new song in — or to
+// bounce back when there was nowhere to go (end of the queue, nothing to go back
+// to). Swipe-right is "previous song", always: unlike the Previous button it
+// never just restarts the current song, since the gesture visibly brings a
+// different one in.
+function skipAndReport(skip) {
+  const before = usePlayerStore.getState().currentSong?.id;
+  skip();
+  return usePlayerStore.getState().currentSong?.id !== before;
+}
+function useSongSwipe(enabled) {
+  return useSwipeNav({
+    enabled,
+    onNext: () => skipAndReport(() => usePlayerStore.getState().next()),
+    onPrev: () => skipAndReport(() => usePlayerStore.getState().previousTrack()),
+  });
+}
+
 // The "add to playlist" popup behind each ListPlus button. This used to be an
 // absolutely-positioned dropdown nested INSIDE the bar / expanded panel, which
 // put it under the bar's own click handler, inside the expanded panel's
@@ -172,9 +192,12 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const { menu: plMenu, open: openPlMenu, close: closePlMenu } = usePlaylistMenu();
+  const swipe = useSongSwipe(!!currentSong && !currentStation);
   const [dragY, setDragY] = useState(0);
   const [snapping, setSnapping] = useState(false);
   const startY = useRef(0);
+  const startX = useRef(0);
+  const dragAxis = useRef(null); // 'x' | 'y' | null — decided once per touch
   const dragging = useRef(false);
   const entered = useRef(false);
   const panelRef = useRef(null);
@@ -183,6 +206,8 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
   const onTouchStart = (e) => {
     if (e.target.tagName === 'INPUT') return;
     startY.current = e.touches[0].clientY;
+    startX.current = e.touches[0].clientX;
+    dragAxis.current = null;
     dragging.current = true;
     setSnapping(false);
   };
@@ -206,6 +231,15 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
     const handler = (e) => {
       if (!dragging.current || e.target.tagName === 'INPUT') return;
       const delta = e.touches[0].clientY - startY.current;
+      // Decide the gesture's direction once, with the same rule the cover's
+      // swipe-to-change-song uses. A mostly-sideways drag belongs to that swipe;
+      // without this, any downward drift in it dragged the whole panel down too.
+      if (dragAxis.current === null) {
+        const dx = e.touches[0].clientX - startX.current;
+        if (Math.max(Math.abs(dx), Math.abs(delta)) < 8) return;
+        dragAxis.current = Math.abs(dx) > Math.abs(delta) ? 'x' : 'y';
+      }
+      if (dragAxis.current === 'x') return;
       if (delta > 0) {
         e.preventDefault();
         dragYRef.current = delta;
@@ -249,9 +283,9 @@ function NowPlayingExpanded({ onClose, onOpenQueue, onOpenLyrics }) {
         <div className="w-24" />
       </div>
 
-      {/* Album art */}
-      <div className="flex-1 flex items-center justify-center px-10 py-4 min-h-0">
-        <div className="w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-2xl">
+      {/* Album art — swipe it left/right to change song */}
+      <div ref={swipe.zoneRef} className="flex-1 flex items-center justify-center px-10 py-4 min-h-0">
+        <div ref={swipe.moverRef} className="w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-2xl">
           <Cover song={currentSong} className="w-full h-full" />
         </div>
       </div>
@@ -417,6 +451,7 @@ export default function Player() {
     play: playRadio, volume: radioVolume, setVolume: setRadioVolume,
   } = useInternetRadioStore();
   const liked = currentSong ? likedSongs.includes(currentSong.id) : false;
+  const swipe = useSongSwipe(!!currentSong && !currentStation);
 
   const [expanded, setExpanded] = useState(false);
   const { menu: plMenu, open: openPlMenu, close: closePlMenu } = usePlaylistMenu();
@@ -507,17 +542,20 @@ export default function Player() {
             </button>
           </div>
         ) : (
-          <div className="flex md:hidden items-center gap-3 px-3 py-3">
-            <Cover song={currentSong} className="w-12 h-12 rounded" />
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <div className="flex items-center gap-2 min-w-0">
-                {currentSong && <EqBars isPlaying={isPlaying} />}
-                <ScrollingText
-                  text={currentSong?.title ?? t('player.nothingPlaying')}
-                  className={`text-base font-semibold ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}
-                />
+          // Swipe left/right anywhere on this row to skip; the cover + title follow the finger.
+          <div ref={swipe.zoneRef} className="flex md:hidden items-center gap-3 px-3 py-3">
+            <div ref={swipe.moverRef} className="flex items-center gap-3 flex-1 min-w-0">
+              <Cover song={currentSong} className="w-12 h-12 rounded" />
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="flex items-center gap-2 min-w-0">
+                  {currentSong && <EqBars isPlaying={isPlaying} />}
+                  <ScrollingText
+                    text={currentSong?.title ?? t('player.nothingPlaying')}
+                    className={`text-base font-semibold ${currentSong ? 'text-green-400' : 'text-zinc-500'}`}
+                  />
+                </div>
+                <ArtistLink artist={currentSong?.artist} className="text-sm text-zinc-400 truncate inline-block max-w-full" />
               </div>
-              <ArtistLink artist={currentSong?.artist} className="text-sm text-zinc-400 truncate inline-block max-w-full" />
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <button

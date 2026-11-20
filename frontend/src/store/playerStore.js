@@ -672,7 +672,18 @@ const usePlayerStore = create((set, get) => ({
   },
 
   prev: () => {
+    // The Previous button: restart the song if it's well underway, otherwise go back.
     if (audio.currentTime > 5 || playHistory.length === 0) { audio.currentTime = 0; return; }
+    get().previousTrack();
+  },
+
+  // Go back to the song played before this one — always. Unlike prev() it never
+  // just restarts the current song, which is what a swipe-right on the player
+  // needs: the gesture slides a different song in, so quietly restarting this one
+  // instead would be wrong. Returns false (and does nothing) when there is no
+  // earlier song this session to go back to.
+  previousTrack: () => {
+    if (playHistory.length === 0) return false;
     const { currentSong, queue, queueIndex, playContext, playContextLabel } = get();
     // Push current position onto the forward stack so Next can redo it exactly.
     forwardStack.push({ song: currentSong, queue, queueIndex, playContext, playContextLabel });
@@ -680,6 +691,7 @@ const usePlayerStore = create((set, get) => ({
     const snap = playHistory.pop();
     get().playSong(snap.song, snap.queue, snap.queueIndex, snap.playContext, snap.playContextLabel, true);
     goingBack = false;
+    return true;
   },
 
   // Jump to a song that is already in the queue — tapping a row in the Queue
