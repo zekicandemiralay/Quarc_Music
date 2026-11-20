@@ -17,8 +17,12 @@
 // that no client has any use for, and there's no reason to describe the
 // server's filesystem layout to every logged-in device.
 //
-// Single-song lookups (WHERE id = ?) deliberately still use SELECT * —
-// one row is cheap and some callers want the whole record.
+// Single-song lookups the SERVER does for itself (stream, cover, lyrics, which
+// need filepath) use SELECT * — one row is cheap. But any single-song response
+// that goes to a CLIENT uses these columns too (GET /api/music/:id and the radio
+// download endpoints): lyrics are now fetched when a song is downloaded, so a
+// fresh song's row carries the full text, and those records end up in the
+// player's persisted queue.
 const SONG_LIST_COLUMNS = [
   's.id', 's.filename', 's.title', 's.artist', 's.album',
   's.duration', 's.track', 's.year', 's.has_cover', 's.added_at',

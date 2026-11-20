@@ -333,6 +333,48 @@ else
   warn "GET /api/youtube/download/status/:id → unexpected: ${YT_STATUS}"
 fi
 
+# Lyrics are a standard step of EVERY download: looked up alongside the loudness
+# analysis and stored before the job is marked done, so a new song already has
+# its lyrics. There are three download pipelines (manual download, radio, CSV
+# import) and nothing but this check would notice one of them quietly losing the
+# step, so verify each still starts the lookup before the loudness analysis and
+# attaches it after the scan. (Source-level: a real download is too slow and
+# outbound-dependent to run here.)
+for ROUTE in youtube radio import; do
+  SRC="backend/src/routes/${ROUTE}.js"
+  if [ ! -f "$SRC" ]; then
+    warn "Lyrics step check skipped for ${ROUTE} — ${SRC} not found (run from the project root)"
+    continue
+  fi
+  ORDER_OK=$(python3 - "$SRC" <<'PY' 2>/dev/null
+import sys
+s = open(sys.argv[1], encoding='utf-8').read()
+i = [s.find(t) for t in ('startLyricsLookup(filepath)', 'analyzeLoudness(filepath)', 'scanFile(filepath)', 'attachLyrics(db, song?.id, lyricsLookup)')]
+print('yes' if all(x >= 0 for x in i) and i == sorted(i) else 'no')
+PY
+)
+  if [ "$ORDER_OK" = "yes" ]; then
+    pass "Download pipeline '${ROUTE}' fetches lyrics (starts alongside loudness, attached after the scan)"
+  else
+    fail "Download pipeline '${ROUTE}' lost its lyrics step — new downloads would have no lyrics until first opened (see services/lyrics.js startLyricsLookup/attachLyrics)"
+  fi
+done
+
+# Song records that go to the client (the radio download endpoints and
+# GET /api/music/:id, which feed the player's persisted queue) must not carry the
+# lyrics text or the server's file path — now that lyrics exist from download time
+# a fresh song's row would otherwise ship them.
+if [ -n "${FIRST_ID:-}" ]; then
+  ONE_SONG=$(api -b "$COOKIE" "${BASE}/api/music/${FIRST_ID}")
+  if echo "$ONE_SONG" | grep -qE '"(lyrics_plain|lyrics_synced|filepath)"'; then
+    fail "GET /api/music/:id includes lyrics text or filepath — it goes into the player's persisted queue (use SONG_LIST_COLUMNS)"
+  elif echo "$ONE_SONG" | grep -q '"title"'; then
+    pass "GET /api/music/:id → song record without lyrics text or file path"
+  else
+    warn "GET /api/music/:id → unexpected response: ${ONE_SONG:0:100}"
+  fi
+fi
+
 # ════════════════════════════════════════════════════════════
 hdr "Radio / Last.fm"
 # ════════════════════════════════════════════════════════════

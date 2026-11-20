@@ -5,6 +5,7 @@ const { searchYoutube, downloadAudioWithRetry, downloadBySearch } = require('../
 const { getDb, setSongVideoId } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { analyzeLoudness, applyGain } = require('../services/loudness');
+const { startLyricsLookup, attachLyrics } = require('../services/lyrics');
 const { requireAuth } = require('../middleware/auth');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
@@ -60,6 +61,12 @@ router.post('/download', (req, res) => {
     // this in doesn't add a new wait, just extends one the user already sees.
     // Applied before scanFile so duration/cover get read from the final,
     // gain-adjusted file rather than the pre-gain one.
+    //
+    // Lyrics are part of the same processing: the lookup starts now, in parallel
+    // with the loudness work below (which takes several seconds regardless), and
+    // is attached once the song row exists — so a finished download already has
+    // its lyrics. See services/lyrics.js; it can't fail the download.
+    const lyricsLookup = filepath ? startLyricsLookup(filepath) : null;
     let loudness = null;
     if (filepath) {
       try {
@@ -75,6 +82,7 @@ router.post('/download', (req, res) => {
       db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = 0 WHERE id = ?')
         .run(loudness.lufs, song.id);
     }
+    await attachLyrics(db, song?.id, lyricsLookup);
     db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
       'done', song?.id || null, jobId
     );

@@ -8,6 +8,7 @@ const { requireAuth } = require('../middleware/auth');
 const { searchAndDownload, downloadAudioWithRetry, withTimeout } = require('../services/ytdlp');
 const { scanFile } = require('../services/scanner');
 const { analyzeLoudness, applyGain } = require('../services/loudness');
+const { startLyricsLookup, attachLyrics } = require('../services/lyrics');
 const { getDb, setSongVideoId } = require('../db');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -288,7 +289,11 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
             // folding this in doesn't add a new kind of delay to the import,
             // just extends one it already has. See services/loudness.js.
             // Applied before scanFile so duration/cover get read from the
-            // final, gain-adjusted file rather than the pre-gain one.
+            // final, gain-adjusted file rather than the pre-gain one. Lyrics are
+            // fetched in parallel with that (see services/lyrics.js), so every
+            // imported song has them too. Bounded and non-fatal; the service paces
+            // its requests, so a big import can't trip lrclib's rate limit.
+            const lyricsLookup = startLyricsLookup(filepath);
             let loudness = null;
             try {
               loudness = await analyzeLoudness(filepath);
@@ -302,6 +307,7 @@ async function runImport(userId, playlists, startPli = 0, startTi = 0) {
               db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = 0 WHERE id = ?')
                 .run(loudness.lufs, song.id);
             }
+            await attachLyrics(db, song?.id, lyricsLookup);
             // Keep lookup current so later tracks in the same import don't re-download
             if (song) {
               const t = normalizeStr(song.title);

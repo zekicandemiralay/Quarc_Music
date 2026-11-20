@@ -2,6 +2,8 @@
 // and LRC-format synced text). No official rate limit is published, but a
 // descriptive User-Agent is requested courtesy, and the backfill script
 // throttles itself so a whole-library run doesn't hammer a free service.
+const path = require('path');
+
 const LRCLIB_BASE = 'https://lrclib.net/api';
 const USER_AGENT = 'QuarcMusic/1.0 (+https://github.com/zekicandemiralay/Quarc_Music)';
 
@@ -269,9 +271,14 @@ async function fetchLyrics(artist, title, album, durationSecs) {
 
   // 1. Exact signature match (lrclib also checks the length to within ±2s).
   const params = { track_name: searchTitle, artist_name: cleanA || '' };
-  if (album) params.album_name = album;
+  // scanner.js stores the literal "Unknown Album" for a file with no album tag —
+  // which is nearly every YouTube download. Sent as an album name it can never
+  // match, so the exact lookup was guaranteed to miss for exactly those songs.
+  if (album && !/^unknown album$/i.test(String(album).trim())) params.album_name = album;
   if (q.duration) params.duration = Math.round(q.duration);
-  consider(await attempt(() => getJson('/get', params)), true);
+  // (Skipped when there is no artist to ask about: /get needs one, and with
+  // "Unknown Artist" it is a guaranteed miss that would just cost a paced request.)
+  if (artistKnown) consider(await attempt(() => getJson('/get', params)), true);
   if (best && best.level === 2) return result(best);
 
   // 2. Search by title + artist — our tags are sometimes messier than a
@@ -321,4 +328,65 @@ async function resolveSongLyrics(db, song, { force = false } = {}) {
   return pending;
 }
 
-module.exports = { fetchLyrics, resolveSongLyrics, LyricsUnavailableError };
+// --- lyrics as a standard step of every download ----------------------------------
+// A downloaded song should have its lyrics before it is announced as done, so the
+// first time anyone opens the lyrics panel there is nothing to wait for. The
+// download pipelines (manual YouTube download, CSV import, radio) call:
+//
+//   const lyrics = startLyricsLookup(filepath);   // BEFORE the loudness analysis
+//   ...loudness analysis / gain, scanFile...      // several seconds of other work
+//   await attachLyrics(db, song.id, lyrics);       // AFTER the song row exists
+//
+// so the lookup runs alongside the loudness step and normally adds no waiting.
+// It is strictly an optimisation: nothing here can fail or noticeably delay a
+// download, and a song that gets no lyrics now is simply looked up the first
+// time its panel is opened, exactly as before.
+
+// The longest a finished download waits for lyrics, counted from when the song
+// row exists (the lookup has had a head start by then). Past it the download
+// completes and the lookup carries on in the background, storing its answer
+// whenever it arrives. (LYRICS_PREFETCH_MAX_WAIT_MS overrides it, read per call.)
+const prefetchMaxWaitMs = () => Number(process.env.LYRICS_PREFETCH_MAX_WAIT_MS) || 12000;
+
+// Reads the freshly downloaded file's tags and looks its lyrics up. Never
+// rejects. Resolves { done: true, result } for a definitive answer (result is
+// null for "no lyrics exist"), or { done: false } when it couldn't be completed
+// (unreadable file, lrclib unreachable) — which must not be stored as an answer.
+function startLyricsLookup(filepath) {
+  return (async () => {
+    try {
+      const mm = require('music-metadata'); // loaded on first use; only downloads need it here
+      const { common, format } = await mm.parseFile(filepath, { duration: true, skipCovers: true });
+      // The same fallbacks scanner.js applies when it stores the song, so the
+      // lookup uses exactly the title/artist/album the library will show.
+      const title = common.title || path.basename(filepath, path.extname(filepath));
+      const artist = common.artist || 'Unknown Artist';
+      const album = common.album || 'Unknown Album';
+      return { done: true, result: await fetchLyrics(artist, title, album, format.duration || 0) };
+    } catch (err) {
+      console.warn(`Lyrics lookup for ${path.basename(filepath)} not completed: ${err.message}`);
+      return { done: false };
+    }
+  })();
+}
+
+// Stores a finished lookup on the song row and waits for it (up to the cap).
+// Only a definitive answer is written, and only if the song still has no
+// verdict — so it can never overwrite one that someone opening the panel in the
+// meantime already stored. Never throws.
+async function attachLyrics(db, songId, lookup, { maxWaitMs = prefetchMaxWaitMs() } = {}) {
+  if (!songId || !lookup) return;
+  const stored = lookup
+    .then((outcome) => {
+      if (!outcome.done) return;
+      const r = outcome.result;
+      db.prepare('UPDATE songs SET lyrics_status = ?, lyrics_plain = ?, lyrics_synced = ? WHERE id = ? AND lyrics_status IS NULL')
+        .run(r?.status || 'not_found', r?.plain || null, r?.synced || null, songId);
+    })
+    .catch((err) => console.warn(`Could not store lyrics for song ${songId}: ${err.message}`));
+  let timer;
+  await Promise.race([stored, new Promise((resolve) => { timer = setTimeout(resolve, maxWaitMs); })]);
+  clearTimeout(timer);
+}
+
+module.exports = { fetchLyrics, resolveSongLyrics, startLyricsLookup, attachLyrics, LyricsUnavailableError };

@@ -112,8 +112,13 @@ router.get('/', (req, res) => {
 // Single-song lookup — used by "Play now" straight from the download page,
 // which only has a song ID at that point, not the full record playSong()
 // needs (title/artist/has_cover/duration/etc.).
+//
+// The list columns, not SELECT *: this record goes straight into the player's
+// queue, which the app persists. Lyrics are now fetched when a song is
+// DOWNLOADED, so a fresh song's row carries several KB of lyrics text — and the
+// server's file path — that no client reads (lyrics come from /:id/lyrics).
 router.get('/:id', (req, res) => {
-  const song = getDb().prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id);
+  const song = getDb().prepare(`SELECT ${SONG_LIST_COLUMNS} FROM songs s WHERE s.id = ?`).get(req.params.id);
   if (!song) return res.status(404).json({ error: 'Song not found' });
   res.json(song);
 });

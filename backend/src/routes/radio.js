@@ -7,6 +7,8 @@ const { relatedTracks, lastFailureReason } = require('../services/ytmusic');
 const { getDb, setSongVideoId } = require('../db');
 const { scanFile } = require('../services/scanner');
 const { analyzeLoudness, applyGain } = require('../services/loudness');
+const { startLyricsLookup, attachLyrics } = require('../services/lyrics');
+const { SONG_LIST_COLUMNS } = require('../lib/songColumns');
 const { requireAuth } = require('../middleware/auth');
 
 const MUSIC_DIR = process.env.MUSIC_DIR || '/music';
@@ -183,13 +185,19 @@ function libraryKey(artist, title) {
 // waiting for a file we already have. Two ways to recognise it: the download
 // history knows the precise YouTube id we fetched before, and failing that,
 // the tags.
+// The songs returned here and by /status go straight into the player's queue,
+// which the app persists — so they use the list columns, not SELECT *: lyrics are
+// fetched at download time now, and a row's full lyrics text (and the server's
+// file path) is not something any client reads. See lib/songColumns.js.
+const SONG_FOR_CLIENT = `SELECT ${SONG_LIST_COLUMNS} FROM songs s WHERE s.id = ?`;
+
 function findInLibrary(db, { artist, title, videoId }) {
   if (videoId) {
     const prev = db.prepare(
       "SELECT song_id FROM downloads WHERE video_id = ? AND status = 'done' AND song_id IS NOT NULL ORDER BY created_at DESC LIMIT 1"
     ).get(videoId);
     if (prev?.song_id) {
-      const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(prev.song_id);
+      const song = db.prepare(SONG_FOR_CLIENT).get(prev.song_id);
       if (song) return song; // exact — same video, same file
     }
   }
@@ -197,7 +205,7 @@ function findInLibrary(db, { artist, title, videoId }) {
   const want = libraryKey(artist, title);
   const hit = db.prepare('SELECT id, artist, title FROM songs').all()
     .find((r) => libraryKey(r.artist, r.title) === want);
-  return hit ? db.prepare('SELECT * FROM songs WHERE id = ?').get(hit.id) : null;
+  return hit ? db.prepare(SONG_FOR_CLIENT).get(hit.id) : null;
 }
 
 router.post('/download', (req, res) => {
@@ -244,7 +252,9 @@ router.post('/download', (req, res) => {
       // below) just like a manual YouTube download or an import — they get
       // the same loudness treatment for the same reason, applied before
       // scanFile so duration/cover get read from the final, gain-adjusted
-      // file rather than the pre-gain one.
+      // file rather than the pre-gain one. Lyrics are fetched in parallel with
+      // that (see services/lyrics.js) so the new song has them from the start.
+      const lyricsLookup = filepath ? startLyricsLookup(filepath) : null;
       let loudness = null;
       if (filepath) {
         try {
@@ -260,6 +270,7 @@ router.post('/download', (req, res) => {
         db.prepare('UPDATE songs SET loudness_lufs = ?, loudness_gain_db = 0 WHERE id = ?')
           .run(loudness.lufs, song.id);
       }
+      await attachLyrics(db, song?.id, lyricsLookup);
       db.prepare('UPDATE downloads SET status = ?, progress = 100, song_id = ? WHERE id = ?').run(
         'done', song?.id ?? null, jobId
       );
@@ -279,7 +290,7 @@ router.get('/status/:jobId', (req, res) => {
   if (!job) return res.status(404).json({ error: 'Job not found' });
 
   if (job.status === 'done' && job.song_id) {
-    const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(job.song_id);
+    const song = db.prepare(SONG_FOR_CLIENT).get(job.song_id);
     return res.json({ ...job, song: song || null });
   }
 
