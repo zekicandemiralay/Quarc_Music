@@ -13,6 +13,29 @@ const { cleanTitle, matchTitle, cleanArtist, primaryArtist } = require('./textCl
 // to, and the person who opened the lyrics panel is watching a spinner.
 const REQUEST_TIMEOUT_MS = 6000;
 
+// lrclib sits behind Cloudflare and rate-limits: measured at ~37 requests in 9
+// seconds (≈4/s) before it starts answering HTTP 429 "Retry-After: 1". A library
+// backfill (up to 3 requests per song) runs right at that pace, so every request
+// goes through one shared pacer, and a 429 is waited out and retried instead of
+// being treated as "no lyrics". The interval is read per call so tests can set
+// LRCLIB_MIN_INTERVAL_MS=0.
+const minIntervalMs = () => {
+  const v = Number(process.env.LRCLIB_MIN_INTERVAL_MS);
+  return Number.isFinite(v) && v >= 0 ? v : 350; // ≈2.8 requests/s, comfortably under the limit
+};
+const RATE_LIMIT_RETRIES = 2;        // after the first 429, ask again twice before giving up
+const DEFAULT_RETRY_AFTER_MS = 2000; // when a 429 carries no usable Retry-After
+const MAX_RETRY_AFTER_MS = 5000;     // never make someone wait longer than this
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let nextSlotAt = 0; // earliest time the next request may go out (shared by everyone in this process)
+async function takeSlot() {
+  const now = Date.now();
+  const at = Math.max(now, nextSlotAt);
+  nextSlotAt = at + minIntervalMs();
+  if (at > now) await sleep(at - now);
+}
+
 // How far a candidate's length may be from our file's before we stop believing
 // it is the same recording.
 //   SYNC_TOLERANCE_S — synced (time-stamped) lines are only worth showing if
@@ -34,22 +57,49 @@ class LyricsUnavailableError extends Error {
   constructor(message) { super(message); this.name = 'LyricsUnavailableError'; }
 }
 
+// What actually went wrong, for the logs: undici reports every network failure as
+// the useless "fetch failed" and keeps the real reason (ECONNRESET, ENOTFOUND,
+// a connect timeout...) on `cause`.
+function describeFetchError(err) {
+  if (err?.name === 'TimeoutError') return `timed out after ${REQUEST_TIMEOUT_MS / 1000}s`;
+  const cause = err?.cause?.code || err?.cause?.message;
+  return [err?.message, cause].filter(Boolean).join(': ') || 'network error';
+}
+
+function retryAfterMs(res) {
+  const raw = res.headers?.get?.('retry-after');
+  const secs = raw == null || raw === '' ? NaN : Number(raw);
+  const ms = Number.isFinite(secs) ? secs * 1000 : DEFAULT_RETRY_AFTER_MS; // (an HTTP-date form falls back to the default)
+  return Math.min(Math.max(ms, 0), MAX_RETRY_AFTER_MS);
+}
+
 async function getJson(path, params) {
   const url = `${LRCLIB_BASE}${path}?${new URLSearchParams(params)}`;
-  let res;
-  try {
-    res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-  } catch (err) {
-    throw new LyricsUnavailableError(`${path}: ${err.name === 'TimeoutError' ? 'timed out' : err.message}`);
-  }
-  // 404 is lrclib's definitive "no such track"; 400 means it rejected our query
-  // outright (e.g. a blank artist) — retrying the same query can't help either.
-  if (res.status === 404 || res.status === 400) return null;
-  if (!res.ok) throw new LyricsUnavailableError(`${path}: HTTP ${res.status}`);
-  try {
-    return await res.json();
-  } catch {
-    throw new LyricsUnavailableError(`${path}: unreadable response`);
+  for (let attempt = 0; ; attempt++) {
+    await takeSlot();
+    let res;
+    try {
+      res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    } catch (err) {
+      throw new LyricsUnavailableError(`${path}: ${describeFetchError(err)}`);
+    }
+    // Rate limited: back off for what lrclib asked — for EVERY request in this
+    // process, not just this one — and try again.
+    if (res.status === 429) {
+      const wait = retryAfterMs(res);
+      nextSlotAt = Math.max(nextSlotAt, Date.now() + wait);
+      if (attempt < RATE_LIMIT_RETRIES) continue;
+      throw new LyricsUnavailableError(`${path}: HTTP 429 (rate limited, still after ${attempt + 1} tries)`);
+    }
+    // 404 is lrclib's definitive "no such track"; 400 means it rejected our query
+    // outright (e.g. a blank artist) — retrying the same query can't help either.
+    if (res.status === 404 || res.status === 400) return null;
+    if (!res.ok) throw new LyricsUnavailableError(`${path}: HTTP ${res.status}`);
+    try {
+      return await res.json();
+    } catch {
+      throw new LyricsUnavailableError(`${path}: unreadable response`);
+    }
   }
 }
 
@@ -197,12 +247,12 @@ async function fetchLyrics(artist, title, album, durationSecs) {
     return cleanT;
   })();
 
-  let transient = false;
+  let transient = null; // the first reason a lookup could not be completed, if any
   let best = null;
   let instrumental = null;
   const attempt = async (fn) => {
     try { return await fn(); } catch (err) {
-      if (err instanceof LyricsUnavailableError) { transient = true; return null; }
+      if (err instanceof LyricsUnavailableError) { transient = transient || err.message; return null; }
       throw err;
     }
   };
@@ -239,7 +289,7 @@ async function fetchLyrics(artist, title, album, durationSecs) {
 
   // Only same-title look-alikes (or nothing) so far. If any lookup could not
   // complete, that verdict is not final — don't let it be stored as one.
-  if (transient) throw new LyricsUnavailableError('lrclib could not be reached');
+  if (transient) throw new LyricsUnavailableError(`lrclib lookup not completed (${transient})`);
   if (best) return result(best);
   return instrumental ? { status: 'instrumental', plain: null, synced: null } : null;
 }
