@@ -158,6 +158,11 @@ if [ "${SONG_COUNT:-0}" != "0" ] && [ "${SONG_COUNT:-0}" != "?" ]; then
     LYRICS_STATUS=$(echo "$LYRICS_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
     if [ "$LYRICS_STATUS" = "found" ] || [ "$LYRICS_STATUS" = "not_found" ] || [ "$LYRICS_STATUS" = "instrumental" ] || [ "$LYRICS_STATUS" = "approximate" ]; then
       pass "GET /api/music/:id/lyrics → status=${LYRICS_STATUS}"
+    elif [ "$LYRICS_STATUS" = "unavailable" ]; then
+      # lrclib couldn't be reached. The route answers 503 and stores NOTHING (a
+      # failed lookup used to be saved as "not_found" forever), so this is the
+      # correct response to an outage — but worth a flag, since nothing was verified.
+      warn "GET /api/music/:id/lyrics → 503 unavailable (lyrics service unreachable; nothing was cached — correct, but the lookup itself wasn't exercised)"
     else
       fail "GET /api/music/:id/lyrics → unexpected response: ${LYRICS_RESP:0:120}"
     fi

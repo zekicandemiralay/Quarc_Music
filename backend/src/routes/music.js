@@ -6,7 +6,7 @@ const mm = require('music-metadata');
 const { getDb } = require('../db');
 const { SONG_LIST_COLUMNS } = require('../lib/songColumns');
 const { scanMusicDir } = require('../services/scanner');
-const { fetchLyrics } = require('../services/lyrics');
+const { resolveSongLyrics, LyricsUnavailableError } = require('../services/lyrics');
 const { requireAuth } = require('../middleware/auth');
 const { asyncRoute } = require('../lib/asyncRoute');
 
@@ -227,25 +227,28 @@ router.get('/:id/cover', async (req, res) => {
 });
 
 // Lazily fetched and cached in the songs table on first request — 'found' |
-// 'not_found' | 'instrumental' short-circuits every request after the first
-// so a song with no lyrics doesn't re-query lrclib forever. ?refresh=1
-// forces a re-check (e.g. lyrics got added to lrclib since we last looked).
+// 'approximate' | 'not_found' | 'instrumental' short-circuits every request
+// after the first so a song with no lyrics doesn't re-query lrclib forever.
+// ?refresh=1 forces a re-check (e.g. lyrics got added to lrclib since we last
+// looked).
+//
+// Only a DEFINITIVE answer is cached. If lrclib can't be reached (down, rate
+// limiting, timing out) that is a 503 with nothing stored, so the next request
+// tries again instead of the song being marked lyric-less forever.
 router.get('/:id/lyrics', asyncRoute(async (req, res) => {
   const db = getDb();
   const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id);
   if (!song) return res.status(404).json({ error: 'Song not found' });
 
-  const force = req.query.refresh === '1';
-  if (!force && song.lyrics_status) {
-    return res.json({ status: song.lyrics_status, plain: song.lyrics_plain, synced: song.lyrics_synced });
+  try {
+    res.json(await resolveSongLyrics(db, song, { force: req.query.refresh === '1' }));
+  } catch (err) {
+    if (err instanceof LyricsUnavailableError) {
+      console.warn(`Lyrics lookup for song ${song.id} not completed: ${err.message}`);
+      return res.status(503).json({ status: 'unavailable', plain: null, synced: null });
+    }
+    throw err;
   }
-
-  const result = await fetchLyrics(song.artist, song.title, song.album, song.duration);
-  const status = result?.status || 'not_found';
-  db.prepare('UPDATE songs SET lyrics_status = ?, lyrics_plain = ?, lyrics_synced = ? WHERE id = ?')
-    .run(status, result?.plain || null, result?.synced || null, song.id);
-
-  res.json({ status, plain: result?.plain || null, synced: result?.synced || null });
 }));
 
 module.exports = router;

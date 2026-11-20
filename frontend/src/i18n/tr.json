@@ -50,9 +50,12 @@
     "nothingPlaying": "Hiçbir şey çalmıyor",
     "instrumental": "Bu parça enstrümantal",
     "notSynced": "Bu şarkı için zamanlı söz yok — düz metin gösteriliyor.",
-    "approximate": "Bu kayıt söz veritabanında yok — bunun yerine orijinal şarkının sözleri gösteriliyor, bu versiyonla tam eşleşmeyebilir.",
+    "approximate": "Bu kayıt söz veritabanında yok — aynı ada ve süreye sahip bir şarkının sözleri gösteriliyor, tam eşleşmeyebilir.",
     "notFound": "Söz bulunamadı",
-    "notFoundHint": "Bu şarkı henüz söz veritabanında yok"
+    "notFoundHint": "Bu şarkı henüz söz veritabanında yok",
+    "loadFailed": "Sözler yüklenemedi",
+    "loadFailedHint": "Bağlantınızı kontrol edip tekrar deneyin",
+    "retry": "Tekrar dene"
   },
   "queue": {
     "title": "Sıra",

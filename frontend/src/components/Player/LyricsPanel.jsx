@@ -13,31 +13,42 @@ import ArtistLink from '../ArtistLink/ArtistLink';
 const cache = new Map();
 
 function useLyrics(songId) {
-  const [state, setState] = useState(() => cache.get(songId) || { loading: true });
+  const [state, setState] = useState(() => cache.get(songId) || { loading: true, songId });
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!songId) return;
     const cached = cache.get(songId);
     if (cached) { setState(cached); return; }
 
-    setState({ loading: true });
+    setState({ loading: true, songId });
     let cancelled = false;
+    // The server answers 503 when the lyrics service couldn't be reached (it
+    // deliberately stores nothing then), so that lands in the error state below
+    // — which is NOT cached, so reopening the panel or "Try again" asks again.
     fetch(`/api/music/${songId}/lyrics`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
         if (cancelled) return;
-        const result = { loading: false, ...data };
+        const result = { loading: false, songId, ...data };
         cache.set(songId, result);
         setState(result);
       })
       .catch(() => {
         if (cancelled) return;
-        setState({ loading: false, status: 'error' });
+        setState({ loading: false, songId, status: 'error' });
       });
     return () => { cancelled = true; };
-  }, [songId]);
+  }, [songId, attempt]);
 
-  return state;
+  const retry = useCallback(() => setAttempt((a) => a + 1), []);
+
+  // After a song change the effect above only runs once the new render has been
+  // painted, so for that one render `state` still describes the PREVIOUS song —
+  // which showed its lyrics under the new song's title for a frame. Never hand
+  // back a state that belongs to a different song.
+  const current = state.songId === songId ? state : (cache.get(songId) || { loading: true, songId });
+  return { ...current, retry };
 }
 
 export default function LyricsPanel({ onClose }) {
@@ -47,6 +58,15 @@ export default function LyricsPanel({ onClose }) {
 
   const lines = useMemo(() => parseLrc(lyrics.synced), [lyrics.synced]);
   const activeIndex = useMemo(() => activeLrcIndex(lines, currentTime), [lines, currentTime]);
+
+  // A new song's lyrics start at the top. Without this a cached song swapped in
+  // directly (no loading spinner to collapse the list) kept the previous song's
+  // scroll position. Declared before the line-follow effect so that, on a
+  // change, the reset happens first and following the active line wins.
+  const contentRef = useRef(null);
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [currentSong?.id]);
 
   const lineRefs = useRef([]);
   useEffect(() => {
@@ -157,13 +177,29 @@ export default function LyricsPanel({ onClose }) {
       </div>
 
       {/* Content */}
-      <div className="relative flex-1 overflow-y-auto px-6 pb-24">
+      <div ref={contentRef} className="relative flex-1 overflow-y-auto px-6 pb-24">
         {!currentSong ? (
           <EmptyState icon={<Music2 size={40} className="text-zinc-700 mb-3" />} title={t('lyrics.nothingPlaying')} />
         ) : lyrics.loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-zinc-700 border-t-zinc-400 rounded-full animate-spin" />
           </div>
+        ) : lyrics.status === 'error' ? (
+          // Couldn't get an answer (offline, or the lyrics service was down) — NOT
+          // the same as "no lyrics", so don't claim the song isn't in the database.
+          <EmptyState
+            icon={<Music2 size={40} className="text-zinc-700 mb-3" />}
+            title={t('lyrics.loadFailed')}
+            hint={t('lyrics.loadFailedHint')}
+            action={(
+              <button
+                onClick={lyrics.retry}
+                className="mt-4 px-4 py-1.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium transition-colors"
+              >
+                {t('lyrics.retry')}
+              </button>
+            )}
+          />
         ) : lyrics.status === 'instrumental' ? (
           <EmptyState icon={<Music2 size={40} className="text-zinc-700 mb-3" />} title={t('lyrics.instrumental')} />
         ) : lines.length > 0 ? (
@@ -200,12 +236,13 @@ export default function LyricsPanel({ onClose }) {
   );
 }
 
-function EmptyState({ icon, title, hint }) {
+function EmptyState({ icon, title, hint, action }) {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-8">
       {icon}
       <p className="text-zinc-400 text-sm">{title}</p>
       {hint && <p className="text-zinc-600 text-xs mt-1">{hint}</p>}
+      {action}
     </div>
   );
 }

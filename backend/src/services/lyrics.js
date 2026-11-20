@@ -7,108 +7,268 @@ const USER_AGENT = 'QuarcMusic/1.0 (+https://github.com/zekicandemiralay/Quarc_M
 
 // Shared with the Last.fm suggestions lookup — see services/textClean.js
 // for why downloaded songs' tags need cleaning before any outside lookup.
-const { cleanTitle, cleanArtist, normalizeWords, wordOverlap } = require('./textClean');
+const { cleanTitle, matchTitle, cleanArtist, primaryArtist } = require('./textClean');
 
-function normalizeResult(data) {
-  if (!data) return null;
-  if (data.instrumental) return { status: 'instrumental', plain: null, synced: null };
-  const plain = data.plainLyrics || null;
-  const synced = data.syncedLyrics || null;
-  if (!plain && !synced) return null;
-  return { status: 'found', plain, synced };
+// A free community service: if it hasn't answered in this long it is not going
+// to, and the person who opened the lyrics panel is watching a spinner.
+const REQUEST_TIMEOUT_MS = 6000;
+
+// How far a candidate's length may be from our file's before we stop believing
+// it is the same recording.
+//   SYNC_TOLERANCE_S — synced (time-stamped) lines are only worth showing if
+//     they were timed against a recording this close to ours; a longer intro
+//     or a different edit shifts every line, and wrongly-timed karaoke
+//     highlighting is worse than none. Plain text has no such problem.
+//   same artist + same title but a very different length is a different cut
+//     (a medley, a live version) — the words may differ too, so skip it.
+//   a DIFFERENT artist (cover, remix, mislabelled upload) must be much closer
+//     in length, because it has less else going for it.
+const SYNC_TOLERANCE_S = 5;
+const sameArtistTolerance = (dur) => Math.max(30, dur * 0.25);
+const otherArtistTolerance = (dur) => Math.max(15, dur * 0.12);
+
+// "Couldn't ask" is not "there are no lyrics". lrclib being down, rate-limiting
+// us or timing out used to be indistinguishable from a 404 and got saved as
+// not_found forever. Callers must NOT cache this.
+class LyricsUnavailableError extends Error {
+  constructor(message) { super(message); this.name = 'LyricsUnavailableError'; }
 }
 
 async function getJson(path, params) {
   const url = `${LRCLIB_BASE}${path}?${new URLSearchParams(params)}`;
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
-  if (!res.ok) return null;
-  return res.json();
+  let res;
+  try {
+    res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  } catch (err) {
+    throw new LyricsUnavailableError(`${path}: ${err.name === 'TimeoutError' ? 'timed out' : err.message}`);
+  }
+  // 404 is lrclib's definitive "no such track"; 400 means it rejected our query
+  // outright (e.g. a blank artist) — retrying the same query can't help either.
+  if (res.status === 404 || res.status === 400) return null;
+  if (!res.ok) throw new LyricsUnavailableError(`${path}: HTTP ${res.status}`);
+  try {
+    return await res.json();
+  } catch {
+    throw new LyricsUnavailableError(`${path}: unreadable response`);
+  }
 }
 
-// Lightweight word-overlap scorer for the broad fallback below — not the
-// full candidate-scoring machinery ytdlp.js uses for picking a download
-// (duration gating, version-keyword penalties, etc.), because none of that
-// applies here: lrclib candidates carry no duration to compare against, and
-// "acoustic"/"live"/etc. in a title is actually fine to ignore for lyrics
-// purposes (the words are usually the same across versions of a song).
-// Broad fallback: a title-only search across every artist/version lrclib
-// has, scored to find the closest real match. Used when the recording
-// itself — a cover, remix, or otherwise non-original YouTube upload, often
-// tagged with a wrong or generic artist — isn't in lrclib's database under
-// its own attribution, but the ORIGINAL song's lyrics (same words,
-// whichever performance) almost certainly are. Deliberately PLAIN TEXT
-// ONLY: a different recording's synced timing (different tempo, intro
-// length, etc.) won't line up with this audio, so synced lines are dropped
-// even if the matched candidate has them — showing wrongly-timed karaoke
-// highlighting would be worse than no highlighting at all.
-async function fetchLyricsBroad(artist, title) {
-  let results;
-  try {
-    results = await getJson('/search', { track_name: title });
-  } catch {
-    return null;
-  }
-  if (!Array.isArray(results) || !results.length) return null;
+// --- comparing titles and artists -------------------------------------------
+// textClean.normalizeWords is shared with other services and strips every
+// non-ASCII letter, so a Cyrillic/Greek/CJK title normalises to NOTHING — and
+// "nothing" equals "nothing", which would make any two such titles match. These
+// keep Unicode letters, and are for equality checks only.
+function key(s) {
+  return (s || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[İIı]/g, 'i')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-  const titleWords = normalizeWords(title);
-  const artistWords = normalizeWords(artist);
-  let best = null;
-  for (const r of results) {
-    if (!r.plainLyrics) continue; // nothing usable without at least plain text
-    const score = wordOverlap(titleWords, normalizeWords(r.trackName)) * 0.75
-      + wordOverlap(artistWords, normalizeWords(r.artistName)) * 0.25;
-    if (!best || score > best.score) best = { ...r, score };
+const ARTIST_STOPWORDS = new Set(['the', 'and', 'feat', 'ft', 'with', 'x']);
+const artistTokens = (s) => new Set(key(s).split(' ').filter((w) => w && !ARTIST_STOPWORDS.has(w)));
+
+const GENERIC_ARTIST = /^(various( artists?)?|unknown( artist)?|va|n\/?a|none|artist)$/i;
+
+// Share of the smaller name's words that the other contains: "Queen" vs
+// "Queen & David Bowie" is a match, "The Xx" vs "The Beatles" is not.
+function artistOverlap(a, b) {
+  const A = artistTokens(a); const B = artistTokens(b);
+  if (!A.size || !B.size) return 0;
+  let shared = 0;
+  for (const w of A) if (B.has(w)) shared++;
+  return shared / Math.min(A.size, B.size);
+}
+
+// A title as comparable keys. YouTube uploads often read "Artist - Title" (or
+// "Title - Artist"), so when one side of a dash is the artist, the other side
+// is ALSO a valid reading of the title.
+function titleKeys(rawTitle, artistName) {
+  const keys = new Set();
+  const whole = key(matchTitle(rawTitle));
+  if (whole) keys.add(whole);
+  const m = /^(.+?)\s+[-–—]\s+(.+)$/.exec(cleanTitle(rawTitle));
+  if (m && artistName) {
+    const [, left, right] = m;
+    if (artistOverlap(left, artistName) >= 0.5) { const k = key(matchTitle(right)); if (k) keys.add(k); }
+    if (artistOverlap(right, artistName) >= 0.5) { const k = key(matchTitle(left)); if (k) keys.add(k); }
   }
-  // Require real confidence in the title match — this is "a different
-  // recording of the same song", not "a vaguely similar title".
-  if (!best || best.score < 0.6) return null;
-  return { status: 'approximate', plain: best.plainLyrics, synced: null };
+  return keys;
+}
+
+// Enough of a title to be believable ON ITS OWN. "Home", "Love", "Intro" and
+// "Hallelujah" name hundreds of unrelated songs; with no artist to go on, a
+// title like that proves nothing.
+const isDistinctive = (titleKey) => !!titleKey && titleKey.split(' ').length >= 2 && titleKey.length >= 12;
+
+function plainFromSynced(synced) {
+  return (synced || '').split('\n').map((l) => l.replace(/\[[^\]]*\]/g, '').trim()).filter(Boolean).join('\n') || null;
+}
+
+// Decides whether one lrclib record is acceptable for OUR song, and in what
+// form. Returns null (reject) or
+//   { level: 2, status: 'found', plain, synced, delta }        — this recording
+//   { level: 1, status: 'approximate', plain, synced: null }   — same-named song,
+//     different recording; plain text only, since another recording's timing
+//     won't line up with this audio
+//   { level: 0, status: 'instrumental' }                       — held aside
+// `trusted` records came back from /get, which already matched title+artist on
+// lrclib's side.
+function classify(c, q, trusted) {
+  const aOk = trusted || (q.artistKnown && artistOverlap(q.artist, c.artistName) >= 0.5);
+  const aPartial = q.artistKnown && artistOverlap(q.artist, c.artistName) > 0;
+
+  let titleKey = null;
+  if (!trusted) {
+    const candKeys = titleKeys(c.trackName, q.artistKnown ? q.artist : c.artistName);
+    titleKey = [...q.titleKeys].find((k) => candKeys.has(k));
+    if (!titleKey) return null;
+  }
+
+  const dKnown = q.duration > 0 && c.duration > 0;
+  const delta = dKnown ? Math.abs(c.duration - q.duration) : null;
+
+  if (c.instrumental) return aOk ? { level: 0, status: 'instrumental', plain: null, synced: null } : null;
+
+  const syncedOk = c.syncedLyrics && (!dKnown || delta <= SYNC_TOLERANCE_S);
+  const synced = syncedOk ? c.syncedLyrics : null;
+  // A record whose only text is time-stamped still gives plain lyrics when its
+  // timing is out of range for our file.
+  const plain = c.plainLyrics || plainFromSynced(c.syncedLyrics);
+  if (!plain && !synced) return null;
+
+  if (aOk) {
+    if (dKnown && delta > sameArtistTolerance(q.duration)) return null;
+    return { level: 2, status: 'found', plain, synced, delta };
+  }
+
+  // The artist didn't match. Either we have none to compare (a "Various
+  // Artists" tag), in which case a distinctive title AND a near-identical
+  // length is good evidence of the same recording...
+  if (!q.artistKnown && dKnown && delta <= SYNC_TOLERANCE_S && isDistinctive(titleKey)) {
+    return { level: 2, status: 'found', plain, synced, delta };
+  }
+  // ...or it's a cover/remix/mislabelled upload: same title, similar length,
+  // plain text only, and the title must be distinctive (or the artist at least
+  // partly agree) — otherwise it is just some other song with that name.
+  if ((aPartial || isDistinctive(titleKey)) && (!dKnown || delta <= otherArtistTolerance(q.duration))) {
+    return { level: 1, status: 'approximate', plain, synced: null, delta };
+  }
+  return null;
+}
+
+// Higher level wins; then a usable synced version; then the closest length.
+function better(a, b) {
+  if (a.level !== b.level) return a.level > b.level;
+  if (!!a.synced !== !!b.synced) return !!a.synced;
+  return (a.delta ?? 0) < (b.delta ?? 0);
 }
 
 // artist/title/album come from the song's own tags; durationSecs (if known)
-// lets lrclib's exact-match endpoint confirm it's the same recording, not
-// just the same title — falls back to fuzzy search (no duration check) when
-// the exact match misses, since our tags are sometimes messier than a
-// well-curated lyrics DB expects (feat. credits, "(Official Audio)", etc.).
+// lets us tell the same recording from a different cut of the same song.
+//
+// Resolves to { status, plain, synced }, or null when lrclib definitively has
+// nothing usable. Throws LyricsUnavailableError when lrclib could not be asked
+// and nothing good enough was found without it — a "no lyrics" answer is only
+// returned when every lookup that could have found some actually completed.
 async function fetchLyrics(artist, title, album, durationSecs) {
   if (!title) return null;
   const cleanT = cleanTitle(title);
   const cleanA = cleanArtist(artist);
+  const primary = primaryArtist(artist);
+  const artistKnown = !!primary && !GENERIC_ARTIST.test(primary.trim());
 
-  // An "instrumental" verdict from a loose match isn't trustworthy: a
-  // same-titled instrumental entry easily shadows the real vocal track when
-  // the artist tag is vague ("Various", a YouTube channel name), and
-  // returning it immediately ends the search with "this track is
-  // instrumental" on a song that plainly has words. Hold it aside and keep
-  // looking; only settle for it if nothing better turns up.
-  let instrumental = null;
-  const keep = (result) => {
-    if (result?.status === 'instrumental') { instrumental = instrumental || result; return null; }
-    return result;
+  const q = {
+    artist: primary,
+    artistKnown,
+    duration: Number(durationSecs) || 0,
+    titleKeys: titleKeys(title, artistKnown ? primary : ''),
   };
-
-  try {
-    const params = { track_name: cleanT, artist_name: cleanA || '' };
-    if (album) params.album_name = album;
-    if (durationSecs) params.duration = Math.round(durationSecs);
-    const result = keep(normalizeResult(await getJson('/get', params)));
-    if (result) return result;
-  } catch {
-    // fall through to fuzzy search
-  }
-
-  try {
-    const results = await getJson('/search', { track_name: cleanT, artist_name: cleanA || '' });
-    if (Array.isArray(results) && results.length) {
-      const result = keep(normalizeResult(results[0]));
-      if (result) return result;
+  // "Queen - Bohemian Rhapsody" is searched as "Bohemian Rhapsody".
+  const searchTitle = (() => {
+    const m = /^(.+?)\s+[-–—]\s+(.+)$/.exec(cleanT);
+    if (m && artistKnown) {
+      if (artistOverlap(m[1], primary) >= 0.5) return m[2].trim();
+      if (artistOverlap(m[2], primary) >= 0.5) return m[1].trim();
     }
-  } catch {
-    // fall through to the broad fallback
+    return cleanT;
+  })();
+
+  let transient = false;
+  let best = null;
+  let instrumental = null;
+  const attempt = async (fn) => {
+    try { return await fn(); } catch (err) {
+      if (err instanceof LyricsUnavailableError) { transient = true; return null; }
+      throw err;
+    }
+  };
+  const consider = (records, trusted) => {
+    for (const c of (Array.isArray(records) ? records : [records])) {
+      if (!c) continue;
+      const r = classify(c, q, trusted);
+      if (!r) continue;
+      if (r.level === 0) { instrumental = instrumental || r; continue; }
+      if (!best || better(r, best)) best = r;
+    }
+  };
+  const result = (r) => ({ status: r.status, plain: r.plain, synced: r.synced });
+
+  // 1. Exact signature match (lrclib also checks the length to within ±2s).
+  const params = { track_name: searchTitle, artist_name: cleanA || '' };
+  if (album) params.album_name = album;
+  if (q.duration) params.duration = Math.round(q.duration);
+  consider(await attempt(() => getJson('/get', params)), true);
+  if (best && best.level === 2) return result(best);
+
+  // 2. Search by title + artist — our tags are sometimes messier than a
+  //    curated lyrics DB expects (feat. credits, "(Official Audio)"...). Every
+  //    hit is checked (title, artist, length) instead of trusting the first.
+  if (artistKnown) {
+    consider(await attempt(() => getJson('/search', { track_name: searchTitle, artist_name: primary })), false);
+    if (best && best.level === 2) return result(best);
   }
 
-  // Last resort — see fetchLyricsBroad for why this is plain-text-only.
-  return (await fetchLyricsBroad(cleanA, cleanT)) || instrumental;
+  // 3. Title-only search: a cover, remix or mislabelled upload isn't in lrclib
+  //    under its own attribution, but the song's words may be.
+  consider(await attempt(() => getJson('/search', { track_name: searchTitle })), false);
+  if (best && best.level === 2) return result(best);
+
+  // Only same-title look-alikes (or nothing) so far. If any lookup could not
+  // complete, that verdict is not final — don't let it be stored as one.
+  if (transient) throw new LyricsUnavailableError('lrclib could not be reached');
+  if (best) return result(best);
+  return instrumental ? { status: 'instrumental', plain: null, synced: null } : null;
 }
 
-module.exports = { fetchLyrics };
+// --- cached lookup -----------------------------------------------------------
+// Two people (or two taps) asking for the same uncached song at once share one
+// trip to lrclib instead of making two.
+const inflight = new Map();
+
+// The lyrics for a song row: the cached verdict if there is one, otherwise ask
+// lrclib and cache the answer — but ONLY a definitive one. LyricsUnavailableError
+// propagates and nothing is written, so the next request tries again.
+// `force` skips the cache (e.g. lyrics were added to lrclib since last time).
+async function resolveSongLyrics(db, song, { force = false } = {}) {
+  if (!force && song.lyrics_status) {
+    return { status: song.lyrics_status, plain: song.lyrics_plain, synced: song.lyrics_synced };
+  }
+  let pending = inflight.get(song.id);
+  if (!pending) {
+    pending = (async () => {
+      const result = await fetchLyrics(song.artist, song.title, song.album, song.duration);
+      const out = { status: result?.status || 'not_found', plain: result?.plain || null, synced: result?.synced || null };
+      db.prepare('UPDATE songs SET lyrics_status = ?, lyrics_plain = ?, lyrics_synced = ? WHERE id = ?')
+        .run(out.status, out.plain, out.synced, song.id);
+      return out;
+    })().finally(() => inflight.delete(song.id));
+    inflight.set(song.id, pending);
+  }
+  return pending;
+}
+
+module.exports = { fetchLyrics, resolveSongLyrics, LyricsUnavailableError };
