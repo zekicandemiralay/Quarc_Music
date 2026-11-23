@@ -46,7 +46,17 @@ function OfflineButton({ songs, playlistId }) {
   const { t } = useTranslation();
   const { cachedIds, downloading, cacheSongs, removeSongs } = useOfflineStore();
   const setPlaylistOffline = useUserDataStore((s) => s.setPlaylistOffline);
+  // The playlist's own "keep this offline" flag, set by "Save offline". It is
+  // what makes a song you ADD to the playlist download automatically — and it is
+  // not the same thing as "every song happens to be saved right now": a song that
+  // failed to download, or was removed one by one, leaves the flag on with the
+  // playlist only partly saved. This button used to look only at how many songs
+  // were saved, so that state was indistinguishable from a playlist that was
+  // never made offline — and the flag could only be cleared through the green
+  // "Offline" button, which needs every song saved first.
+  const flagged = useUserDataStore((s) => !!(playlistId && s.playlists.find((p) => p.id === playlistId)?.offline));
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [showPartial, setShowPartial] = useState(false);
   if (!songs.length) return null;
 
   const ids = songs.map((s) => s.id);
@@ -106,6 +116,50 @@ function OfflineButton({ songs, playlistId }) {
         >
           <WifiOff size={15} />
           <span className="hidden sm:inline">{t('library.offline')}</span>
+        </button>
+      </>
+    );
+  }
+
+  // Flag on, but not every song is saved: say so, and offer both ways out —
+  // finish saving the missing ones, or stop keeping the playlist offline (which
+  // leaves the songs that ARE saved alone; only the green "Offline" button's
+  // "Remove" deletes copies).
+  if (flagged) {
+    const missing = songs.filter((s) => !cachedIds.has(s.id));
+    return (
+      <>
+        {showPartial && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowPartial(false)}>
+            <div className="bg-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+              <p className="text-white">{t('library.offlinePartialTitle', { n: missing.length })}</p>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button onClick={() => setShowPartial(false)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={() => { setPlaylistOffline(playlistId, false); setShowPartial(false); }}
+                  className="px-4 py-2 text-sm bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors"
+                >
+                  {t('library.stopKeepingOffline')}
+                </button>
+                <button
+                  onClick={() => { cacheSongs(missing); setShowPartial(false); }}
+                  className="px-4 py-2 text-sm bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors"
+                >
+                  {t('library.downloadRemaining')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => setShowPartial(true)}
+          className="flex items-center gap-2 px-3 py-2 bg-amber-900/30 hover:bg-amber-900/50 text-amber-400 border border-amber-800/40 rounded-full text-sm font-medium transition-colors shrink-0"
+          title={t('library.offlinePartial', { n: missing.length })}
+        >
+          <WifiOff size={15} />
+          <span className="hidden sm:inline">{t('library.offlinePartial', { n: missing.length })}</span>
         </button>
       </>
     );

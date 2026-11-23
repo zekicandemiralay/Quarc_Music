@@ -117,6 +117,10 @@
     "saveOfflineLeft": "Çevrimdışı kaydet ({{n}} kaldı)",
     "offline": "Çevrimdışı",
     "removeOfflineTitle": "Çevrimdışı kopyalar kaldırılsın mı? İnternet olmadan dinlemek için yeniden indirmeniz gerekecek.",
+    "offlinePartial": "Çevrimdışı · {{n}} kaldı",
+    "offlinePartialTitle": "Bu çalma listesi çevrimdışı kullanılabilir kalacak şekilde ayarlı, ancak şarkılarının tamamı henüz bu cihaza kaydedilmedi ({{n}} kaldı). Listeye eklediğiniz şarkılar otomatik olarak kaydedilir.",
+    "downloadRemaining": "Kalanları indir",
+    "stopKeepingOffline": "Çevrimdışı tutmayı bırak",
     "remove": "Kaldır"
   },
   "home": {

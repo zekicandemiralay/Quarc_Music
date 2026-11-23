@@ -117,6 +117,10 @@
     "saveOfflineLeft": "Save offline ({{n}} left)",
     "offline": "Offline",
     "removeOfflineTitle": "Remove offline copies? You'll need to re-download to listen without internet.",
+    "offlinePartial": "Offline · {{n}} left",
+    "offlinePartialTitle": "This playlist is set to stay available offline, but not all of its songs are saved on this device yet ({{n}} left). Songs you add to it are saved automatically.",
+    "downloadRemaining": "Download remaining",
+    "stopKeepingOffline": "Stop keeping offline",
     "remove": "Remove"
   },
   "home": {
