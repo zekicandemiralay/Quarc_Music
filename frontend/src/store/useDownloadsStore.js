@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import usePlayerStore from './playerStore';
+import useUserDataStore from './userDataStore';
 
 // The actual download is a genuine server-side job (backend/src/routes/
 // youtube.js fires it and responds immediately) — it already keeps running
@@ -14,11 +15,17 @@ const POLL_MS = 1200;
 const LS_KEY = 'quarc_active_downloads';
 const pollers = new Map(); // jobId -> intervalId — module-level, survives store resets
 
-// "Download & play" / "Download & add to queue": the choice is made up front
-// and rides along on the job (`then`), so nobody has to sit watching a
-// progress bar and wait for the Play button to appear. It's carried out HERE,
-// when the job completes, rather than in the YouTube page — the page may be
-// long gone by then (that's the whole point of not waiting).
+// "Download & play" / "Download & add to queue" / "Download & add to playlist":
+// the choice is made up front and rides along on the job (`then`, plus the
+// chosen playlist for the last one), so nobody has to sit watching a progress
+// bar and wait for the Play button to appear. It's carried out HERE, when the
+// job completes, rather than in the YouTube page — the page may be long gone by
+// then (that's the whole point of not waiting).
+//
+// Playlists are deliberately added to from the client rather than by the
+// server: they live in the user's own data blob, which the client saves as a
+// whole (see userDataStore.js), so a server-side edit would just be overwritten
+// by the next client save.
 //
 // An intent is only honoured for a while after the click. If the app was
 // closed and reopened much later, the song suddenly starting to play (or
@@ -38,22 +45,27 @@ function persist(jobs) {
     const active = jobs.filter((j) => j.status === 'pending' || j.status === 'downloading');
     localStorage.setItem(LS_KEY, JSON.stringify(active.map((j) => ({
       jobId: j.jobId, videoId: j.videoId, title: j.title, then: j.then ?? null, startedAt: j.startedAt ?? null,
+      playlistId: j.playlistId ?? null, playlistName: j.playlistName ?? null,
     }))));
   } catch {}
 }
 
 const useDownloadsStore = create((set, get) => ({
-  jobs: [], // [{jobId, videoId, title, status, progress, songId, error, then, startedAt, handled}]
-  // Brief "Playing X" / "Added X to queue" message for when the download
-  // finishes while you're somewhere else in the app — { id, kind, title } | null
+  jobs: [], // [{jobId, videoId, title, status, progress, songId, error, then, playlistId, playlistName, startedAt, handled}]
+  // Brief "Playing X" / "Added X to queue" / "Added X to <playlist>" message for
+  // when the download finishes while you're somewhere else in the app —
+  // { id, kind, title, playlist } | null
   notice: null,
 
-  // then: null (just download) | 'play' | 'queue'
-  startJob: (jobId, videoId, title, then = null) => {
+  // then: null (just download) | 'play' | 'queue' | 'playlist'
+  // extra: for 'playlist', { playlistId, playlistName } — the name is kept on the
+  // job so the progress line can say where it's going even if it's renamed later
+  startJob: (jobId, videoId, title, then = null, extra = {}) => {
     set((s) => {
       const jobs = [...s.jobs.filter((j) => j.jobId !== jobId), {
         jobId, videoId, title, status: 'pending', progress: 0, songId: null, error: null,
-        then, startedAt: Date.now(), handled: false,
+        then, playlistId: extra.playlistId ?? null, playlistName: extra.playlistName ?? null,
+        startedAt: Date.now(), handled: false,
       }];
       persist(jobs);
       return { jobs };
@@ -64,11 +76,28 @@ const useDownloadsStore = create((set, get) => ({
   // Carries out the job's `then` once its song exists. `queue` with nothing
   // loaded in the player has nothing to queue behind — adding it would leave
   // the app silent with the song parked in a list, so it just plays instead.
-  _runThen: async ({ then, songId }) => {
+  _runThen: async ({ then, songId, playlistId }) => {
     try {
       const r = await fetch(`/api/music/${songId}`);
       if (!r.ok) return;
       const song = await r.json();
+
+      if (then === 'playlist') {
+        const userData = useUserDataStore.getState();
+        const playlist = userData.playlists.find((p) => p.id === playlistId);
+        // Deleted while the download ran: the song is still in the library, it
+        // just has nowhere to go — say so instead of silently doing nothing.
+        if (!playlist) { get()._notify('playlistGone', song.title); return; }
+        // The song record goes along so an OFFLINE playlist can save it for
+        // offline use right away (see addToPlaylist).
+        try { await userData.addToPlaylist(playlistId, String(song.id), song); } catch {}
+        // addToPlaylist updates local state before it syncs to the server, so
+        // judge by what is in the playlist now, not by whether the sync threw.
+        const now = useUserDataStore.getState().playlists.find((p) => p.id === playlistId);
+        if (now?.songs.includes(String(song.id))) get()._notify('playlist', song.title, now.name);
+        return;
+      }
+
       const player = usePlayerStore.getState();
       const kind = then === 'play' || !player.currentSong ? 'playing' : 'queued';
       if (kind === 'playing') {
@@ -82,9 +111,9 @@ const useDownloadsStore = create((set, get) => ({
     } catch {}
   },
 
-  _notify: (kind, title) => {
+  _notify: (kind, title, playlist = null) => {
     clearTimeout(noticeTimer);
-    set({ notice: { id: Date.now(), kind, title } });
+    set({ notice: { id: Date.now(), kind, title, playlist } });
     noticeTimer = setTimeout(() => set({ notice: null }), 3000);
   },
 
@@ -116,7 +145,7 @@ const useDownloadsStore = create((set, get) => ({
             const next = { ...j, status: d.status, progress: d.progress, songId: d.song_id ?? j.songId, error: d.error ?? j.error };
             if (d.status === 'done' && next.songId && next.then && !j.handled) {
               next.handled = true;
-              if (j.startedAt && Date.now() - j.startedAt < THEN_MAX_AGE_MS) claimed = { then: next.then, songId: next.songId };
+              if (j.startedAt && Date.now() - j.startedAt < THEN_MAX_AGE_MS) claimed = { then: next.then, songId: next.songId, playlistId: next.playlistId };
             }
             return next;
           });

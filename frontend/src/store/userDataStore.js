@@ -166,7 +166,12 @@ const useUserDataStore = create((set, get) => ({
     }
   },
 
-  addToPlaylist: async (playlistId, songId) => {
+  // `songObj` (optional) is the full song record, for callers that have just
+  // created the song: the offline auto-download below otherwise looks the song up
+  // in the cached library list, which a brand-new download isn't in yet (the
+  // downloads store clears that cache the moment a download finishes), so adding
+  // a fresh download to an offline playlist silently wouldn't save it offline.
+  addToPlaylist: async (playlistId, songId, songObj = null) => {
     const playlist = get().playlists.find((p) => p.id === playlistId);
     const next = get().playlists.map((p) =>
       p.id === playlistId && !p.songs.includes(songId)
@@ -180,7 +185,7 @@ const useUserDataStore = create((set, get) => ({
     if (playlist?.offline) {
       const { cachedIds, cacheSong } = useOfflineStore.getState();
       if (!cachedIds.has(songId)) {
-        const song = getCachedSongs().find((s) => s.id === songId);
+        const song = songObj || getCachedSongs().find((s) => s.id === songId);
         if (song) cacheSong(song);
       }
     }

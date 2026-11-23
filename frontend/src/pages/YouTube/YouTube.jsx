@@ -21,9 +21,13 @@ function fmtViews(n) {
   return `${n} views`;
 }
 
-function PlaylistPicker({ songId, onClose, anchorRef }) {
+// A small list of the user's playlists. Two uses: adding an already-downloaded
+// song to one, and choosing where a download that is about to start should go.
+// `onSelect(playlist)` does whichever; `heading` is an optional label above the
+// list.
+function PlaylistPicker({ onSelect, onClose, anchorRef, heading }) {
   const { t } = useTranslation();
-  const { playlists, addToPlaylist } = useUserDataStore();
+  const playlists = useUserDataStore((s) => s.playlists);
   const [added, setAdded] = useState(null);
   const [coords, setCoords] = useState(null);
   const pickerRef = useRef(null);
@@ -53,9 +57,9 @@ function PlaylistPicker({ songId, onClose, anchorRef }) {
     return () => document.removeEventListener('mousedown', onDown);
   }, [onClose, anchorRef]);
 
-  async function handleAdd(playlistId) {
-    await addToPlaylist(playlistId, String(songId));
-    setAdded(playlistId);
+  async function handleSelect(playlist) {
+    await onSelect(playlist);
+    setAdded(playlist.id);
     setTimeout(onClose, 900);
   }
 
@@ -67,12 +71,15 @@ function PlaylistPicker({ songId, onClose, anchorRef }) {
       style={{ top: coords.top, bottom: coords.bottom, left: coords.left }}
       className="fixed bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-[300] min-w-44 max-h-56 overflow-y-auto"
     >
+      {heading && playlists.length > 0 && (
+        <p className="text-zinc-500 text-[11px] uppercase tracking-wider font-semibold px-3 pt-2.5 pb-1">{heading}</p>
+      )}
       {playlists.length === 0 ? (
         <p className="text-zinc-500 text-xs px-3 py-3">{t('nav.noPlaylists')}</p>
       ) : playlists.map((p) => (
         <button
           key={p.id}
-          onClick={() => handleAdd(p.id)}
+          onClick={() => handleSelect(p)}
           className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 text-white flex items-center justify-between gap-2 first:rounded-t-xl last:rounded-b-xl"
         >
           <span className="truncate">{p.name}</span>
@@ -100,7 +107,9 @@ function DownloadBtn({ videoId, title }) {
   const progress = job?.progress ?? 0;
   const songId = job?.songId ?? null;
   const errorMsg = job?.error ?? null;
-  const [showPicker, setShowPicker] = useState(false);
+  const addToPlaylist = useUserDataStore((s) => s.addToPlaylist);
+  const [showPicker, setShowPicker] = useState(false);       // after the download: add this song to a playlist
+  const [showDlPicker, setShowDlPicker] = useState(false);   // before it: pick where the download should go
   const [playing, setPlaying] = useState(false);
   const [queued, setQueued] = useState(false);
   // Only for the POST itself failing before a job (and thus a store entry)
@@ -134,10 +143,11 @@ function DownloadBtn({ videoId, title }) {
     } catch {}
   }
 
-  // then: null (just download) | 'play' | 'queue' — carried out by the
-  // downloads store when the job finishes, so it works even if this modal
-  // is closed or you leave the page in the meantime.
-  async function start(then = null) {
+  // then: null (just download) | 'play' | 'queue' | 'playlist' — carried out by
+  // the downloads store when the job finishes, so it works even if this modal
+  // is closed or you leave the page in the meantime. For 'playlist', `extra`
+  // is { playlistId, playlistName }.
+  async function start(then = null, extra = {}) {
     setStartFailed(false);
     try {
       const r = await fetch('/api/youtube/download', {
@@ -148,11 +158,12 @@ function DownloadBtn({ videoId, title }) {
       if (!r.ok) return setStartFailed(true);
       const d = await r.json();
       if (!d.jobId) return setStartFailed(true);
-      startJob(d.jobId, videoId, title, then);
+      startJob(d.jobId, videoId, title, then, extra);
     } catch { setStartFailed(true); }
   }
 
   const pickerBtnRef = useRef(null);
+  const dlPickerBtnRef = useRef(null);
 
   if (status === 'done')
     return (
@@ -192,7 +203,13 @@ function DownloadBtn({ videoId, title }) {
               <ListPlus size={13} />
               {t('library.addToPlaylist')}
             </button>
-            {showPicker && <PlaylistPicker songId={songId} anchorRef={pickerBtnRef} onClose={() => setShowPicker(false)} />}
+            {showPicker && (
+              <PlaylistPicker
+                anchorRef={pickerBtnRef}
+                onSelect={(p) => addToPlaylist(p.id, String(songId))}
+                onClose={() => setShowPicker(false)}
+              />
+            )}
           </>
         )}
       </div>
@@ -234,7 +251,9 @@ function DownloadBtn({ videoId, title }) {
         <span>{stillProcessing ? t('youtube.processing') : `${Math.round(progress)}%`}</span>
         {job?.then && (
           <span className="text-zinc-500 text-xs">
-            · {job.then === 'play' ? t('youtube.willPlay') : t('youtube.willQueue')}
+            · {job.then === 'play' ? t('youtube.willPlay')
+              : job.then === 'playlist' ? t('youtube.willPlaylist', { name: job.playlistName })
+              : t('youtube.willQueue')}
           </span>
         )}
         <button
@@ -270,6 +289,24 @@ function DownloadBtn({ videoId, title }) {
         <ListOrdered size={14} />
         {t('youtube.downloadAndQueue')}
       </button>
+      {/* Choose a playlist now; the song is added to it automatically once the
+          download finishes. */}
+      <button
+        ref={dlPickerBtnRef}
+        onClick={() => setShowDlPicker((v) => !v)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors ${showDlPicker ? 'bg-zinc-600' : 'bg-zinc-700'}`}
+      >
+        <ListPlus size={14} />
+        {t('youtube.downloadAndPlaylist')}
+      </button>
+      {showDlPicker && (
+        <PlaylistPicker
+          anchorRef={dlPickerBtnRef}
+          heading={t('youtube.pickPlaylist')}
+          onSelect={(p) => start('playlist', { playlistId: p.id, playlistName: p.name })}
+          onClose={() => setShowDlPicker(false)}
+        />
+      )}
       <button
         onClick={() => start()}
         className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full text-sm font-medium transition-colors"
