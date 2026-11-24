@@ -1,12 +1,19 @@
 {
   "identifier": "default",
   "description": "Default capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "remote": {
-    "urls": ["https://quarcnet0.tail84500c.ts.net:4000"]
+    "urls": [
+      "https://quarcnet0.tail84500c.ts.net:4000"
+    ]
   },
   "permissions": [
     "core:default",
-    "shell:allow-open"
+    "shell:allow-open",
+    "allow-quarc-sso-peek",
+    "allow-quarc-sso-sync",
+    "allow-quarc-sso-open-store"
   ]
 }
